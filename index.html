@@ -217,6 +217,7 @@ input[type=text]:focus{border-color:var(--menthe);}
 .ichip{border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:6px 12px;
   font-size:22px; background:rgba(255,255,255,.14); cursor:pointer;}
 .ichip:active{transform:scale(.92);}
+.ichip.off{opacity:.45;}
 .teamband{margin:8px auto 0; max-width:340px; border-radius:14px; padding:6px 10px;
   font-weight:800; font-size:14px; background:rgba(90,200,250,.18); border:2px solid var(--bleu);}
 /* ---------- mini-jeux : tir & déplacement ---------- */
@@ -279,6 +280,7 @@ input[type=text]:focus{border-color:var(--menthe);}
   <p class="hint center">Ajoute les joueurs (2 à 6). Tape sur l'emoji pour changer de personnage.</p>
   <div id="localList"></div>
   <button class="btn ghost" id="btnAddLocal">+ Ajouter un joueur</button>
+  <button class="btn ghost" id="btnLocalMap">🗺️ Carte : 🎪 Île de la Fête</button>
   <button class="btn" id="btnStartLocal">🚀 C'est parti !</button>
   <button class="btn ghost" onclick="show('scr-home')">← Retour</button>
 </div>
@@ -296,6 +298,7 @@ input[type=text]:focus{border-color:var(--menthe);}
   <h2 class="center" style="font-size:24px; margin:6px 0 0;">Salon d'attente</h2>
   <div class="code-pill center" id="lobbyCode">····</div>
   <p class="hint center">Partage ce code avec tes amis pour qu'ils te rejoignent 📣<br>(2 à 6 joueurs)</p>
+  <div id="mapRow" class="center" style="margin:6px 0 2px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"></div>
   <div class="plist" id="lobbyList"></div>
   <button class="btn" id="btnStart" style="display:none;">🚀 Lancer la partie !</button>
   <p class="hint center" id="waitHost" style="display:none;">En attente que l'hôte lance la partie…</p>
@@ -594,16 +597,15 @@ function addCoins(p,n){ if(n>0) p.coinsEarned=(p.coinsEarned||0)+n; p.coins=Math
 function popShield(p){ const it=pItems(p), i=it.indexOf('shield'); if(i>=0){ it.splice(i,1); return true; } return false; }
 function starCost(){ return room.starCost||20; }
 
-/* Carte façon Mario Party : grande boucle sinueuse (32 cases, sens horaire)
-   + raccourci central risqué (5 cases) avec carrefour au nœud 4.
-   Chaque case est un nœud {t, x, y, next:[...]} — le plateau est un graphe. */
-const LOOP_N=32;
-function makeBoard(){
-  const nodes=[], cx=210, cy=250, Rx=152, Ry=196;
-  for(let i=0;i<LOOP_N;i++){
-    const a=-Math.PI/2+i*2*Math.PI/LOOP_N;
+/* Cartes façon Mario Party : chaque case est un nœud {t, x, y, next:[...], z:zone}
+   — le plateau est un graphe. Une carte = {id, name, e, nodes, starSpots,
+   meta:{view, isles, zones, deco}} ; le rendu est 100% piloté par meta. */
+function mapFete(){
+  const LOOP=32, nodes=[], cx=210, cy=250, Rx=152, Ry=196;
+  for(let i=0;i<LOOP;i++){
+    const a=-Math.PI/2+i*2*Math.PI/LOOP;
     const w=1+0.10*Math.sin(3*a+1.2);
-    nodes.push({t:'blue', x:Math.round(cx+Rx*w*Math.cos(a)), y:Math.round(cy+Ry*w*Math.sin(a)), next:[(i+1)%LOOP_N]});
+    nodes.push({t:'blue', x:Math.round(cx+Rx*w*Math.cos(a)), y:Math.round(cy+Ry*w*Math.sin(a)), next:[(i+1)%LOOP]});
   }
   // raccourci : du carrefour (4) vers le bas-gauche (18), à travers la fête
   const A=nodes[4], B=nodes[18], SC=5;
@@ -612,14 +614,146 @@ function makeBoard(){
     nodes.push({t:'blue',
       x:Math.round(A.x+(B.x-A.x)*t+30*Math.sin(t*Math.PI)),
       y:Math.round(A.y+(B.y-A.y)*t),
-      next:[k<SC?LOOP_N+k:18]});
+      next:[k<SC?LOOP+k:18]});
   }
-  nodes[4].next=[5,LOOP_N]; // carrefour : boucle ou raccourci
-  const TYPES={start:[0], starT:STAR_SPOTS, red:[3,11,19,27,35], lucky:[6,21],
+  nodes[4].next=[5,LOOP]; // carrefour : boucle ou raccourci
+  nodes[4].labels=['🎡 Grande boucle (vers les étoiles)','⚡ Raccourci risqué (plus court !)'];
+  const starSpots=[8,16,24,30];
+  const TYPES={start:[0], starT:starSpots, red:[3,11,19,27,35], lucky:[6,21],
     event:[2,9,17,25,33], shop:[5,23], boo:[13], duel:[10,28],
     bank:[15], chance:[22], bowser:[31,34]};
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
-  return nodes;
+  // zones : 0 fête foraine (haut/droite + raccourci), 1 bois étoilé (bas), 2 glacier (gauche)
+  nodes.forEach((n,i)=>{ n.z=i>=LOOP?0:(i<=10?0:(i<=21?1:2)); });
+  return {
+    id:'fete', name:'Île de la Fête', e:'🎪', nodes, starSpots,
+    meta:{
+      view:[-26,-24,472,588],
+      isles:[{cx:210,cy:250,rx:214,ry:254}],
+      zones:[{name:'Fête Foraine',blue:'#5AC8FA'},{name:'Bois Étoilé',blue:'#6FD69B'},{name:'Glacier Lunaire',blue:'#A8DCFF'}],
+      deco:[
+        {x:250,y:118,e:'🎪',s:40},{x:306,y:172,e:'🎈',s:22,d:.6},{x:322,y:252,e:'🎡',s:32,d:1.2},
+        {x:232,y:306,e:'🎢',s:26,d:.3},{x:186,y:214,e:'🎠',s:24,d:1.5},
+        {x:230,y:418,e:'🌲',s:30,d:.2},{x:152,y:398,e:'🌳',s:26,d:.9},{x:192,y:452,e:'⛺',s:22,d:1.4},{x:268,y:452,e:'🍄',s:18,d:.5},
+        {x:92,y:268,e:'⛄',s:28,d:.7},{x:72,y:198,e:'❄️',s:20,d:1.1},{x:112,y:338,e:'🧊',s:20,d:1.9},
+        {x:14,y:60,e:'🪐',s:24,d:1.8},{x:386,y:112,e:'🛸',s:20,d:2.3},{x:392,y:430,e:'🌙',s:22,d:.9},
+        {x:34,y:140,e:'☁️',s:15,st:1},{x:368,y:300,e:'☁️',s:16,st:1},{x:66,y:470,e:'☁️',s:14,st:1},
+        {x:0,y:240,e:'✦',s:13,st:1,c:'#FFD644'},{x:404,y:200,e:'✦',s:15,st:1,c:'#FF5FA2'},
+        {x:382,y:520,e:'✦',s:13,st:1,c:'#3EE6C1'},{x:196,y:-8,e:'✧',s:11,st:1,c:'#5AC8FA'},{x:18,y:540,e:'✦',s:12,st:1,c:'#C39BFF'}
+      ]
+    }
+  };
+}
+function mapSpirale(){
+  // figure-8 verticale : demi-boucle haute droite → grande boucle basse → demi-boucle haute gauche
+  const nodes=[];
+  const tx=210, ty=130, tRx=125, tRy=95;    // ellipse haute
+  const bx=210, by=385, bRx=150, bRy=135;   // ellipse basse
+  const P=(cx,cy,rx,ry,deg)=>{ const a=deg*Math.PI/180;
+    return {x:Math.round(cx+rx*Math.cos(a)), y:Math.round(cy+ry*Math.sin(a))}; };
+  for(let i=0;i<8;i++){ // 0..7 : droite de la boucle haute (haut → taille)
+    const p=P(tx,ty,tRx,tRy,-90+i*(180/8));
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[i+1]});
+  }
+  for(let k=0;k<16;k++){ // 8..23 : grande boucle basse complète
+    const p=P(bx,by,bRx,bRy,-90+k*22.5);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[8+k+1]});
+  }
+  nodes[23].next=[24];
+  for(let k=0;k<8;k++){ // 24..31 : gauche de la boucle haute (taille → haut)
+    const p=P(tx,ty,tRx,tRy,90+k*(180/8));
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[24+k+1]});
+  }
+  nodes[31].next=[0];
+  nodes[7].next=[8,24]; // carrefour de la taille du 8
+  nodes[7].labels=['🌌 Grande spirale (étoiles et banque)','⚡ Petite boucle (retour éclair)'];
+  const starSpots=[5,12,20,28];
+  const TYPES={start:[0], starT:starSpots, red:[3,10,17,26,30], lucky:[6,15],
+    event:[2,9,18,25], shop:[4,21], boo:[16], duel:[11,27],
+    bank:[13], chance:[22], bowser:[19,31]};
+  for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
+  // zones : 0 nébuleuse (boucle haute), 1 astéroïdes (bas droite), 2 aurore (bas gauche)
+  nodes.forEach((n,i)=>{ n.z=(i<=7||i>=24)?0:(i<=15?1:2); });
+  return {
+    id:'spirale', name:'Spirale Céleste', e:'🌀', nodes, starSpots,
+    meta:{
+      view:[-28,-48,476,668],
+      isles:[{cx:tx,cy:ty,rx:172,ry:138},{cx:bx,cy:by,rx:196,ry:174}],
+      zones:[{name:'Nébuleuse Rose',blue:'#F09BD8'},{name:'Ceinture d\'Astéroïdes',blue:'#9FB6D8'},{name:'Aurore Émeraude',blue:'#7FE3B8'}],
+      deco:[
+        {x:210,y:140,e:'🔭',s:32},{x:150,y:96,e:'💫',s:22,d:.5},{x:282,y:100,e:'🛰️',s:24,d:1.1},
+        {x:262,y:360,e:'🪨',s:28,d:.3},{x:300,y:432,e:'☄️',s:24,d:1.4},{x:262,y:452,e:'🌑',s:20,d:.8},
+        {x:158,y:362,e:'🌌',s:28,d:.6},{x:130,y:438,e:'🌠',s:24,d:1.7},{x:196,y:462,e:'✨',s:20,d:1.0},
+        {x:20,y:6,e:'🪐',s:24,d:1.8},{x:396,y:214,e:'🛸',s:20,d:2.3},{x:390,y:560,e:'🌙',s:22,d:.9},
+        {x:36,y:250,e:'☁️',s:15,st:1},{x:378,y:390,e:'☁️',s:16,st:1},{x:60,y:560,e:'☁️',s:14,st:1},
+        {x:-4,y:130,e:'✦',s:13,st:1,c:'#FFD644'},{x:408,y:60,e:'✦',s:15,st:1,c:'#FF5FA2'},
+        {x:398,y:480,e:'✦',s:13,st:1,c:'#3EE6C1'},{x:200,y:-30,e:'✧',s:11,st:1,c:'#5AC8FA'},{x:16,y:600,e:'✦',s:12,st:1,c:'#C39BFF'}
+      ]
+    }
+  };
+}
+function mapArchipel(){
+  // deux îles : Plage (haut-gauche) et Jungle (bas-droite), reliées par deux ponts
+  const nodes=[];
+  const ax=140, ay=170, aRx=100, aRy=112;   // île A
+  const bx2=290, by2=430, bRx2=108, bRy2=118; // île B
+  const P=(cx,cy,rx,ry,deg)=>{ const a=deg*Math.PI/180;
+    return {x:Math.round(cx+rx*Math.cos(a)), y:Math.round(cy+ry*Math.sin(a))}; };
+  for(let i=0;i<14;i++){ // 0..13 : boucle de l'île A
+    const p=P(ax,ay,aRx,aRy,-90+i*(360/14));
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%14]});
+  }
+  for(let k=0;k<14;k++){ // 14..27 : boucle de l'île B
+    const p=P(bx2,by2,bRx2,bRy2,-90+k*(360/14));
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[14+(k+1)%14]});
+  }
+  // pont 1 : A(5, sud-est) → B(14, nord)
+  nodes.push({t:'blue',x:240,y:262,next:[29]});  // 28
+  nodes.push({t:'blue',x:264,y:288,next:[14]});  // 29
+  // pont 2 : B(26, nord-ouest) → A(7, sud)
+  nodes.push({t:'blue',x:192,y:332,next:[31]});  // 30
+  nodes.push({t:'blue',x:163,y:303,next:[7]});   // 31
+  nodes[5].next=[6,28];
+  nodes[5].labels=['🏖️ Rester sur la Plage','🌉 Pont vers la Jungle'];
+  nodes[26].next=[27,30];
+  nodes[26].labels=['🌴 Rester dans la Jungle','🌉 Pont vers la Plage'];
+  const starSpots=[4,10,18,24];
+  const TYPES={start:[0], starT:starSpots, red:[2,8,16,22,29], lucky:[6,20],
+    event:[3,12,15,25], shop:[9,21], boo:[17], duel:[11,23],
+    bank:[19], chance:[13], bowser:[28,31]};
+  for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
+  // zones : 0 plage (île A), 1 jungle (île B), 2 ponts des brumes
+  nodes.forEach((n,i)=>{ n.z=i<=13?0:(i<=27?1:2); });
+  return {
+    id:'archipel', name:'Archipel Perdu', e:'🏝️', nodes, starSpots,
+    meta:{
+      view:[-24,-14,486,650],
+      isles:[{cx:ax,cy:ay,rx:142,ry:152},{cx:bx2,cy:by2,rx:150,ry:160}],
+      zones:[{name:'Plage Dorée',blue:'#EFD48A'},{name:'Jungle Sauvage',blue:'#6FD69B'},{name:'Ponts des Brumes',blue:'#B9A8E8'}],
+      deco:[
+        {x:118,y:142,e:'🌴',s:32},{x:152,y:112,e:'⛱️',s:24,d:.7},{x:172,y:202,e:'🐚',s:18,d:1.2},{x:100,y:222,e:'🦀',s:18,d:.4},
+        {x:290,y:428,e:'🌋',s:38},{x:334,y:380,e:'🦜',s:22,d:.9},{x:252,y:478,e:'🌺',s:22,d:1.5},{x:322,y:482,e:'🐒',s:20,d:.3},{x:246,y:382,e:'🌴',s:24,d:1.9},
+        {x:228,y:300,e:'🌫️',s:22,d:.6},
+        {x:62,y:376,e:'🌊',s:18,st:1},{x:392,y:222,e:'🌊',s:16,st:1},{x:196,y:560,e:'🌊',s:16,st:1},{x:400,y:580,e:'🌊',s:14,st:1},
+        {x:24,y:38,e:'🪐',s:24,d:1.8},{x:404,y:98,e:'🛸',s:20,d:2.3},{x:412,y:520,e:'🌙',s:22,d:.9},
+        {x:44,y:300,e:'☁️',s:15,st:1},{x:388,y:330,e:'☁️',s:16,st:1},
+        {x:-2,y:200,e:'✦',s:13,st:1,c:'#FFD644'},{x:420,y:180,e:'✦',s:15,st:1,c:'#FF5FA2'},
+        {x:60,y:600,e:'✦',s:13,st:1,c:'#3EE6C1'},{x:210,y:2,e:'✧',s:11,st:1,c:'#5AC8FA'}
+      ]
+    }
+  };
+}
+const MAP_MAKERS=[mapFete,mapSpirale,mapArchipel];
+const MAP_LIST=MAP_MAKERS.map(f=>{ const m=f(); return {id:m.id,name:m.name,e:m.e}; });
+function mapById(id){
+  for(const f of MAP_MAKERS){ const m=f(); if(m.id===id) return m; }
+  return mapFete();
+}
+function applyMap(st,id){
+  const m=mapById(id);
+  st.mapId=m.id; st.board=m.nodes; st.mapMeta=m.meta;
+  st.starSpots=m.starSpots; st.starIdx=m.starSpots[0];
+  return m;
 }
 
 /* ---------- pop-ups : effets (tous les joueurs) & choix (joueur actif) ---------- */
@@ -675,8 +809,9 @@ $('btnCreate').onclick=async()=>{
   $('netNotice').style.display='none';
   const st={code:'', hostId:me.id, status:'lobby', version:1,
     players:[{id:me.id,name:me.name,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
-    turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0], starCost:20, bank:0,
-    board:makeBoard(), log:['La partie est créée !'], mg:null, mgScores:{}};
+    turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
+    log:['La partie est créée !'], mg:null, mgScores:{}};
+  applyMap(st,'fete');
   const resp=await new Promise(res=>{ createResolve=res; send({t:'create', state:st});
     setTimeout(()=>{ if(createResolve){ createResolve(null); createResolve=null; } },6000); });
   $('btnCreate').disabled=false; $('btnCreate').textContent='🎲 Créer une partie en ligne';
@@ -689,6 +824,16 @@ $('btnCreate').onclick=async()=>{
 let local=false;
 let localMg=null;
 let localCount=0;
+let localMapId='fete';
+window.addEventListener('load',()=>{
+  const b=$('btnLocalMap'); if(!b) return;
+  b.onclick=()=>{
+    const i=MAP_LIST.findIndex(m=>m.id===localMapId);
+    const n=MAP_LIST[(i+1)%MAP_LIST.length];
+    localMapId=n.id; snd('tap');
+    b.textContent='🗺️ Carte : '+n.e+' '+n.name;
+  };
+});
 function addLocalRow(name){
   if(localCount>=6) return;
   const i=localCount++;
@@ -721,8 +866,9 @@ $('btnStartLocal').onclick=()=>{
   local=true; roomKey='';
   clearInterval(pollI); clearInterval(hostI);
   room={code:'LOCAL', hostId:'local', status:'board', version:1,
-    players, turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0], starCost:20, bank:0,
-    board:makeBoard(), log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null, mgScores:{}};
+    players, turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
+    log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null, mgScores:{}};
+  applyMap(room, localMapId);
   render();
 };
 
@@ -766,6 +912,17 @@ function render(){
 function renderLobby(){
   show('scr-lobby');
   $('lobbyCode').textContent=room.code;
+  const curMap=MAP_LIST.find(m=>m.id===room.mapId)||MAP_LIST[0];
+  $('mapRow').innerHTML=isHost()
+    ? MAP_LIST.map(m=>`<button class="ichip ${m.id===room.mapId?'':'off'}" data-m="${m.id}" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">${m.e} ${m.name}</button>`).join('')
+    : '<span class="hint">🗺️ Carte : '+curMap.e+' '+curMap.name+'</span>';
+  if(isHost()) $('mapRow').querySelectorAll('.ichip').forEach(b=>b.onclick=async()=>{
+    if(b.dataset.m===room.mapId) return;
+    const m=applyMap(room,b.dataset.m);
+    room.log.push('🗺️ Carte choisie : '+m.e+' '+m.name);
+    snd('tap');
+    await saveRoom();
+  });
   $('lobbyList').innerHTML=room.players.map(p=>
     `<div class="prow" style="border-left:5px solid ${p.color||'#FFD644'};"><span class="pav">${p.avatar}</span>${p.name}
      ${p.id===room.hostId?'<span class="tag">HÔTE</span>':''}</div>`).join('');
@@ -803,25 +960,26 @@ function renderBoard(){
   const TOPC={start:'#F4F0FF',blue:'#5AC8FA',red:'#FF6B6B',lucky:'#3EE6C1',event:'#FF9F45',starT:'#8E7CFF',shop:'#C39BFF',boo:'#9B89D8',duel:'#FF8FAB',bank:'#F0C34E',chance:'#FF9FF3',bowser:'#5B3A8E'};
   const ICON={start:'🏁',blue:'🪙',red:'💥',lucky:'🍀',event:'🎁',shop:'🛍️',boo:'👻',duel:'⚔️',bank:'🏦',chance:'🎰',bowser:'👹'};
   const L=27, H=16, DEP=12;
-  const cx=210, cy=250, Rx=152, Ry=196;
-  // routes (boucle + raccourci)
+  const MM=room.mapMeta||mapFete().meta;
+  // routes (tous les segments du graphe)
   let roadPath='';
   nodes.forEach(n=>n.next.forEach(j=>{ const m=nodes[j]; roadPath+=`M${n.x},${n.y} L${m.x},${m.y} `; }));
   const roads=`
     <path d="${roadPath}" stroke="#160D38" stroke-width="24" fill="none" stroke-linecap="round"/>
     <path d="${roadPath}" stroke="#2A1858" stroke-width="17" fill="none" stroke-linecap="round"/>
     <path d="${roadPath}" stroke="rgba(255,255,255,.22)" stroke-width="2.5" fill="none" stroke-dasharray="1 9" stroke-linecap="round"/>`;
-  // île organique (2 ellipses = épaisseur) + anneau décoratif
-  const island=`
-    <ellipse cx="${cx}" cy="${cy+30}" rx="${Rx+62}" ry="${Ry+58}" fill="#150C36"/>
-    <ellipse cx="${cx}" cy="${cy}" rx="${Rx+62}" ry="${Ry+58}" fill="#241553" stroke="#3A2A70" stroke-width="3"/>
-    <ellipse cx="${cx}" cy="${cy}" rx="${Rx+34}" ry="${Ry+32}" fill="none" stroke="rgba(255,255,255,.045)" stroke-width="18"/>`;
+  // îles organiques (2 ellipses = épaisseur) + anneau décoratif
+  const island=MM.isles.map(I=>`
+    <ellipse cx="${I.cx}" cy="${I.cy+30}" rx="${I.rx}" ry="${I.ry}" fill="#150C36"/>
+    <ellipse cx="${I.cx}" cy="${I.cy}" rx="${I.rx}" ry="${I.ry}" fill="#241553" stroke="#3A2A70" stroke-width="3"/>
+    <ellipse cx="${I.cx}" cy="${I.cy}" rx="${Math.max(20,I.rx-28)}" ry="${Math.max(20,I.ry-26)}" fill="none" stroke="rgba(255,255,255,.045)" stroke-width="18"/>`).join('');
   // cases (peintre : par y croissant)
   let cells='';
   nodes.map((n,i)=>({n,i})).sort((a,b)=>a.n.y-b.n.y).forEach(o=>{
     const x=o.n.x, y=o.n.y;
     const active=o.n.t==='starT'&&o.i===room.starIdx;
-    const top=active?'#FFD644':TOPC[o.n.t]||'#5AC8FA';
+    const zone=MM.zones&&MM.zones[o.n.z||0];
+    const top=active?'#FFD644':(o.n.t==='blue'&&zone?zone.blue:TOPC[o.n.t]||'#5AC8FA');
     const icon=o.n.t==='starT'?(active?'⭐':'☆'):ICON[o.n.t];
     cells+=`<g>
       ${active?`<ellipse cx="${x}" cy="${y}" rx="${L+22}" ry="${H+16}" fill="#FFD64418"/>
@@ -841,28 +999,16 @@ function renderBoard(){
         <text class="tok ${q.pi===room.turn?'cur':''}" x="${x+dx}" y="${y-11}" text-anchor="middle" font-size="23" style="filter:drop-shadow(0 4px 3px rgba(0,0,0,.55));">${q.p.avatar}</text>`;
     });
   });
-  // panneau du carrefour
-  const jc=nodes[4];
-  const junction=`<text class="deco" x="${jc.x+26}" y="${jc.y-18}" font-size="17" text-anchor="middle">🧭</text>`;
-  // décor : la fête au cœur de l'île + espace autour
-  const deco=`
-    <text class="deco" x="150" y="185" font-size="46" text-anchor="middle">🎪</text>
-    <text class="deco" style="animation-delay:.6s" x="128" y="292" font-size="36" text-anchor="middle">🎡</text>
-    <text class="deco" style="animation-delay:1.2s" x="172" y="382" font-size="30" text-anchor="middle">🎠</text>
-    <text class="deco" style="animation-delay:.3s" x="318" y="238" font-size="28" text-anchor="middle">🎢</text>
-    <text class="deco" style="animation-delay:1.5s" x="252" y="152" font-size="22" text-anchor="middle">🎈</text>
-    <text class="deco" style="animation-delay:1.8s" x="14" y="60" font-size="24">🪐</text>
-    <text class="deco" style="animation-delay:2.3s" x="386" y="112" font-size="20">🛸</text>
-    <text class="deco" style="animation-delay:.9s" x="392" y="430" font-size="22">🌙</text>
-    <text x="34" y="140" font-size="15" opacity=".4">☁️</text>
-    <text x="368" y="300" font-size="16" opacity=".4">☁️</text>
-    <text x="66" y="470" font-size="14" opacity=".35">☁️</text>
-    <text x="0" y="240" font-size="13" fill="#FFD644" opacity=".5">✦</text>
-    <text x="404" y="200" font-size="15" fill="#FF5FA2" opacity=".5">✦</text>
-    <text x="382" y="520" font-size="13" fill="#3EE6C1" opacity=".55">✦</text>
-    <text x="196" y="-8" font-size="11" fill="#5AC8FA" opacity=".5">✧</text>
-    <text x="18" y="540" font-size="12" fill="#C39BFF" opacity=".5">✦</text>`;
-  $('boardWrap').innerHTML=`<svg viewBox="-26 -24 472 588" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
+  // panneaux de carrefour (tout nœud à 2 sorties)
+  const junction=nodes.filter(n=>n.next.length>1)
+    .map(n=>`<text class="deco" x="${n.x+26}" y="${n.y-18}" font-size="17" text-anchor="middle">🧭</text>`).join('');
+  // décor de la carte (zones thématiques + espace)
+  const deco=(MM.deco||[]).map(d=>
+    d.st
+      ? `<text x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle" ${d.c?`fill="${d.c}"`:''} opacity="${d.c?'.5':'.4'}">${d.e}</text>`
+      : `<text class="deco" ${d.d?`style="animation-delay:${d.d}s"`:''} x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle">${d.e}</text>`
+  ).join('');
+  $('boardWrap').innerHTML=`<svg viewBox="${(MM.view||[-26,-24,472,588]).join(' ')}" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
     ${island}
     ${deco}
     ${roads}
@@ -966,13 +1112,14 @@ async function startRoll(kind,forced){
 }
 
 async function nextPos(p){
-  const nxt=room.board[p.pos].next;
+  const node=room.board[p.pos], nxt=node.next;
   if(nxt.length<2) return nxt[0];
   snd('pop');
+  const labels=node.labels||[];
   const v=await ask({icon:'🧭',title:'CARREFOUR !',text:p.name+', quel chemin veux-tu prendre ?',
-    options:nxt.map(j=>({
-      label:j>=LOOP_N?'⚡ Raccourci risqué (plus court !)':'🎡 Grande boucle (vers les étoiles)',
-      value:j, cls:j>=LOOP_N?'rose':'menthe'
+    options:nxt.map((j,k)=>({
+      label:labels[k]||('🧭 Chemin '+(k+1)),
+      value:j, cls:k===0?'menthe':'rose'
     }))});
   return v??nxt[0];
 }
@@ -1127,7 +1274,7 @@ async function passStar(p){
   if(!buy){ room.log.push(p.name+' fait le radin devant l\'étoile 😏'); return; }
   p.coins-=cost; p.stars++;
   snd('star');
-  const others=STAR_SPOTS.filter(x=>x!==room.starIdx);
+  const others=(room.starSpots||STAR_SPOTS).filter(x=>x!==room.starIdx);
   room.starIdx=others[rnd(others.length)];
   fxCast('🌟','ÉTOILE !',p.name+' achète une ÉTOILE ! Elle réapparaît ailleurs…',2600);
   room.log.push('🌟 '+p.name+' achète une ÉTOILE !');
@@ -1240,7 +1387,7 @@ async function doEvent(p){
     }
   }
   else if(ev==='star'){
-    const spots=STAR_SPOTS.filter(x=>x!==room.starIdx);
+    const spots=(room.starSpots||STAR_SPOTS).filter(x=>x!==room.starIdx);
     room.starIdx=spots[rnd(spots.length)];
     fxCast('⭐','L\'ÉTOILE S\'ENVOLE !','Elle change de place sur le plateau !');
     room.log.push('⭐ L\'étoile change de place !');
@@ -1305,7 +1452,9 @@ const MG_INFO=[
   {name:'Fusée Folle',desc:'Tape pour faire monter la fusée 🚀, passe entre les astéroïdes ! Chaque passage = +10.'},
   {name:'Rythme des Étoiles',desc:'Tape PILE quand le cercle se referme sur l\'étoile ! 10 notes, en rythme…'},
   {name:'Alunissage',desc:'Maintiens pour freiner 🚀 et pose-toi EN DOUCEUR sur la lune ! 3 atterrissages.'},
-  {name:'Bataille Spatiale',desc:'BATAILLE EN DIRECT 🔵🔴 : glisse ton doigt pour piloter, ton vaisseau tire tout seul sur l\'ennemi le plus proche ! 30 s.',rt:true,team:true}
+  {name:'Bataille Spatiale',desc:'BATAILLE EN DIRECT 🔵🔴 : glisse ton doigt pour piloter, ton vaisseau tire tout seul sur l\'ennemi le plus proche ! 30 s.',rt:true,team:true},
+  {name:'Course Céleste LIVE',desc:'COURSE EN DIRECT : tape GAUCHE-DROITE en alternance, premier aux 100 m ! Vous vous voyez courir en temps réel.',rt:true},
+  {name:'Ruée aux Étoiles',desc:'DUEL EN DIRECT : pilote ton vaisseau et rafle les ⭐ avant les autres ! Évite les 💣. 30 s.',rt:true}
 ];
 const MG_COUNT=MG_INFO.length;
 let mgPlayed=false, mgTimerI=null;
@@ -1353,7 +1502,8 @@ function startMiniGame(){
   $('mgTimer').textContent='';
   const type=room.mg.type;
   const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge,
-    mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle];
+    mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle,
+    mgRaceLive,mgStarRush];
   (games[type]||mgTapo)(area);
 }
 
@@ -2443,6 +2593,186 @@ function mgBattle(area){
         $('mgTimer').textContent='';
         snd('fanfare');
         submitScore(kills*10);
+        return;
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+
+/* --- mini-jeu 27 : course céleste LIVE (temps réel, en ligne) --- */
+function mgRaceLive(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.style.touchAction='none';
+    const others=room.players;
+    area.innerHTML=`<div style="width:94%;height:100%;display:flex;flex-direction:column;justify-content:space-between;padding:10px 0;">
+      <div id="rlLanes"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="runbtn" style="background:var(--bleu);height:88px;" id="rlL">👟 GAUCHE</button>
+        <button class="runbtn" style="background:var(--rose);height:88px;" id="rlR">👟 DROITE</button>
+      </div>
+    </div>`;
+    const lanes=area.querySelector('#rlLanes');
+    const state={}; // id -> {d, el, done}
+    others.forEach(p=>{
+      const row=document.createElement('div');
+      row.style.cssText='position:relative;height:30px;margin:3px 0;background:rgba(255,255,255,.09);border-radius:10px;overflow:hidden;';
+      row.innerHTML=`<div class="rlFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;background:${p.color||'#FFD644'}44;border-radius:10px;transition:width .15s;"></div>
+        <div class="rlAv" style="position:absolute;top:1px;left:0%;font-size:20px;transition:left .15s;">${p.avatar}</div>
+        <div style="position:absolute;right:6px;top:6px;font-size:11px;font-weight:800;opacity:.7;">${p.id===me.id?'TOI':p.name.slice(0,9)}</div>
+        <div class="rlFlag" style="position:absolute;right:26px;top:4px;font-size:15px;display:none;">🏁</div>`;
+      lanes.appendChild(row);
+      state[p.id]={d:0,el:row,done:false};
+    });
+    let myDist=0, lastSide=null, t0=null, over=false, lastSend=0, finishedCount=0;
+    const start=Date.now();
+    function paint(id){
+      const s=state[id]; if(!s) return;
+      s.el.querySelector('.rlFill').style.width=s.d+'%';
+      s.el.querySelector('.rlAv').style.left=Math.min(86,s.d*.86)+'%';
+      if(s.done) s.el.querySelector('.rlFlag').style.display='block';
+    }
+    window.mgAct=d=>{
+      if(over) return;
+      if(d.k==='rd'&&state[d.id]&&d.id!==me.id){
+        state[d.id].d=d.d; if(d.f&&!state[d.id].done){ state[d.id].done=true; finishedCount++; snd('tick'); }
+        paint(d.id);
+      }
+    };
+    function finish(win){
+      if(over) return; over=true;
+      clearInterval(timerI); window.mgAct=null;
+      const el2=t0?(Date.now()-t0)/1000:99;
+      const sc=win?Math.max(40,Math.round(400-el2*18)):myDist*2;
+      actSend({k:'rd',id:me.id,d:myDist,f:win?1:0});
+      $('mgTimer').textContent='';
+      if(win){ snd('yay'); state[me.id].done=true; paint(me.id); }
+      setTimeout(()=>submitScore(sc),900);
+    }
+    const timerI=setInterval(()=>{
+      const el2=(Date.now()-start)/1000;
+      $('mgTimer').textContent=Math.max(0,30-el2).toFixed(0)+' s · '+myDist+' m';
+      if(el2>=30) finish(false);
+    },200);
+    function step(side){
+      if(over) return;
+      if(!t0) t0=Date.now();
+      if(side===lastSide) return;
+      lastSide=side; myDist=Math.min(100,myDist+2); snd('step');
+      state[me.id].d=myDist; paint(me.id);
+      const now=Date.now();
+      if(now-lastSend>140||myDist>=100){ lastSend=now; actSend({k:'rd',id:me.id,d:myDist,f:0}); }
+      if(myDist>=100) finish(true);
+    }
+    area.querySelector('#rlL').onpointerdown=e=>{ e.preventDefault(); step('L'); };
+    area.querySelector('#rlR').onpointerdown=e=>{ e.preventDefault(); step('R'); };
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 28 : ruée aux étoiles (temps réel, en ligne) --- */
+function mulberry32(seed){
+  let t=seed>>>0;
+  return function(){
+    t+=0x6D2B79F5;
+    let r=Math.imul(t^t>>>15,1|t);
+    r^=r+Math.imul(r^r>>>7,61|r);
+    return ((r^r>>>14)>>>0)/4294967296;
+  };
+}
+function mgStarRush(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    area.innerHTML='';
+    // spawns identiques sur tous les téléphones (graine = début du mini-jeu)
+    const rng=mulberry32(Math.floor((room.mg.startedAt||1)%2147483647));
+    const spawns=[]; let ts=900;
+    for(let i=0;i<46;i++){
+      ts+=430+rng()*330;
+      spawns.push({at:ts, x:.06+.88*rng(), y:.14+.72*rng(), bomb:rng()<.22, id:i});
+    }
+    const ships={}, live={}, taken={};
+    room.players.forEach(p=>{
+      const el=document.createElement('div');
+      el.style.cssText='position:absolute;text-align:center;width:46px;margin-left:-23px;pointer-events:none;transition:opacity .3s;';
+      el.innerHTML=`<div style="font-size:25px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));">${p.avatar}</div>
+        <div class="srPts" style="font-size:10px;font-weight:800;color:${p.color||'#FFD644'};text-shadow:0 1px 2px #000;">0</div>`;
+      area.appendChild(el);
+      ships[p.id]={x:W*(.2+.6*Math.random()), y:H*.5, el, score:0, stun:0};
+    });
+    const mine=ships[me.id]||ships[Object.keys(ships)[0]];
+    const mv=e=>{ const r=area.getBoundingClientRect();
+      mine.x=Math.max(16,Math.min(W-16,e.clientX-r.left));
+      mine.y=Math.max(24,Math.min(H-24,e.clientY-r.top)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    let over=false, lastSend=0;
+    const start=Date.now();
+    function fxAt(x,y,txt,col){
+      const h=document.createElement('div'); h.className='hitfx'; h.textContent=txt;
+      h.style.left=(x-14)+'px'; h.style.top=(y-14)+'px'; if(col)h.style.color=col;
+      area.appendChild(h); setTimeout(()=>h.remove(),380);
+    }
+    function removeStar(id){ if(live[id]){ live[id].el.remove(); delete live[id]; } taken[id]=1; }
+    window.mgAct=d=>{
+      if(over) return;
+      if(d.k==='pos'&&ships[d.id]&&d.id!==me.id){
+        ships[d.id].x=d.x*W; ships[d.id].y=d.y*H;
+        ships[d.id].score=d.s||0;
+      }
+      else if(d.k==='take'){
+        const s=live[d.sid];
+        if(s) fxAt(s.x,s.y,d.bomb?'💥':'✨');
+        removeStar(d.sid);
+      }
+    };
+    function loop(){
+      const now=Date.now(), el2=now-start;
+      $('mgTimer').textContent=Math.max(0,30-el2/1000).toFixed(0)+' s · '+mine.score+' pts';
+      // apparitions programmées
+      spawns.forEach(sp=>{
+        if(!sp.spawned&&el2>=sp.at&&!taken[sp.id]){
+          sp.spawned=true;
+          const el=document.createElement('div'); el.className='mg-star';
+          el.textContent=sp.bomb?'💣':'⭐';
+          el.style.left=(sp.x*W-20)+'px'; el.style.top=(sp.y*H-20)+'px';
+          el.style.pointerEvents='none';
+          area.appendChild(el);
+          live[sp.id]={x:sp.x*W, y:sp.y*H, bomb:sp.bomb, el, dieAt:el2+2600};
+        }
+      });
+      for(const id in live){
+        if(el2>=live[id].dieAt){ live[id].el.style.opacity='.25'; if(el2>=live[id].dieAt+350) removeStar(id); }
+      }
+      // collecte
+      if(now>mine.stun){
+        for(const id in live){
+          const s=live[id];
+          if(Math.abs(s.x-mine.x)<26&&Math.abs(s.y-mine.y)<26){
+            if(s.bomb){ mine.score=Math.max(0,mine.score-15); mine.stun=now+800; snd('boom'); fxAt(s.x,s.y,'💥'); mine.el.style.opacity='.35'; setTimeout(()=>{ if(!over) mine.el.style.opacity='1'; },800); }
+            else { mine.score+=10; snd('coin'); fxAt(s.x,s.y,'+10','#3EE6C1'); }
+            actSend({k:'take',sid:id,bomb:s.bomb?1:0});
+            removeStar(id);
+            break;
+          }
+        }
+      }
+      // affichage vaisseaux + scores
+      for(const id in ships){
+        const s=ships[id];
+        s.el.style.left=s.x+'px'; s.el.style.top=(s.y-18)+'px';
+        s.el.querySelector('.srPts').textContent=s.score;
+      }
+      if(now-lastSend>120){ lastSend=now; actSend({k:'pos',id:me.id,x:mine.x/W,y:mine.y/H,s:mine.score}); }
+      if(el2>=30000){
+        over=true; window.mgAct=null;
+        area.onpointermove=null; area.onpointerdown=null;
+        $('mgTimer').textContent='';
+        snd('fanfare');
+        submitScore(mine.score);
         return;
       }
       requestAnimationFrame(loop);

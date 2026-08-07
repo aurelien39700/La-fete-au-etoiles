@@ -2,9 +2,15 @@
 
 Un party game multijoueur façon Mario Party (plateau + 25 mini-jeux) où chacun joue depuis son téléphone.
 
-## Le plateau (carte 3D isométrique)
+## Les 3 cartes (3D isométrique, choisies par l'hôte dans le salon)
 
-- **Grande boucle** de 32 cases autour d'une île volante + **raccourci risqué** avec carrefour 🧭 (tu choisis ton chemin !)
+- 🎪 **Île de la Fête** : grande boucle + raccourci risqué, zones Fête Foraine / Bois Étoilé / Glacier Lunaire
+- 🌀 **Spirale Céleste** : un « 8 » à deux boucles, zones Nébuleuse Rose / Ceinture d'Astéroïdes / Aurore Émeraude
+- 🏝️ **Archipel Perdu** : deux îles (Plage Dorée, Jungle Sauvage) reliées par des ponts hantés par le Roi Fantôme
+
+## Le plateau
+
+- Boucles avec **carrefours 🧭** : tu choisis ton chemin !
 - ⭐ **Étoiles** à acheter (20 🪙) — celle-ci se déplace à chaque achat
 - 🛍️ **Boutique** : 5 objets (Champi Double, Dé Pipé, Aimant, Bouclier, Tuyau Magique)
 - 👻 **Fantôme voleur** : paie-le pour voler pièces… ou une étoile !
@@ -13,11 +19,17 @@ Un party game multijoueur façon Mario Party (plateau + 25 mini-jeux) où chacun
 - 🚨 **Derniers tours** : événement spécial au tour 6 (cases doublées, étoile soldée ou rattrapage)
 - 🌟 **2 étoiles bonus secrètes** révélées à la fin (Richissime, Champion, Voyageur, Aventurier)
 
-## Les 25 mini-jeux
+## Les 28 mini-jeux
 
 Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplacement tactile**
 (vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
 🔵🔴 aléatoire à partir de 4 joueurs. Sons synthétisés (WebAudio), bouton 🔊/🔇 en haut à droite.
+
+### 3 arènes EN DIRECT (temps réel, en ligne)
+
+- ⚔️ **Bataille Spatiale** : équipes 🔵🔴, pilote au doigt, tirs automatiques, respawn
+- 🏃 **Course Céleste LIVE** : sprint en alternant GAUCHE/DROITE, vous vous voyez courir en direct
+- ⭐ **Ruée aux Étoiles** : rafle les étoiles avant les autres, évite les 💣 (spawns synchronisés)
 
 ## Installation (une seule fois)
 
