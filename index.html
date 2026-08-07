@@ -16,7 +16,12 @@
 html,body{margin:0;padding:0;height:100%;}
 body{
   font-family:'Baloo 2',sans-serif; color:var(--blanc);
-  background:linear-gradient(165deg,var(--nuit) 0%,var(--nuit2) 70%,#4A2580 100%);
+  background:
+    radial-gradient(900px 550px at 88% -8%, rgba(255,95,162,.16), transparent 62%),
+    radial-gradient(750px 500px at -12% 28%, rgba(90,200,250,.13), transparent 62%),
+    radial-gradient(850px 650px at 55% 112%, rgba(142,124,255,.18), transparent 62%),
+    linear-gradient(165deg,var(--nuit) 0%,var(--nuit2) 70%,#4A2580 100%);
+  background-attachment:fixed;
   min-height:100vh; overflow-x:hidden;
 }
 h1,h2,.titan{font-family:'Titan One',cursive; letter-spacing:.5px; font-weight:400;}
@@ -124,7 +129,16 @@ input[type=text]:focus{border-color:var(--menthe);}
 .mg-title{font-size:26px; margin:16px 0 4px; color:var(--etoile);}
 .mg-area{
   position:relative; height:320px; margin:16px 0; border-radius:24px;
-  background:rgba(0,0,0,.28); overflow:hidden;
+  background:
+    radial-gradient(280px 190px at 82% 8%, rgba(142,124,255,.22), transparent 70%),
+    radial-gradient(240px 170px at 8% 92%, rgba(255,95,162,.14), transparent 70%),
+    radial-gradient(1.5px 1.5px at 15% 25%, rgba(255,255,255,.7), transparent 100%),
+    radial-gradient(1.5px 1.5px at 70% 15%, rgba(255,255,255,.5), transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 65%, rgba(255,255,255,.45), transparent 100%),
+    radial-gradient(1.5px 1.5px at 88% 55%, rgba(255,255,255,.6), transparent 100%),
+    radial-gradient(1.5px 1.5px at 25% 85%, rgba(255,255,255,.5), transparent 100%),
+    rgba(0,0,0,.3);
+  overflow:hidden; border:1px solid rgba(255,255,255,.08);
   display:flex; align-items:center; justify-content:center;
 }
 .big-tap{
@@ -453,6 +467,7 @@ function netConnect(url){
   });
 }
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+function actSend(data){ if(room&&!local) send({t:'act', code:room.code, data}); }
 function applyState(st){
   if(!st) return;
   if(room && !local && st.version<room.version) return; // état plus vieux que le nôtre
@@ -469,6 +484,7 @@ function onNet(m){
     else applyState(m.state); // reconnexion après coupure
   }
   else if(m.t==='state'){ applyState(m.state); }
+  else if(m.t==='act'){ if(window.mgAct) try{ window.mgAct(m.data); }catch(e){} }
   else if(m.t==='error'){
     toast(m.msg||'Erreur serveur');
     if(createResolve){ createResolve(null); createResolve=null; }
@@ -772,7 +788,8 @@ function renderBoard(){
   show('scr-board');
   const cur=room.players[room.turn];
   const who=local?cur.name+' de jouer !':(myTurn()?'TOI de jouer !':cur.name+' de jouer');
-  $('roundInfo').textContent='Tour '+room.round+' / '+room.maxRounds+' — à '+who;
+  $('roundInfo').textContent='Tour '+room.round+' / '+room.maxRounds+' — à '+who+
+    ((room.bank||0)>0?' · 🏦 '+room.bank+' 🪙':'');
   $('hud').innerHTML=room.players.map((p,i)=>
     `<div class="pcard ${i===room.turn?'turn':''}">
       <div class="pav">${p.avatar}</div>
@@ -807,7 +824,8 @@ function renderBoard(){
     const top=active?'#FFD644':TOPC[o.n.t]||'#5AC8FA';
     const icon=o.n.t==='starT'?(active?'⭐':'☆'):ICON[o.n.t];
     cells+=`<g>
-      ${active?`<ellipse class="ringA" cx="${x}" cy="${y}" rx="${L+8}" ry="${H+6}" fill="none" stroke="#FFD644" stroke-width="4"/>`:''}
+      ${active?`<ellipse cx="${x}" cy="${y}" rx="${L+22}" ry="${H+16}" fill="#FFD64418"/>
+      <ellipse class="ringA" cx="${x}" cy="${y}" rx="${L+8}" ry="${H+6}" fill="none" stroke="#FFD644" stroke-width="4"/>`:''}
       <polygon points="${x-L},${y} ${x},${y+H} ${x},${y+H+DEP} ${x-L},${y+DEP}" fill="${shade(top,.5)}"/>
       <polygon points="${x+L},${y} ${x},${y+H} ${x},${y+H+DEP} ${x+L},${y+DEP}" fill="${shade(top,.68)}"/>
       <polygon points="${x},${y-H} ${x+L},${y} ${x},${y+H} ${x-L},${y}" fill="${top}" stroke="${shade(top,.45)}" stroke-width="1.5"/>
@@ -817,7 +835,9 @@ function renderBoard(){
     const here=room.players.map((p,pi)=>({p,pi})).filter(q=>q.p.pos===o.i);
     here.forEach((q,k)=>{
       const dx=(k-(here.length-1)/2)*16;
+      const aura=q.p.color||'#FFD644';
       cells+=`<ellipse cx="${x+dx}" cy="${y-1}" rx="9" ry="4" fill="rgba(0,0,0,.35)"/>
+        <circle cx="${x+dx}" cy="${y-18}" r="14" fill="${aura}26" stroke="${aura}" stroke-width="${q.pi===room.turn?2.5:1.2}" opacity="${q.pi===room.turn?1:.55}"/>
         <text class="tok ${q.pi===room.turn?'cur':''}" x="${x+dx}" y="${y-11}" text-anchor="middle" font-size="23" style="filter:drop-shadow(0 4px 3px rgba(0,0,0,.55));">${q.p.avatar}</text>`;
     });
   });
@@ -1239,11 +1259,12 @@ async function endTurn(){
   if(room.turn===room.players.length-1){
     room.turn=0;
     room.status='minigame';
-    let mgType=rnd(MG_COUNT);
-    if(room.lastMg!==undefined && MG_COUNT>1){ while(mgType===room.lastMg) mgType=rnd(MG_COUNT); }
+    let mgType;
+    do{ mgType=rnd(MG_COUNT); }
+    while((MG_COUNT>1&&mgType===room.lastMg)||(local&&MG_INFO[mgType].rt));
     room.lastMg=mgType;
     let teams=null;
-    if(room.players.length>=4&&rnd(10)<4){
+    if(MG_INFO[mgType].team||(room.players.length>=4&&rnd(10)<4)){
       const ids=room.players.map(q=>q.id).sort(()=>Math.random()-.5);
       teams={}; ids.forEach((id,i)=>teams[id]=i<Math.ceil(ids.length/2)?0:1);
       room.log.push('🤝 MINI-JEU EN ÉQUIPES : 🔵 contre 🔴 !');
@@ -1283,7 +1304,8 @@ const MG_INFO=[
   {name:'Bonneteau Cosmique',desc:'Suis la coupelle qui cache l\'étoile ⭐… ça mélange de plus en plus vite ! 5 manches.'},
   {name:'Fusée Folle',desc:'Tape pour faire monter la fusée 🚀, passe entre les astéroïdes ! Chaque passage = +10.'},
   {name:'Rythme des Étoiles',desc:'Tape PILE quand le cercle se referme sur l\'étoile ! 10 notes, en rythme…'},
-  {name:'Alunissage',desc:'Maintiens pour freiner 🚀 et pose-toi EN DOUCEUR sur la lune ! 3 atterrissages.'}
+  {name:'Alunissage',desc:'Maintiens pour freiner 🚀 et pose-toi EN DOUCEUR sur la lune ! 3 atterrissages.'},
+  {name:'Bataille Spatiale',desc:'BATAILLE EN DIRECT 🔵🔴 : glisse ton doigt pour piloter, ton vaisseau tire tout seul sur l\'ennemi le plus proche ! 30 s.',rt:true,team:true}
 ];
 const MG_COUNT=MG_INFO.length;
 let mgPlayed=false, mgTimerI=null;
@@ -1327,10 +1349,11 @@ function startMiniGame(){
   const area=$('mgArea'); area.innerHTML='';
   area.onpointerdown=null; area.onpointermove=null; area.onpointerup=null;
   area.style.touchAction='';
+  window.mgAct=null;
   $('mgTimer').textContent='';
   const type=room.mg.type;
   const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge,
-    mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander];
+    mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle];
   (games[type]||mgTapo)(area);
 }
 
@@ -2316,6 +2339,119 @@ function mgLander(area){
   area.appendChild(btn);
 }
 
+/* --- mini-jeu 26 : bataille spatiale (temps réel, équipes, en ligne) --- */
+function mgBattle(area){
+  const T=(room.mg&&room.mg.teams)||{};
+  room.players.forEach((p,i)=>{ if(T[p.id]===undefined) T[p.id]=i%2; });
+  const myTeam=T[me.id]||0;
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    // sol de l'arène en losanges iso
+    let floor='';
+    for(let r=0;r<5;r++) for(let c=0;c<5;c++){
+      const fx=W/2+(c-r)*(W/11), fy=40+(c+r)*((H-70)/9);
+      floor+=`<polygon points="${fx},${fy-(H-70)/18} ${fx+W/22},${fy} ${fx},${fy+(H-70)/18} ${fx-W/22},${fy}" fill="rgba(255,255,255,.045)" stroke="rgba(255,255,255,.08)"/>`;
+    }
+    area.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%;">${floor}</svg>
+      <div class="ammo" id="btScore" style="left:50%;transform:translateX(-50%);">🔵 0 — 0 🔴</div>`;
+    const scores=[0,0], scoreEl=area.querySelector('#btScore');
+    const upScore=()=>scoreEl.textContent='🔵 '+scores[0]+' — '+scores[1]+' 🔴';
+    const spawn=t=>({x:t===0?36:W-36, y:44+rnd(Math.max(40,H-100))});
+    const ships={};
+    room.players.forEach(p=>{
+      const t=T[p.id]||0, sp=spawn(t);
+      const el=document.createElement('div');
+      el.style.cssText='position:absolute;text-align:center;width:44px;margin-left:-22px;pointer-events:none;transition:opacity .3s;';
+      el.innerHTML=`<div style="font-size:26px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));">${p.avatar}</div>
+        <div style="font-size:9px;font-weight:800;color:${t===0?'#5AC8FA':'#FF6B6B'};text-shadow:0 1px 2px #000;">${p.name.slice(0,8)}</div>`;
+      area.appendChild(el);
+      ships[p.id]={x:sp.x,y:sp.y,el,team:t,dead:0};
+    });
+    const mine=ships[me.id]||ships[Object.keys(ships)[0]];
+    const mv=e=>{ const r=area.getBoundingClientRect();
+      mine.x=Math.max(16,Math.min(W-16,e.clientX-r.left));
+      mine.y=Math.max(34,Math.min(H-26,e.clientY-r.top)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    let kills=0, over=false, lastSend=0, lastFire=0;
+    const start=Date.now();
+    function boom(x,y){ const b=document.createElement('div'); b.className='hitfx'; b.textContent='💥';
+      b.style.left=(x-15)+'px'; b.style.top=(y-15)+'px'; area.appendChild(b); setTimeout(()=>b.remove(),350); }
+    function respawn(id){
+      const s=ships[id]; if(!s) return;
+      s.dead=Date.now()+1400; s.el.style.opacity='.15';
+      const sp=spawn(s.team); s.x=sp.x; s.y=sp.y;
+      setTimeout(()=>{ if(!over&&s.el) s.el.style.opacity='1'; },1400);
+    }
+    function fire(from,tx,ty,cb){
+      const b=document.createElement('div'); b.className='bullet';
+      b.style.background='linear-gradient(#fff,'+(from.team===0?'#5AC8FA':'#FF6B6B')+')';
+      area.appendChild(b);
+      const x0=from.x, y0=from.y, t0=Date.now();
+      (function anim(){
+        if(over){ b.remove(); return; }
+        const k=Math.min(1,(Date.now()-t0)/260);
+        b.style.left=(x0+(tx-x0)*k)+'px'; b.style.top=(y0+(ty-y0)*k)+'px';
+        if(k>=1){ b.remove(); cb(tx,ty); } else requestAnimationFrame(anim);
+      })();
+    }
+    window.mgAct=d=>{
+      if(over) return;
+      if(d.k==='pos'&&ships[d.id]&&d.id!==me.id){ ships[d.id].x=d.x*W; ships[d.id].y=d.y*H; }
+      else if(d.k==='hit'){
+        scores[d.team]=(scores[d.team]||0)+1; upScore();
+        const s=ships[d.target];
+        if(s){ boom(s.x,s.y); respawn(d.target); }
+        if(d.target===me.id) snd('boom');
+      }
+      else if(d.k==='shot'&&ships[d.from]){
+        const s=ships[d.from];
+        fire(s,d.x*W,d.y*H,()=>{});
+      }
+    };
+    function loop(){
+      const now=Date.now(), el2=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,30-el2).toFixed(0)+' s · '+kills+' touches';
+      for(const id in ships){ const s=ships[id]; s.el.style.left=s.x+'px'; s.el.style.top=(s.y-20)+'px'; }
+      if(now-lastSend>110){ lastSend=now; actSend({k:'pos',id:me.id,x:mine.x/W,y:mine.y/H}); }
+      if(now-lastFire>680&&now>(mine.dead||0)){
+        let bestId=null, bd=1e18;
+        for(const id in ships){ const s=ships[id];
+          if(s.team!==myTeam&&now>(s.dead||0)){
+            const d2=(s.x-mine.x)*(s.x-mine.x)+(s.y-mine.y)*(s.y-mine.y);
+            if(d2<bd){ bd=d2; bestId=id; }
+          } }
+        if(bestId){
+          lastFire=now; snd('shot');
+          const tgt=ships[bestId], tx=tgt.x, ty=tgt.y;
+          actSend({k:'shot',from:me.id,x:tx/W,y:ty/H});
+          fire(mine,tx,ty,(hx,hy)=>{
+            if(over) return;
+            const s2=ships[bestId];
+            if(s2&&Math.abs(s2.x-hx)<30&&Math.abs(s2.y-hy)<30&&Date.now()>(s2.dead||0)){
+              kills++; scores[myTeam]++; upScore(); boom(hx,hy); snd('boom');
+              actSend({k:'hit',target:bestId,team:myTeam});
+              respawn(bestId);
+            }
+          });
+        }
+      }
+      if(el2>=30){
+        over=true; window.mgAct=null;
+        area.onpointermove=null; area.onpointerdown=null;
+        $('mgTimer').textContent='';
+        snd('fanfare');
+        submitScore(kills*10);
+        return;
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+
 /* =================== boucle hôte : résoudre le mini-jeu =================== */
 function startHostLoop(){
   clearInterval(hostI);
@@ -2375,6 +2511,8 @@ $('btnMgNext').onclick=async()=>{
   else {
     room.round++;
     if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
+    else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
+    else fxCast('🎪','TOUR '+room.round+' !','',1400);
     room.status='board'; room.log.push('Tour '+room.round+' !');
   }
   await saveRoom();

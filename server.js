@@ -123,6 +123,14 @@ wss.on('connection', (ws, req) => {
       broadcast(room);
     }
 
+    /* --- action temps réel (mini-jeux simultanés) : simple relais --- */
+    else if (m.t === 'act') {
+      const room = rooms.get(String(m.code || '').toUpperCase());
+      if (!room) return;
+      const msg = JSON.stringify({ t: 'act', data: m.data });
+      room.clients.forEach(c => { if (c !== ws && c.readyState === WebSocket.OPEN) c.send(msg); });
+    }
+
     /* --- score de mini-jeu --- */
     else if (m.t === 'score') {
       const code = String(m.code || '').toUpperCase();
