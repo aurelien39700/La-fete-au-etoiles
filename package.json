@@ -1,0 +1,12 @@
+{
+  "name": "fete-des-etoiles-serveur",
+  "version": "1.0.0",
+  "description": "Serveur de jeu auto-hébergé pour La Fête des Étoiles",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.2"
+  }
+}
