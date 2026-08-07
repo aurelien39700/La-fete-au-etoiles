@@ -25,6 +25,10 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/sante') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, salons: rooms.size }));
+  } else if (req.url === '/favicon.ico') {
+    // petite étoile SVG pour éviter le 404
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+    res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="13" font-size="13">🎉</text></svg>');
   } else {
     res.writeHead(404); res.end('404');
   }

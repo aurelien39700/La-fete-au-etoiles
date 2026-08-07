@@ -1,6 +1,23 @@
 # 🎉 La Fête des Étoiles — serveur auto-hébergé
 
-Un party game multijoueur (plateau + 12 mini-jeux) où chacun joue depuis son téléphone.
+Un party game multijoueur façon Mario Party (plateau + 25 mini-jeux) où chacun joue depuis son téléphone.
+
+## Le plateau (carte 3D isométrique)
+
+- **Grande boucle** de 32 cases autour d'une île volante + **raccourci risqué** avec carrefour 🧭 (tu choisis ton chemin !)
+- ⭐ **Étoiles** à acheter (20 🪙) — celle-ci se déplace à chaque achat
+- 🛍️ **Boutique** : 5 objets (Champi Double, Dé Pipé, Aimant, Bouclier, Tuyau Magique)
+- 👻 **Fantôme voleur** : paie-le pour voler pièces… ou une étoile !
+- ⚔️ **Duel**, 🏦 **Banque** (dépôt en passant, jackpot en s'arrêtant), 🎰 **Chance Time**, 👹 **Roi Fantôme** (malus dramatiques), 🍀 chance, 🎁 événements
+- 🔥 **Dé chaos** (0 ou 8–10) en alternative au dé classique
+- 🚨 **Derniers tours** : événement spécial au tour 6 (cases doublées, étoile soldée ou rattrapage)
+- 🌟 **2 étoiles bonus secrètes** révélées à la fin (Richissime, Champion, Voyageur, Aventurier)
+
+## Les 25 mini-jeux
+
+Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplacement tactile**
+(vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
+🔵🔴 aléatoire à partir de 4 joueurs. Sons synthétisés (WebAudio), bouton 🔊/🔇 en haut à droite.
 
 ## Installation (une seule fois)
 

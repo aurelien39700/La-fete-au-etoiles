@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>La Fête des Étoiles</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🎉%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -100,6 +101,7 @@ input[type=text]:focus{border-color:var(--menthe);}
 .tok.cur{animation:hop 1s infinite;}
 @keyframes hop{0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px);}}
 .ringA{transform-box:fill-box; transform-origin:center; animation:ringp 1.3s infinite;}
+.deco{transform-box:fill-box; transform-origin:center; animation:floaty 3.6s ease-in-out infinite;}
 @keyframes ringp{0%,100%{opacity:.9; transform:scale(1);} 50%{opacity:.2; transform:scale(1.15);}}
 .legend{font-size:12px; opacity:.7; margin:4px 0 0; font-weight:600;}
 
@@ -185,6 +187,37 @@ input[type=text]:focus{border-color:var(--menthe);}
   background:linear-gradient(90deg,#FF6B6B 0 30%,#FFD644 30% 44%,#3EE6C1 44% 56%,#FFD644 56% 70%,#FF6B6B 70% 100%);}
 .gauge .cur{position:absolute; top:0; bottom:0; width:6px; margin-left:-3px; background:#fff; border-radius:3px; box-shadow:0 0 10px #fff;}
 
+/* ---------- pop-ups & effets ---------- */
+.ovl{position:fixed; inset:0; background:rgba(14,8,40,.74); z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:18px; transition:opacity .3s;}
+.pop{background:linear-gradient(160deg,#2B1960,#3A1E6B); border:3px solid var(--etoile);
+  border-radius:26px; padding:20px 18px; max-width:340px; width:100%; text-align:center;
+  animation:popin .32s cubic-bezier(.2,1.4,.4,1); box-shadow:0 14px 44px rgba(0,0,0,.55);
+  max-height:86vh; overflow-y:auto;}
+@keyframes popin{from{transform:scale(.55); opacity:0;} to{transform:scale(1); opacity:1;}}
+.pop .pic{font-size:56px; line-height:1.1; animation:floaty 2.2s ease-in-out infinite;
+  filter:drop-shadow(0 6px 8px rgba(0,0,0,.45));}
+.pop h3{font-family:'Titan One'; font-size:23px; margin:8px 0 2px; color:var(--etoile);}
+.pop p{margin:4px 0 10px; font-size:15px; opacity:.9; font-weight:600;}
+.pop .btn{font-size:16px; padding:12px 14px; margin:8px 0 0;}
+.ichip{border:2px solid rgba(255,255,255,.25); border-radius:14px; padding:6px 12px;
+  font-size:22px; background:rgba(255,255,255,.14); cursor:pointer;}
+.ichip:active{transform:scale(.92);}
+.teamband{margin:8px auto 0; max-width:340px; border-radius:14px; padding:6px 10px;
+  font-weight:800; font-size:14px; background:rgba(90,200,250,.18); border:2px solid var(--bleu);}
+/* ---------- mini-jeux : tir & déplacement ---------- */
+.ship{position:absolute; font-size:34px; user-select:none; pointer-events:none;
+  filter:drop-shadow(0 4px 4px rgba(0,0,0,.5));}
+.fall{position:absolute; user-select:none; pointer-events:none;}
+.bullet{position:absolute; width:5px; height:14px; border-radius:3px;
+  background:linear-gradient(#fff,var(--menthe)); pointer-events:none;}
+.hitfx{position:absolute; font-size:30px; pointer-events:none; animation:pop .3s;}
+.runbtn{flex:1; height:120px; border:none; border-radius:22px;
+  font-family:'Titan One'; font-size:20px; color:#fff; cursor:pointer;}
+.runbtn:active{transform:scale(.96);}
+.ammo{position:absolute; top:8px; left:10px; font-weight:800; font-size:15px; z-index:5;
+  background:rgba(0,0,0,.4); border-radius:10px; padding:3px 10px;}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important; transition:none !important;}
 }
@@ -259,10 +292,14 @@ input[type=text]:focus{border-color:var(--menthe);}
   <div class="hud" id="hud"></div>
   <div class="center hint" id="roundInfo"></div>
   <div class="board-wrap" id="boardWrap"></div>
-  <div class="legend center">🪙 +3 · 💥 −3 · 🍀 +8 · 🎁 surprise · ⭐ étoile (20 🪙) · 🏁 +5 / tour de plateau</div>
+  <div class="legend center">🪙 pièces · 💥 piège · 🍀 chance · 🎁 événement · ⭐ étoile · 🛍️ boutique · 👻 voleur · ⚔️ duel · 🏦 banque · 🎰 chance time · 👹 danger · 🧭 carrefour · 🏁 +5/tour</div>
   <div class="dice-zone center">
     <div class="dice" id="diceFace">🎲</div>
-    <button class="btn" id="btnRoll" style="max-width:260px; margin:0 auto;">Lancer le dé !</button>
+    <div id="itemRow" style="display:flex; gap:8px; justify-content:center; margin:8px 0 2px; min-height:10px;"></div>
+    <div id="rollBtns" style="display:none; gap:10px; max-width:360px; margin:0 auto;">
+      <button class="btn" id="btnRoll" style="margin:0; flex:1;">🎲 Dé 1–6</button>
+      <button class="btn rose" id="btnRisk" style="margin:0; flex:1;">🔥 0 ou 8–10</button>
+    </div>
     <p class="hint" id="turnHint"></p>
   </div>
   <div class="log" id="gameLog"></div>
@@ -273,6 +310,7 @@ input[type=text]:focus{border-color:var(--menthe);}
   <div class="center">
     <h2 class="mg-title" id="mgName"></h2>
     <p class="hint" id="mgDesc"></p>
+    <div class="teamband" id="mgTeam" style="display:none;"></div>
   </div>
   <div class="mg-area" id="mgArea"></div>
   <div class="center">
@@ -298,6 +336,7 @@ input[type=text]:focus{border-color:var(--menthe);}
 </div>
 
 <div class="toast" id="toast"></div>
+<button id="btnSnd" style="position:fixed;top:10px;right:10px;z-index:70;border:2px solid rgba(255,255,255,.3);background:rgba(30,20,64,.75);border-radius:14px;font-size:18px;padding:6px 10px;cursor:pointer;">🔊</button>
 
 <script>
 /* =================== outils =================== */
@@ -314,6 +353,66 @@ const S={
   async set(k,v,sh=false){ try{ if(!window.storage) return false; const r=await window.storage.set(k,JSON.stringify(v),sh); return !!r; }catch(e){ return false; } }
 };
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* =================== sons (WebAudio synthétisé, zéro fichier) =================== */
+let AC=null, sndOn=true;
+try{ sndOn=localStorage.getItem('fete-snd')!=='off'; }catch(e){}
+function ac(){
+  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(AC&&AC.state==='suspended') AC.resume();
+  return AC;
+}
+document.addEventListener('pointerdown',()=>ac(),{once:true,capture:true});
+function tone(f,dur,type,vol,delay,slide){
+  const c=ac(); if(!c||!sndOn) return;
+  const t0=c.currentTime+(delay||0);
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(f,t0);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,slide),t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(vol||.15,t0+.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g); g.connect(c.destination);
+  o.start(t0); o.stop(t0+dur+.02);
+}
+function noiseS(dur,vol,delay,fc){
+  const c=ac(); if(!c||!sndOn) return;
+  const t0=c.currentTime+(delay||0);
+  const len=Math.max(1,Math.floor(c.sampleRate*dur));
+  const buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  const n=c.createBufferSource(); n.buffer=buf;
+  const f=c.createBiquadFilter(); f.type='lowpass'; f.frequency.value=fc||900;
+  const g=c.createGain();
+  g.gain.setValueAtTime(vol||.2,t0); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  n.connect(f); f.connect(g); g.connect(c.destination);
+  n.start(t0);
+}
+const SND={
+  tap:   ()=>tone(660,.06,'square',.07),
+  dice:  ()=>{ for(let i=0;i<6;i++) tone(300+rnd(300),.04,'square',.05,i*.07); },
+  step:  ()=>tone(500+rnd(80),.05,'triangle',.09),
+  coin:  ()=>{ tone(880,.09,'square',.1); tone(1320,.14,'square',.1,.08); },
+  bad:   ()=>tone(320,.2,'sawtooth',.11,0,110),
+  star:  ()=>{ [523,659,784,1047,1319].forEach((f,i)=>tone(f,.16,'triangle',.14,i*.09)); },
+  fanfare:()=>{ [523,523,659,784,1047].forEach((f,i)=>tone(f,.2,'square',.1,i*.13)); },
+  boo:   ()=>{ tone(220,.5,'sine',.14,0,80); tone(180,.5,'sine',.09,.1,60); },
+  duel:  ()=>{ noiseS(.15,.18,0,2400); tone(880,.12,'sawtooth',.09,.05,440); },
+  pop:   ()=>tone(440,.09,'sine',.11,0,880),
+  tick:  ()=>tone(1000,.04,'square',.06),
+  shot:  ()=>{ noiseS(.08,.16,0,3000); tone(700,.07,'square',.07,0,200); },
+  boom:  ()=>{ noiseS(.4,.28,0,300); tone(90,.35,'sine',.22,0,40); },
+  whoosh:()=>noiseS(.25,.11,0,1200),
+  yay:   ()=>{ [659,784,988,1319].forEach((f,i)=>tone(f,.15,'triangle',.12,i*.08)); }
+};
+function snd(n){ try{ if(SND[n])SND[n](); }catch(e){} }
+window.addEventListener('load',()=>{
+  const b=$('btnSnd'); if(!b) return;
+  b.textContent=sndOn?'🔊':'🔇';
+  b.onclick=()=>{ sndOn=!sndOn; b.textContent=sndOn?'🔊':'🔇';
+    try{ localStorage.setItem('fete-snd',sndOn?'on':'off'); }catch(e){}
+    if(sndOn) snd('coin'); };
+});
 
 /* =================== réseau : serveur auto-hébergé (WebSocket) =================== */
 let ws=null, wsUrl='', connected=false, reconnectT=null, pendingState=null;
@@ -358,7 +457,9 @@ function applyState(st){
   if(!st) return;
   if(room && !local && st.version<room.version) return; // état plus vieux que le nôtre
   if(animBusy){ pendingState=st; return; }
-  room=st; render();
+  room=st;
+  if(room.fx && room.fx.seq>lastFxSeq){ lastFxSeq=room.fx.seq; fxShow(room.fx); }
+  render();
 }
 setInterval(()=>{ if(pendingState&&!animBusy){ const s=pendingState; pendingState=null; applyState(s); } },400);
 function onNet(m){
@@ -461,18 +562,79 @@ let roomKey='';
 let pollI=null, hostI=null;
 let animBusy=false;
 const MAX_ROUNDS=8;
-const STAR_SPOTS=[7,14,21,27];
+const STAR_SPOTS=[8,16,24,30];
 
-const TILE_LABEL={blue:'+3',red:'-3',lucky:'+8',event:'?',starT:'⭐',start:'GO'};
+/* ---------- objets (façon Mario Party) ---------- */
+const ITEMS={
+  mush:  {e:'🍄', name:'Champi Double',  price:5,  desc:'Lance 2 dés ce tour'},
+  loaded:{e:'🎯', name:'Dé Pipé',        price:7,  desc:'Choisis ton chiffre (1–6)'},
+  magnet:{e:'🧲', name:'Aimant',         price:8,  desc:'Vole 5 🪙 aux joueurs croisés'},
+  shield:{e:'🛡️', name:'Bouclier',       price:6,  desc:'Bloque le prochain coup dur (auto)'},
+  pipe:  {e:'🌀', name:'Tuyau Magique',  price:15, desc:'Téléporte-toi sur l\'étoile !'}
+};
+const ITEM_IDS=Object.keys(ITEMS);
+function pItems(p){ if(!p.items) p.items=[]; return p.items; }
+function addCoins(p,n){ if(n>0) p.coinsEarned=(p.coinsEarned||0)+n; p.coins=Math.max(0,p.coins+n); }
+function popShield(p){ const it=pItems(p), i=it.indexOf('shield'); if(i>=0){ it.splice(i,1); return true; } return false; }
+function starCost(){ return room.starCost||20; }
 
+/* Carte façon Mario Party : grande boucle sinueuse (32 cases, sens horaire)
+   + raccourci central risqué (5 cases) avec carrefour au nœud 4.
+   Chaque case est un nœud {t, x, y, next:[...]} — le plateau est un graphe. */
+const LOOP_N=32;
 function makeBoard(){
-  const b=Array(30).fill('blue');
-  b[0]='start';
-  STAR_SPOTS.forEach(i=>b[i]='starT');
-  [3,9,17,24,28].forEach(i=>b[i]='red');
-  [5,12,19].forEach(i=>b[i]='lucky');
-  [10,22,26].forEach(i=>b[i]='event');
-  return b;
+  const nodes=[], cx=210, cy=250, Rx=152, Ry=196;
+  for(let i=0;i<LOOP_N;i++){
+    const a=-Math.PI/2+i*2*Math.PI/LOOP_N;
+    const w=1+0.10*Math.sin(3*a+1.2);
+    nodes.push({t:'blue', x:Math.round(cx+Rx*w*Math.cos(a)), y:Math.round(cy+Ry*w*Math.sin(a)), next:[(i+1)%LOOP_N]});
+  }
+  // raccourci : du carrefour (4) vers le bas-gauche (18), à travers la fête
+  const A=nodes[4], B=nodes[18], SC=5;
+  for(let k=1;k<=SC;k++){
+    const t=k/(SC+1);
+    nodes.push({t:'blue',
+      x:Math.round(A.x+(B.x-A.x)*t+30*Math.sin(t*Math.PI)),
+      y:Math.round(A.y+(B.y-A.y)*t),
+      next:[k<SC?LOOP_N+k:18]});
+  }
+  nodes[4].next=[5,LOOP_N]; // carrefour : boucle ou raccourci
+  const TYPES={start:[0], starT:STAR_SPOTS, red:[3,11,19,27,35], lucky:[6,21],
+    event:[2,9,17,25,33], shop:[5,23], boo:[13], duel:[10,28],
+    bank:[15], chance:[22], bowser:[31,34]};
+  for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
+  return nodes;
+}
+
+/* ---------- pop-ups : effets (tous les joueurs) & choix (joueur actif) ---------- */
+let lastFxSeq=0;
+function fxShow(f){
+  snd('pop');
+  const o=document.createElement('div'); o.className='ovl';
+  o.innerHTML=`<div class="pop"><div class="pic">${f.icon||'✨'}</div><h3>${f.title||''}</h3>${f.text?`<p>${f.text}</p>`:''}</div>`;
+  document.body.appendChild(o);
+  setTimeout(()=>{ o.style.opacity='0'; setTimeout(()=>o.remove(),320); }, f.ms||2200);
+}
+function fxCast(icon,title,text,ms){
+  if(!room) return;
+  const seq=((room.fx&&room.fx.seq)||0)+1;
+  room.fx={seq,icon,title,text,ms:ms||2200};
+  lastFxSeq=seq; fxShow(room.fx);
+}
+function ask(o){
+  return new Promise(res=>{
+    const ov=document.createElement('div'); ov.className='ovl';
+    ov.innerHTML=`<div class="pop">${o.icon?`<div class="pic">${o.icon}</div>`:''}<h3>${o.title||''}</h3>${o.text?`<p>${o.text}</p>`:''}<div class="popbtns"></div></div>`;
+    const bx=ov.querySelector('.popbtns');
+    o.options.forEach(op=>{
+      const b=document.createElement('button'); b.className='btn '+(op.cls||'');
+      b.innerHTML=op.label; b.disabled=!!op.disabled;
+      b.onclick=()=>{ snd('tap'); ov.remove(); res(op.value); };
+      bx.appendChild(b);
+    });
+    snd('pop');
+    document.body.appendChild(ov);
+  });
 }
 function newCode(){ const A='ABCDEFGHJKMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++)c+=A[rnd(A.length)]; return c; }
 
@@ -496,8 +658,8 @@ $('btnCreate').onclick=async()=>{
   }
   $('netNotice').style.display='none';
   const st={code:'', hostId:me.id, status:'lobby', version:1,
-    players:[{id:me.id,name:me.name,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0}],
-    turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0],
+    players:[{id:me.id,name:me.name,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
+    turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0], starCost:20, bank:0,
     board:makeBoard(), log:['La partie est créée !'], mg:null, mgScores:{}};
   const resp=await new Promise(res=>{ createResolve=res; send({t:'create', state:st});
     setTimeout(()=>{ if(createResolve){ createResolve(null); createResolve=null; } },6000); });
@@ -536,14 +698,15 @@ $('btnStartLocal').onclick=()=>{
   const players=rows.map((r,i)=>({
     id:'loc'+i,
     name:(r.querySelector('input').value||'').trim()||('Joueur'+(i+1)),
-    avatar:AVATARS[+r.dataset.av], color:AURAS[i%AURAS.length], pos:0, coins:10, stars:0
+    avatar:AVATARS[+r.dataset.av], color:AURAS[i%AURAS.length], pos:0, coins:10, stars:0,
+    items:[], travel:0, mgWins:0, coinsEarned:0
   }));
   if(players.length<2){ toast('Il faut au moins 2 joueurs 😉'); return; }
   local=true; roomKey='';
   clearInterval(pollI); clearInterval(hostI);
   room={code:'LOCAL', hostId:'local', status:'board', version:1,
-    players, turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0],
-    board:makeBoard(), log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null};
+    players, turn:0, round:1, maxRounds:MAX_ROUNDS, starIdx:STAR_SPOTS[0], starCost:20, bank:0,
+    board:makeBoard(), log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null, mgScores:{}};
   render();
 };
 
@@ -557,7 +720,7 @@ $('btnJoin').onclick=async()=>{
   if(!url){ toast('Indique d\'abord l\'adresse du serveur sur l\'accueil ⚙️'); show('scr-home'); return; }
   try{ if(!connected||wsUrl!==url) await netConnect(url); }
   catch(e){ show('scr-home'); netFail(url); return; }
-  const player={id:me.id,name:me.name,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0};
+  const player={id:me.id,name:me.name,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
   const resp=await new Promise(res=>{ joinResolve=res; send({t:'join', code, player});
     setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },6000); });
   if(!resp||!resp.state) return; // l'erreur a déjà été affichée
@@ -566,6 +729,7 @@ $('btnJoin').onclick=async()=>{
 };
 
 function enterRoom(){
+  lastFxSeq=(room.fx&&room.fx.seq)||0;
   render();
   startHostLoop();
 }
@@ -599,6 +763,11 @@ $('btnStart').onclick=async()=>{
   await saveRoom();
 };
 
+function shade(hex,f){
+  const n=parseInt(hex.slice(1),16);
+  const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
 function renderBoard(){
   show('scr-board');
   const cur=room.players[room.turn];
@@ -609,109 +778,484 @@ function renderBoard(){
       <div class="pav">${p.avatar}</div>
       <div class="pname">${p.name}</div>
       <div class="pres">🪙${p.coins} ⭐${p.stars}</div>
+      <div class="pres" style="font-size:13px;min-height:17px;">${pItems(p).map(id=>ITEMS[id]?ITEMS[id].e:'').join(' ')||'&nbsp;'}</div>
       <div style="height:4px;border-radius:2px;background:${p.color||'#FFD644'};margin-top:4px;"></div>
     </div>`).join('');
-  // plateau : route serpentine dessinée en SVG
-  const COLSN=5, CW=68, CH=74, OX=44, OY=44;
-  const XY=i=>{ const row=Math.floor(i/COLSN), col=row%2===0?i%COLSN:COLSN-1-(i%COLSN);
-    return [OX+col*CW, OY+row*CH]; };
-  const pts=room.board.map((_,i)=>XY(i).join(',')).join(' ');
-  const FILL={start:'#FFFFFF',blue:'#5AC8FA',red:'#FF6B6B',lucky:'#3EE6C1',event:'#FF9F45',starT:'#7A66E0'};
-  const ICON={start:'🏁',blue:'🪙',red:'💥',lucky:'🍀',event:'🎁'};
-  let tiles='', toks='';
-  room.board.forEach((t,i)=>{
-    const [x,y]=XY(i);
-    const active=t==='starT'&&i===room.starIdx;
-    const fill=active?'#FFD644':FILL[t];
-    const icon=t==='starT'?(active?'⭐':'☆'):ICON[t];
-    tiles+=`<g>
-      ${active?`<circle class="ringA" cx="${x}" cy="${y}" r="33" fill="none" stroke="#FFD644" stroke-width="4"/>`:''}
-      <circle cx="${x}" cy="${y+2}" r="25" fill="rgba(0,0,0,.35)"/>
-      <circle cx="${x}" cy="${y}" r="25" fill="${fill}" stroke="rgba(0,0,0,.28)" stroke-width="3"/>
-      <circle cx="${x-8}" cy="${y-9}" r="8" fill="rgba(255,255,255,.35)"/>
-      <text x="${x}" y="${y+7}" text-anchor="middle" font-size="20">${icon}</text>
+  // carte façon Mario Party : graphe de nœuds sur une île volante ovale
+  const nodes=room.board;
+  const TOPC={start:'#F4F0FF',blue:'#5AC8FA',red:'#FF6B6B',lucky:'#3EE6C1',event:'#FF9F45',starT:'#8E7CFF',shop:'#C39BFF',boo:'#9B89D8',duel:'#FF8FAB',bank:'#F0C34E',chance:'#FF9FF3',bowser:'#5B3A8E'};
+  const ICON={start:'🏁',blue:'🪙',red:'💥',lucky:'🍀',event:'🎁',shop:'🛍️',boo:'👻',duel:'⚔️',bank:'🏦',chance:'🎰',bowser:'👹'};
+  const L=27, H=16, DEP=12;
+  const cx=210, cy=250, Rx=152, Ry=196;
+  // routes (boucle + raccourci)
+  let roadPath='';
+  nodes.forEach(n=>n.next.forEach(j=>{ const m=nodes[j]; roadPath+=`M${n.x},${n.y} L${m.x},${m.y} `; }));
+  const roads=`
+    <path d="${roadPath}" stroke="#160D38" stroke-width="24" fill="none" stroke-linecap="round"/>
+    <path d="${roadPath}" stroke="#2A1858" stroke-width="17" fill="none" stroke-linecap="round"/>
+    <path d="${roadPath}" stroke="rgba(255,255,255,.22)" stroke-width="2.5" fill="none" stroke-dasharray="1 9" stroke-linecap="round"/>`;
+  // île organique (2 ellipses = épaisseur) + anneau décoratif
+  const island=`
+    <ellipse cx="${cx}" cy="${cy+30}" rx="${Rx+62}" ry="${Ry+58}" fill="#150C36"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${Rx+62}" ry="${Ry+58}" fill="#241553" stroke="#3A2A70" stroke-width="3"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${Rx+34}" ry="${Ry+32}" fill="none" stroke="rgba(255,255,255,.045)" stroke-width="18"/>`;
+  // cases (peintre : par y croissant)
+  let cells='';
+  nodes.map((n,i)=>({n,i})).sort((a,b)=>a.n.y-b.n.y).forEach(o=>{
+    const x=o.n.x, y=o.n.y;
+    const active=o.n.t==='starT'&&o.i===room.starIdx;
+    const top=active?'#FFD644':TOPC[o.n.t]||'#5AC8FA';
+    const icon=o.n.t==='starT'?(active?'⭐':'☆'):ICON[o.n.t];
+    cells+=`<g>
+      ${active?`<ellipse class="ringA" cx="${x}" cy="${y}" rx="${L+8}" ry="${H+6}" fill="none" stroke="#FFD644" stroke-width="4"/>`:''}
+      <polygon points="${x-L},${y} ${x},${y+H} ${x},${y+H+DEP} ${x-L},${y+DEP}" fill="${shade(top,.5)}"/>
+      <polygon points="${x+L},${y} ${x},${y+H} ${x},${y+H+DEP} ${x+L},${y+DEP}" fill="${shade(top,.68)}"/>
+      <polygon points="${x},${y-H} ${x+L},${y} ${x},${y+H} ${x-L},${y}" fill="${top}" stroke="${shade(top,.45)}" stroke-width="1.5"/>
+      <polygon points="${x},${y-H+3} ${x+L-7},${y} ${x},${y+H-3} ${x-L+7},${y}" fill="rgba(255,255,255,.15)"/>
+      <text x="${x}" y="${y+6}" text-anchor="middle" font-size="15">${icon}</text>
     </g>`;
-    const here=room.players.map((p,pi)=>({p,pi})).filter(o=>o.p.pos===i);
-    here.forEach((o,k)=>{
-      const dx=(k-(here.length-1)/2)*17;
-      toks+=`<text class="tok ${o.pi===room.turn?'cur':''}" x="${x+dx}" y="${y-27}" text-anchor="middle" font-size="21" style="filter:drop-shadow(0 3px 2px rgba(0,0,0,.6));">${o.p.avatar}</text>`;
+    const here=room.players.map((p,pi)=>({p,pi})).filter(q=>q.p.pos===o.i);
+    here.forEach((q,k)=>{
+      const dx=(k-(here.length-1)/2)*16;
+      cells+=`<ellipse cx="${x+dx}" cy="${y-1}" rx="9" ry="4" fill="rgba(0,0,0,.35)"/>
+        <text class="tok ${q.pi===room.turn?'cur':''}" x="${x+dx}" y="${y-11}" text-anchor="middle" font-size="23" style="filter:drop-shadow(0 4px 3px rgba(0,0,0,.55));">${q.p.avatar}</text>`;
     });
   });
-  const deco=`<text x="14" y="20" font-size="12" fill="#FFD644" opacity=".5">✦</text>
-    <text x="334" y="30" font-size="14" fill="#FF5FA2" opacity=".5">✦</text>
-    <text x="332" y="444" font-size="12" fill="#3EE6C1" opacity=".55">✦</text>
-    <text x="12" y="440" font-size="16" opacity=".5">🌙</text>
-    <text x="176" y="16" font-size="10" fill="#5AC8FA" opacity=".5">✧</text>`;
-  $('boardWrap').innerHTML=`<svg viewBox="0 0 360 458" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
+  // panneau du carrefour
+  const jc=nodes[4];
+  const junction=`<text class="deco" x="${jc.x+26}" y="${jc.y-18}" font-size="17" text-anchor="middle">🧭</text>`;
+  // décor : la fête au cœur de l'île + espace autour
+  const deco=`
+    <text class="deco" x="150" y="185" font-size="46" text-anchor="middle">🎪</text>
+    <text class="deco" style="animation-delay:.6s" x="128" y="292" font-size="36" text-anchor="middle">🎡</text>
+    <text class="deco" style="animation-delay:1.2s" x="172" y="382" font-size="30" text-anchor="middle">🎠</text>
+    <text class="deco" style="animation-delay:.3s" x="318" y="238" font-size="28" text-anchor="middle">🎢</text>
+    <text class="deco" style="animation-delay:1.5s" x="252" y="152" font-size="22" text-anchor="middle">🎈</text>
+    <text class="deco" style="animation-delay:1.8s" x="14" y="60" font-size="24">🪐</text>
+    <text class="deco" style="animation-delay:2.3s" x="386" y="112" font-size="20">🛸</text>
+    <text class="deco" style="animation-delay:.9s" x="392" y="430" font-size="22">🌙</text>
+    <text x="34" y="140" font-size="15" opacity=".4">☁️</text>
+    <text x="368" y="300" font-size="16" opacity=".4">☁️</text>
+    <text x="66" y="470" font-size="14" opacity=".35">☁️</text>
+    <text x="0" y="240" font-size="13" fill="#FFD644" opacity=".5">✦</text>
+    <text x="404" y="200" font-size="15" fill="#FF5FA2" opacity=".5">✦</text>
+    <text x="382" y="520" font-size="13" fill="#3EE6C1" opacity=".55">✦</text>
+    <text x="196" y="-8" font-size="11" fill="#5AC8FA" opacity=".5">✧</text>
+    <text x="18" y="540" font-size="12" fill="#C39BFF" opacity=".5">✦</text>`;
+  $('boardWrap').innerHTML=`<svg viewBox="-26 -24 472 588" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
+    ${island}
     ${deco}
-    <polyline points="${pts}" fill="none" stroke="#120B2C" stroke-width="44" stroke-linejoin="round" stroke-linecap="round"/>
-    <polyline points="${pts}" fill="none" stroke="#241553" stroke-width="38" stroke-linejoin="round" stroke-linecap="round"/>
-    <polyline points="${pts}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3" stroke-dasharray="2 11" stroke-linejoin="round" stroke-linecap="round"/>
-    ${tiles}${toks}
+    ${roads}
+    ${cells}
+    ${junction}
   </svg>`;
-  $('btnRoll').style.display=myTurn()?'block':'none';
-  $('turnHint').textContent=myTurn()?'':'⭐ = étoile à acheter (20 🪙) en passant dessus';
+  $('rollBtns').style.display=(myTurn()&&!animBusy)?'flex':'none';
+  renderItemRow();
+  $('turnHint').textContent=(myTurn()&&!animBusy)?'Utilise un objet puis lance un dé !':'⭐ à '+starCost()+' 🪙 en passant dessus';
   $('gameLog').innerHTML=room.log.slice(-6).map(l=>'<div>• '+l+'</div>').join('');
   $('gameLog').scrollTop=9999;
 }
+function renderItemRow(){
+  const row=$('itemRow');
+  if(!myTurn()||animBusy){ row.innerHTML=''; return; }
+  const p=room.players[room.turn];
+  row.innerHTML=pItems(p).map((id,i)=>ITEMS[id]?`<button class="ichip" data-i="${i}" title="${ITEMS[id].name}">${ITEMS[id].e}</button>`:'').join('');
+  row.querySelectorAll('.ichip').forEach(b=>b.onclick=()=>useItem(+b.dataset.i));
+}
 
 /* =================== tour de jeu =================== */
-$('btnRoll').onclick=async()=>{
+async function useItem(idx){
+  if(!myTurn()||animBusy) return;
+  const p=room.players[room.turn];
+  const id=pItems(p)[idx]; if(!id) return;
+  if(id==='shield'){ toast('🛡️ Le bouclier agit tout seul quand on t\'attaque !'); return; }
+  if(id==='mush'){
+    pItems(p).splice(idx,1);
+    room.turnFx=Object.assign({},room.turnFx,{double:true});
+    room.log.push('🍄 '+p.name+' utilise un Champi Double : 2 dés ce tour !');
+    await saveRoom(); return;
+  }
+  if(id==='magnet'){
+    pItems(p).splice(idx,1);
+    room.turnFx=Object.assign({},room.turnFx,{magnet:true});
+    room.log.push('🧲 '+p.name+' active son Aimant !');
+    await saveRoom(); return;
+  }
+  if(id==='loaded'){
+    const v=await ask({icon:'🎯',title:'Dé Pipé',text:'Choisis le résultat de ton dé !',
+      options:[1,2,3,4,5,6].map(n=>({label:'🎲 '+n,value:n})).concat([{label:'Annuler',value:null,cls:'ghost'}])});
+    if(v==null) return;
+    pItems(p).splice(idx,1);
+    room.log.push('🎯 '+p.name+' utilise un Dé Pipé…');
+    startRoll('loaded',v); return;
+  }
+  if(id==='pipe'){
+    const go=await ask({icon:'🌀',title:'Tuyau Magique',text:'Te téléporter directement sur l\'étoile ⭐ ?',
+      options:[{label:'Zouuu ! 🌀',value:1,cls:'menthe'},{label:'Annuler',value:null,cls:'ghost'}]});
+    if(!go) return;
+    pItems(p).splice(idx,1);
+    animBusy=true;
+    p.pos=room.starIdx; p.travel=(p.travel||0)+1;
+    room.log.push('🌀 '+p.name+' voyage en tuyau jusqu\'à l\'étoile !');
+    fxCast('🌀','TUYAU !',p.name+' se téléporte sur l\'étoile !');
+    renderBoard();
+    await sleep(600);
+    await passStar(p);
+    animBusy=false;
+    await saveRoom(); return;
+  }
+}
+
+$('btnRoll').onclick=()=>startRoll('norm');
+$('btnRisk').onclick=()=>startRoll('risk');
+
+async function startRoll(kind,forced){
   if(!myTurn()||animBusy) return;
   animBusy=true;
-  $('btnRoll').style.display='none';
-  const d=1+rnd(6);
-  const face=$('diceFace');
-  face.classList.add('roll');
-  for(let i=0;i<8;i++){ face.textContent=1+rnd(6); await sleep(70); }
-  face.textContent=d; face.classList.remove('roll');
+  $('rollBtns').style.display='none'; $('itemRow').innerHTML='';
   const p=room.players[room.turn];
-  room.log.push(p.avatar+' '+p.name+' fait '+d+' !');
-  // déplacement pas à pas
+  const face=$('diceFace');
+  const RISK=[0,0,0,8,9,10];
+  let d, label;
+  snd('dice');
+  face.classList.add('roll');
+  if(kind==='loaded'){
+    for(let i=0;i<6;i++){ face.textContent=1+rnd(6); await sleep(60); }
+    d=forced; label=''+d;
+  } else if(kind==='risk'){
+    for(let i=0;i<10;i++){ face.textContent=RISK[rnd(6)]; await sleep(65); }
+    d=RISK[rnd(6)]; label=''+d;
+  } else if(room.turnFx&&room.turnFx.double){
+    for(let i=0;i<8;i++){ face.textContent=(1+rnd(6))+'+'+(1+rnd(6)); await sleep(70); }
+    const d1=1+rnd(6), d2=1+rnd(6); d=d1+d2; label=d1+'+'+d2;
+  } else {
+    for(let i=0;i<8;i++){ face.textContent=1+rnd(6); await sleep(70); }
+    d=1+rnd(6); label=''+d;
+  }
+  face.textContent=label; face.classList.remove('roll');
+  if(d===0){
+    addCoins(p,-2);
+    fxCast('😵','PAS DE BOL !',p.name+' fait 0 et perd 2 🪙 !');
+    room.log.push('😵 '+p.name+' tente le dé chaos… 0 ! (−2 🪙)');
+    await sleep(800);
+  } else {
+    room.log.push('🎲 '+p.avatar+' '+p.name+' fait '+d+' !');
+    await moveBy(p,d);
+  }
+  await endTurn();
+}
+
+async function nextPos(p){
+  const nxt=room.board[p.pos].next;
+  if(nxt.length<2) return nxt[0];
+  snd('pop');
+  const v=await ask({icon:'🧭',title:'CARREFOUR !',text:p.name+', quel chemin veux-tu prendre ?',
+    options:nxt.map(j=>({
+      label:j>=LOOP_N?'⚡ Raccourci risqué (plus court !)':'🎡 Grande boucle (vers les étoiles)',
+      value:j, cls:j>=LOOP_N?'rose':'menthe'
+    }))});
+  return v??nxt[0];
+}
+
+async function moveBy(p,d){
+  const magnet=room.turnFx&&room.turnFx.magnet;
+  const robbed={};
   for(let s=0;s<d;s++){
-    p.pos=(p.pos+1)%30;
-    if(p.pos===0){ p.coins+=5; room.log.push(p.name+' finit un tour de plateau : +5 🪙'); }
-    // achat d'étoile au passage
-    if(p.pos===room.starIdx && p.coins>=20){
-      p.coins-=20; p.stars++;
-      room.log.push('🌟 '+p.name+' achète une ÉTOILE !');
-      const others=STAR_SPOTS.filter(x=>x!==room.starIdx);
-      room.starIdx=others[rnd(others.length)];
-      room.log.push('L\'étoile se déplace ailleurs sur le plateau…');
+    p.pos=await nextPos(p); p.travel=(p.travel||0)+1;
+    if(p.pos===0){ addCoins(p,5); room.log.push('🏁 '+p.name+' finit un tour de plateau : +5 🪙'); }
+    if(magnet){
+      room.players.forEach(o=>{
+        if(o.id!==p.id&&o.pos===p.pos&&!robbed[o.id]){
+          robbed[o.id]=1;
+          if(popShield(o)){ room.log.push('🛡️ '+o.name+' bloque l\'Aimant de '+p.name+' !'); }
+          else{ const st=Math.min(5,o.coins); o.coins-=st; addCoins(p,st);
+            room.log.push('🧲 '+p.name+' aimante '+st+' 🪙 à '+o.name+' !'); }
+        }
+      });
     }
-    renderBoard(); await sleep(260);
-  }
-  // effet de case
-  const t=room.board[p.pos];
-  if(t==='blue'){ p.coins+=3; room.log.push(p.name+' gagne +3 🪙'); }
-  else if(t==='red'){ p.coins=Math.max(0,p.coins-3); room.log.push(p.name+' perd -3 🪙'); }
-  else if(t==='lucky'){ p.coins+=8; room.log.push('🍀 Case chance ! '+p.name+' gagne +8 🪙'); }
-  else if(t==='event'){
-    const ev=rnd(3);
-    if(ev===0){ p.coins+=5; room.log.push('🎁 Surprise : +5 🪙 pour '+p.name); }
-    else if(ev===1){ p.coins=Math.max(0,p.coins-5); room.log.push('💥 Piège : -5 🪙 pour '+p.name); }
-    else{
-      const others=room.players.filter(x=>x.id!==p.id);
-      if(others.length){ const o=others[rnd(others.length)];
-        const tmp=p.pos; p.pos=o.pos; o.pos=tmp;
-        room.log.push('🌀 '+p.name+' échange sa place avec '+o.name+' !'); }
+    snd('step');
+    renderBoard(); await sleep(430);
+    const t=room.board[p.pos].t;
+    if(t==='starT'&&p.pos===room.starIdx) await passStar(p);
+    else if(t==='shop') await passShop(p);
+    else if(t==='boo') await passBoo(p);
+    else if(t==='bank'&&s<d-1){
+      const dep=Math.min(3,p.coins);
+      if(dep>0){ p.coins-=dep; room.bank=(room.bank||0)+dep; snd('coin');
+        room.log.push('🏦 '+p.name+' dépose '+dep+' 🪙 à la banque ('+room.bank+' 🪙 dedans) !'); }
     }
   }
-  // joueur suivant / mini-jeu
+  await landEffect(p);
+}
+
+async function landEffect(p){
+  const t=room.board[p.pos].t;
+  const dbl=room.finale&&room.finale.double;
+  if(t==='blue'){ const g=dbl?6:3; addCoins(p,g); snd('coin'); room.log.push(p.name+' gagne +'+g+' 🪙'); }
+  else if(t==='red'){
+    const l=dbl?6:3;
+    if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe la case piège !');
+      room.log.push('🛡️ '+p.name+' bloque la case piège !'); }
+    else{ addCoins(p,-l); snd('bad'); room.log.push(p.name+' perd −'+l+' 🪙'); }
+  }
+  else if(t==='lucky'){
+    const r=rnd(4);
+    if(r===3&&pItems(p).length<2){
+      const id=ITEM_IDS[rnd(ITEM_IDS.length)];
+      pItems(p).push(id); snd('coin');
+      fxCast('🍀','COUP DE CHANCE !',p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+      room.log.push('🍀 '+p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+    } else {
+      const g=r===2?15:8;
+      addCoins(p,g); snd('coin');
+      room.log.push('🍀 Case chance ! '+p.name+' gagne +'+g+' 🪙');
+      if(g===15) fxCast('🍀','JACKPOT CHANCE !','+15 🪙 pour '+p.name+' !');
+    }
+  }
+  else if(t==='duel') await doDuel(p);
+  else if(t==='event'){ p.events=(p.events||0)+1; await doEvent(p); }
+  else if(t==='bank') await doBank(p);
+  else if(t==='chance') await doChance(p);
+  else if(t==='bowser') await doBowser(p);
+  renderBoard();
+}
+
+async function doBank(p){
+  const amt=room.bank||0;
+  if(amt<=0){
+    fxCast('🏦','LA BANQUE…','Le coffre est vide ! Repasse plus tard 😅');
+    room.log.push('🏦 '+p.name+' visite une banque vide.');
+    return;
+  }
+  room.bank=0; addCoins(p,amt);
+  snd('star');
+  fxCast('🏦','JACKPOT !!',p.name+' rafle les '+amt+' 🪙 de la banque !',3000);
+  room.log.push('🏦 JACKPOT : '+p.name+' rafle '+amt+' 🪙 !');
+  await saveRoom();
+}
+
+async function doChance(p){
+  snd('duel');
+  fxCast('🎰','CHANCE TIME !','La roulette du destin tourne…',1600);
+  await sleep(1750);
+  const ps=room.players;
+  const A=ps[rnd(ps.length)];
+  let B=ps[rnd(ps.length)]; while(ps.length>1&&B.id===A.id) B=ps[rnd(ps.length)];
+  const r=rnd(6);
+  if(r<3){ // 10 pièces
+    const amt=Math.min(10,A.coins); A.coins-=amt; addCoins(B,amt);
+    fxCast('🎰','CHANCE TIME !',A.name+' donne '+amt+' 🪙 à '+B.name+' !',3000);
+    room.log.push('🎰 '+A.name+' donne '+amt+' 🪙 à '+B.name+' !');
+  } else if(r<5){ // échange des pièces
+    const tmp=A.coins; A.coins=B.coins; B.coins=tmp;
+    fxCast('🎰','CHANCE TIME !',A.name+' et '+B.name+' échangent TOUTES leurs 🪙 !',3000);
+    room.log.push('🎰 '+A.name+' et '+B.name+' échangent leurs pièces !');
+  } else { // une étoile !
+    if(A.stars>0){ A.stars--; B.stars++;
+      snd('star');
+      fxCast('🎰','CHANCE TIME DE FOLIE !!',A.name+' donne une ⭐ à '+B.name+' !!',3400);
+      room.log.push('🎰 INCROYABLE : '+A.name+' donne une ⭐ à '+B.name+' !');
+    } else {
+      const amt=Math.min(15,A.coins); A.coins-=amt; addCoins(B,amt);
+      fxCast('🎰','CHANCE TIME !',A.name+' donne '+amt+' 🪙 à '+B.name+' !',3000);
+      room.log.push('🎰 '+A.name+' donne '+amt+' 🪙 à '+B.name+' !');
+    }
+  }
+  await saveRoom();
+}
+
+async function doBowser(p){
+  snd('boo');
+  fxCast('👹','LE ROI FANTÔME !','Il te tient… que va-t-il faire ?!',1800);
+  await sleep(1950);
+  const r=rnd(6);
+  if(r===0){
+    const amt=Math.min(10,p.coins); addCoins(p,-amt);
+    fxCast('👹','TAXE ROYALE !',p.name+' perd '+amt+' 🪙 !',2600);
+    room.log.push('👹 Le Roi Fantôme taxe '+amt+' 🪙 à '+p.name+' !');
+  } else if(r===1){
+    const amt=Math.floor(p.coins/2); addCoins(p,-amt);
+    fxCast('👹','PILLAGE !','La moitié des 🪙 de '+p.name+' s\'envole ! (−'+amt+')',2600);
+    room.log.push('👹 '+p.name+' perd la moitié de ses pièces ('+amt+') !');
+  } else if(r===2){
+    const total=room.players.reduce((a,q)=>a+q.coins,0);
+    const share=Math.floor(total/room.players.length);
+    room.players.forEach(q=>q.coins=share);
+    fxCast('👹','RÉVOLUTION !','Toutes les 🪙 sont redistribuées : '+share+' chacun !',3200);
+    room.log.push('👹 RÉVOLUTION : tout le monde repart avec '+share+' 🪙 !');
+  } else if(r===3&&pItems(p).length>0){
+    const it=pItems(p).splice(rnd(pItems(p).length),1)[0];
+    fxCast('👹','VOL D\'OBJET !','Le Roi Fantôme croque '+ITEMS[it].e+' '+ITEMS[it].name+' !',2600);
+    room.log.push('👹 '+p.name+' perd '+ITEMS[it].e+' '+ITEMS[it].name+' !');
+  } else if(r===4){
+    room.players.forEach(q=>{ if(q.id!==p.id) addCoins(q,-3); });
+    fxCast('👹','COLÈRE ROYALE !','Tous les AUTRES joueurs perdent 3 🪙 !',2600);
+    room.log.push('👹 Les autres joueurs perdent 3 🪙 chacun !');
+  } else {
+    addCoins(p,5);
+    fxCast('👹','IL RIGOLE…','Le Roi Fantôme est de bonne humeur : +5 🪙 !',2600);
+    room.log.push('👹 Le Roi Fantôme offre 5 🪙 à '+p.name+' !');
+  }
+  await saveRoom();
+}
+
+async function passStar(p){
+  const cost=starCost();
+  if(p.coins<cost){ room.log.push('⭐ '+p.name+' passe devant l\'étoile… pas assez de 🪙 ('+cost+') !'); return; }
+  const buy=await ask({icon:'⭐',title:'UNE ÉTOILE !',text:'Acheter cette étoile pour '+cost+' 🪙 ?',
+    options:[{label:'OUI ! ⭐ (−'+cost+' 🪙)',value:1},{label:'Non, j\'économise',value:0,cls:'ghost'}]});
+  if(!buy){ room.log.push(p.name+' fait le radin devant l\'étoile 😏'); return; }
+  p.coins-=cost; p.stars++;
+  snd('star');
+  const others=STAR_SPOTS.filter(x=>x!==room.starIdx);
+  room.starIdx=others[rnd(others.length)];
+  fxCast('🌟','ÉTOILE !',p.name+' achète une ÉTOILE ! Elle réapparaît ailleurs…',2600);
+  room.log.push('🌟 '+p.name+' achète une ÉTOILE !');
+  renderBoard(); await saveRoom();
+}
+
+async function passShop(p){
+  if(pItems(p).length>=2){ room.log.push('🛍️ '+p.name+' passe à la boutique… sac plein (2 objets max) !'); return; }
+  const opts=ITEM_IDS.map(id=>({
+    label:ITEMS[id].e+' '+ITEMS[id].name+' — '+ITEMS[id].price+' 🪙<br><span style="font-size:12px;opacity:.75;font-weight:600;">'+ITEMS[id].desc+'</span>',
+    value:id, disabled:p.coins<ITEMS[id].price, cls:'menthe'
+  }));
+  opts.push({label:'Non merci 👋',value:null,cls:'ghost'});
+  const id=await ask({icon:'🛍️',title:'LA BOUTIQUE !',text:p.name+' — tu as '+p.coins+' 🪙 (1 achat max)',options:opts});
+  if(!id){ room.log.push('🛍️ '+p.name+' lèche la vitrine de la boutique.'); return; }
+  p.coins-=ITEMS[id].price;
+  pItems(p).push(id);
+  room.log.push('🛍️ '+p.name+' achète '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+  renderBoard(); await saveRoom();
+}
+
+async function passBoo(p){
+  const others=room.players.filter(o=>o.id!==p.id);
+  if(!others.length) return;
+  const canStar=p.coins>=30&&others.some(o=>o.stars>0);
+  const act=await ask({icon:'👻',title:'LE FANTÔME VOLEUR…',text:'Il te propose ses services contre quelques pièces…',
+    options:[
+      {label:'👻 Voler des 🪙 à un joueur (−5 🪙)',value:'coins',disabled:p.coins<5},
+      {label:'💀 Voler une ⭐ ÉTOILE (−30 🪙)',value:'star',cls:'rose',disabled:!canStar},
+      {label:'Passer son chemin 😇',value:null,cls:'ghost'}
+    ]});
+  if(!act){ room.log.push('👻 '+p.name+' ignore le fantôme.'); return; }
+  const pool=act==='star'?others.filter(o=>o.stars>0):others.filter(o=>o.coins>0);
+  if(!pool.length){ toast('Personne à voler 😅'); return; }
+  const tid=await ask({icon:'👻',title:'Voler qui ?',
+    options:pool.map(o=>({label:o.avatar+' '+o.name+' (🪙'+o.coins+' ⭐'+o.stars+')',value:o.id}))
+      .concat([{label:'Annuler',value:null,cls:'ghost'}])});
+  if(!tid) return;
+  const t=room.players.find(o=>o.id===tid);
+  p.coins-=act==='star'?30:5;
+  snd('boo');
+  if(popShield(t)){
+    fxCast('🛡️','RATÉ !','Le bouclier de '+t.name+' repousse le fantôme !');
+    room.log.push('🛡️ '+t.name+' bloque le fantôme envoyé par '+p.name+' !');
+  } else if(act==='star'){
+    t.stars--; p.stars++;
+    fxCast('💀','VOL D\'ÉTOILE !',p.name+' vole une ⭐ à '+t.name+' !!',3000);
+    room.log.push('💀 '+p.name+' vole une ÉTOILE à '+t.name+' !');
+  } else {
+    const amt=Math.min(4+rnd(6),t.coins);
+    t.coins-=amt; addCoins(p,amt);
+    fxCast('👻','VOL !',p.name+' vole '+amt+' 🪙 à '+t.name+' !');
+    room.log.push('👻 '+p.name+' vole '+amt+' 🪙 à '+t.name+' !');
+  }
+  renderBoard(); await saveRoom();
+}
+
+async function doDuel(p){
+  const others=room.players.filter(o=>o.id!==p.id&&o.coins>0);
+  if(!others.length){ room.log.push('⚔️ '+p.name+' cherche la bagarre… personne à défier !'); return; }
+  const tid=await ask({icon:'⚔️',title:'DUEL !',text:'Défie un joueur : le gagnant du dé rafle 10 🪙 !',
+    options:others.map(o=>({label:o.avatar+' '+o.name+' (🪙'+o.coins+')',value:o.id}))});
+  const t=room.players.find(o=>o.id===tid);
+  snd('duel');
+  let a,b; do{ a=1+rnd(6); b=1+rnd(6); }while(a===b);
+  const win=a>b?p:t, lose=a>b?t:p;
+  const amt=Math.min(10,lose.coins);
+  lose.coins-=amt; addCoins(win,amt);
+  fxCast('⚔️','DUEL !',p.avatar+' '+a+' 🆚 '+b+' '+t.avatar+'<br>'+win.name+' rafle '+amt+' 🪙 !',3000);
+  room.log.push('⚔️ Duel : '+win.name+' bat '+lose.name+' et prend '+amt+' 🪙 !');
+  await saveRoom();
+}
+
+async function doEvent(p){
+  fxCast('🎁','ÉVÉNEMENT !','La case surprise s\'active…',1300);
+  await sleep(1450);
+  const others=room.players.filter(o=>o.id!==p.id);
+  const evs=['gift','trap','swap','rain','tornado','robin','star'];
+  if(pItems(p).length<2) evs.push('item');
+  const ev=evs[rnd(evs.length)];
+  if(ev==='gift'){ addCoins(p,6); fxCast('🎉','CADEAU !','+6 🪙 pour '+p.name+' !'); room.log.push('🎉 Cadeau : +6 🪙 pour '+p.name); }
+  else if(ev==='trap'){
+    if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe le piège !'); room.log.push('🛡️ '+p.name+' bloque un piège !'); }
+    else{ addCoins(p,-6); fxCast('💥','PIÈGE !','−6 🪙 pour '+p.name+' !'); room.log.push('💥 Piège : −6 🪙 pour '+p.name); }
+  }
+  else if(ev==='swap'&&others.length){
+    const o=others[rnd(others.length)];
+    const tmp=p.pos; p.pos=o.pos; o.pos=tmp;
+    fxCast('🌀','ÉCHANGE !',p.name+' échange sa place avec '+o.name+' !');
+    room.log.push('🌀 '+p.name+' échange sa place avec '+o.name+' !');
+  }
+  else if(ev==='rain'){
+    room.players.forEach(o=>addCoins(o,3));
+    fxCast('🌠','PLUIE D\'ÉTOILES !','+3 🪙 pour tout le monde !');
+    room.log.push('🌠 Pluie d\'étoiles filantes : +3 🪙 pour tous !');
+  }
+  else if(ev==='tornado'){
+    const pos=room.players.map(o=>o.pos).sort(()=>Math.random()-.5);
+    room.players.forEach((o,i)=>o.pos=pos[i]);
+    fxCast('🌪️','TORNADE !','Tous les joueurs sont mélangés sur le plateau !');
+    room.log.push('🌪️ Une tornade mélange tout le monde !');
+  }
+  else if(ev==='robin'){
+    const rich=[...room.players].sort((a,b)=>b.coins-a.coins)[0];
+    const poor=[...room.players].sort((a,b)=>a.coins-b.coins)[0];
+    if(rich!==poor&&rich.coins>0){
+      const amt=Math.min(5,rich.coins); rich.coins-=amt; addCoins(poor,amt);
+      fxCast('🎭','ROBIN DES ÉTOILES !',rich.name+' (le plus riche) donne '+amt+' 🪙 à '+poor.name+' !');
+      room.log.push('🎭 '+rich.name+' donne '+amt+' 🪙 à '+poor.name+' !');
+    }
+  }
+  else if(ev==='star'){
+    const spots=STAR_SPOTS.filter(x=>x!==room.starIdx);
+    room.starIdx=spots[rnd(spots.length)];
+    fxCast('⭐','L\'ÉTOILE S\'ENVOLE !','Elle change de place sur le plateau !');
+    room.log.push('⭐ L\'étoile change de place !');
+  }
+  else if(ev==='item'){
+    const id=ITEM_IDS[rnd(ITEM_IDS.length)];
+    pItems(p).push(id);
+    fxCast('🎁','OBJET TROUVÉ !',p.name+' reçoit '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+    room.log.push('🎁 '+p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+  }
+  renderBoard(); await sleep(1100);
+}
+
+async function endTurn(){
+  room.turnFx=null;
   if(room.turn===room.players.length-1){
     room.turn=0;
     room.status='minigame';
     let mgType=rnd(MG_COUNT);
     if(room.lastMg!==undefined && MG_COUNT>1){ while(mgType===room.lastMg) mgType=rnd(MG_COUNT); }
     room.lastMg=mgType;
-    room.mg={type:mgType, startedAt:Date.now(), round:room.round};
+    let teams=null;
+    if(room.players.length>=4&&rnd(10)<4){
+      const ids=room.players.map(q=>q.id).sort(()=>Math.random()-.5);
+      teams={}; ids.forEach((id,i)=>teams[id]=i<Math.ceil(ids.length/2)?0:1);
+      room.log.push('🤝 MINI-JEU EN ÉQUIPES : 🔵 contre 🔴 !');
+    }
+    room.mg={type:mgType, startedAt:Date.now(), round:room.round, teams};
     room.log.push('🎮 MINI-JEU ! Tout le monde joue sur son téléphone !');
   } else {
     room.turn++;
   }
   animBusy=false;
   await saveRoom();
-};
+}
 
 /* =================== mini-jeux =================== */
 const MG_INFO=[
@@ -726,7 +1270,20 @@ const MG_INFO=[
   {name:'Flèches Folles',desc:'Tape la bonne direction… sauf si c\'est marqué OPPOSÉ ! 15 secondes.'},
   {name:'Compte-Vite',desc:'Compte les moutons qui apparaissent ! 3 manches.'},
   {name:'Bulles Folles',desc:'Éclate les bulles : les petites rapportent plus ! 12 secondes.'},
-  {name:'Jauge Parfaite',desc:'Arrête le curseur dans la zone verte ! 3 essais, ça accélère…'}
+  {name:'Jauge Parfaite',desc:'Arrête le curseur dans la zone verte ! 3 essais, ça accélère…'},
+  {name:'Pluie de Comètes',desc:'Glisse ton doigt pour piloter 🚀 et esquive les comètes ! Survis 20 s.'},
+  {name:'Invasion Cosmique',desc:'Glisse pour bouger, ton vaisseau tire tout seul : dégomme les 🛸 avant qu\'ils atterrissent ! 20 s.'},
+  {name:'Tir à l\'Étoile',desc:'Tape pour tirer sur les cibles qui passent ! 12 balles, 15 s, vise bien…'},
+  {name:'Sprint Céleste',desc:'Tape GAUCHE puis DROITE en alternant à toute vitesse : 100 m de sprint !'},
+  {name:'Panier d\'Étoiles',desc:'Glisse le panier 🧺 : attrape ⭐ et 💎, évite les 💣 ! 15 s.'},
+  {name:'Canon Cosmique',desc:'Maintiens pour charger, relâche pour tirer pile sur la cible 🎯 ! 3 tirs.'},
+  {name:'Mèche Folle',desc:'Maintiens la bombe 💣 pour gagner des points… mais lâche AVANT l\'explosion ! 3 manches.'},
+  {name:'Cerveau d\'Étoiles',desc:'Les chiffres se cachent : tape-les dans l\'ordre croissant ! Ça se corse…'},
+  {name:'L\'Intrus',desc:'Trouve l\'emoji différent des autres le plus vite possible ! 8 manches.'},
+  {name:'Bonneteau Cosmique',desc:'Suis la coupelle qui cache l\'étoile ⭐… ça mélange de plus en plus vite ! 5 manches.'},
+  {name:'Fusée Folle',desc:'Tape pour faire monter la fusée 🚀, passe entre les astéroïdes ! Chaque passage = +10.'},
+  {name:'Rythme des Étoiles',desc:'Tape PILE quand le cercle se referme sur l\'étoile ! 10 notes, en rythme…'},
+  {name:'Alunissage',desc:'Maintiens pour freiner 🚀 et pose-toi EN DOUCEUR sur la lune ! 3 atterrissages.'}
 ];
 const MG_COUNT=MG_INFO.length;
 let mgPlayed=false, mgTimerI=null;
@@ -735,7 +1292,14 @@ function renderMg(){
   const info=MG_INFO[room.mg.type];
   $('mgName').textContent=info.name;
   $('mgDesc').textContent=info.desc;
+  const T=room.mg.teams, tb=$('mgTeam');
+  if(T){
+    const t0=room.players.filter(p=>T[p.id]===0), t1=room.players.filter(p=>T[p.id]===1);
+    tb.style.display='block';
+    tb.innerHTML='🤝 ÉQUIPES — meilleure moyenne gagne !<br>🔵 '+t0.map(p=>p.avatar+' '+p.name).join(' · ')+'<br>🔴 '+t1.map(p=>p.avatar+' '+p.name).join(' · ');
+  } else tb.style.display='none';
   if(!$('scr-mg').classList.contains('on')){
+    snd('fanfare');
     mgPlayed=false; show('scr-mg');
     if(local){ localMg={idx:0,scores:{}}; passPhone(); }
     else startMiniGame();
@@ -760,9 +1324,13 @@ async function updateMgStatus(){
 }
 
 function startMiniGame(){
-  const area=$('mgArea'); area.innerHTML=''; area.onpointerdown=null; $('mgTimer').textContent='';
+  const area=$('mgArea'); area.innerHTML='';
+  area.onpointerdown=null; area.onpointermove=null; area.onpointerup=null;
+  area.style.touchAction='';
+  $('mgTimer').textContent='';
   const type=room.mg.type;
-  const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge];
+  const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge,
+    mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander];
   (games[type]||mgTapo)(area);
 }
 
@@ -780,31 +1348,50 @@ async function submitScore(score){
     return;
   }
   mgPlayed=true;
+  snd('yay');
   $('mgArea').innerHTML='<div class="center"><div class="mg-score">'+score+' pts</div><p class="hint">Score envoyé ! En attente des autres joueurs…</p></div>';
   send({t:'score', code:room.code, round:room.mg.round, playerId:me.id, score});
   updateMgStatus();
 }
 
 async function resolveMg(scores){
-  const ranked=[...room.players].sort((a,b)=>(scores[b.id]??-1)-(scores[a.id]??-1));
-  const gains=[12,8,5,3,2,1];
-  const results=ranked.map((p,i)=>{
-    const g=(scores[p.id]===undefined)?0:(gains[i]??1);
-    const pl=room.players.find(x=>x.id===p.id); pl.coins+=g;
-    return {id:p.id,name:p.name,avatar:p.avatar,color:p.color,score:scores[p.id]??0,gain:g};
-  });
+  const T=room.mg&&room.mg.teams;
   room.mg.bonusNote=null;
-  if(results[0]&&results[0].gain>0){
-    if(room.lastWinner===results[0].id){
-      const pl=room.players.find(x=>x.id===results[0].id);
-      pl.coins+=5; results[0].gain+=5;
-      room.mg.bonusNote='🔥 '+results[0].name+' enchaîne les victoires : +5 🪙 de bonus série !';
+  let results;
+  if(T){
+    const tot=[0,0], cnt=[0,0];
+    room.players.forEach(p=>{ const t=T[p.id]||0; tot[t]+=scores[p.id]||0; cnt[t]++; });
+    const avg=[tot[0]/Math.max(1,cnt[0]), tot[1]/Math.max(1,cnt[1])];
+    const win=avg[0]===avg[1]?rnd(2):(avg[0]>avg[1]?0:1);
+    results=[...room.players].sort((a,b)=>(scores[b.id]??-1)-(scores[a.id]??-1)).map(p=>{
+      const t=T[p.id]||0, g=t===win?10:4;
+      const pl=room.players.find(x=>x.id===p.id);
+      addCoins(pl,g); if(t===win) pl.mgWins=(pl.mgWins||0)+1;
+      return {id:p.id,name:p.name,avatar:p.avatar,color:p.color,score:scores[p.id]??0,gain:g,team:t};
+    });
+    room.mg.teamRes={tot:[Math.round(tot[0]),Math.round(tot[1])],avg:[Math.round(avg[0]),Math.round(avg[1])],win};
+    room.log.push('🏅 L\'équipe '+(win===0?'🔵':'🔴')+' gagne le mini-jeu !');
+  } else {
+    const ranked=[...room.players].sort((a,b)=>(scores[b.id]??-1)-(scores[a.id]??-1));
+    const gains=[12,8,5,3,2,1];
+    results=ranked.map((p,i)=>{
+      const g=(scores[p.id]===undefined)?0:(gains[i]??1);
+      const pl=room.players.find(x=>x.id===p.id); addCoins(pl,g);
+      return {id:p.id,name:p.name,avatar:p.avatar,color:p.color,score:scores[p.id]??0,gain:g};
+    });
+    if(results[0]&&results[0].gain>0){
+      const wp=room.players.find(x=>x.id===results[0].id);
+      wp.mgWins=(wp.mgWins||0)+1;
+      if(room.lastWinner===results[0].id){
+        addCoins(wp,5); results[0].gain+=5;
+        room.mg.bonusNote='🔥 '+results[0].name+' enchaîne les victoires : +5 🪙 de bonus série !';
+      }
+      room.lastWinner=results[0].id;
     }
-    room.lastWinner=results[0].id;
+    room.log.push('🏅 '+results[0].name+' gagne le mini-jeu !');
   }
   room.mg.results=results;
   room.status='mgres';
-  room.log.push('🏅 '+results[0].name+' gagne le mini-jeu !');
   await saveRoom();
 }
 
@@ -1108,6 +1695,627 @@ function mgGauge(area){
   };
 }
 
+/* --- mini-jeu 13 : pluie de comètes (esquive + déplacement) --- */
+function mgComets(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    const ship=document.createElement('div'); ship.className='ship'; ship.textContent='🚀';
+    let sx=W/2; const sy=H-52;
+    ship.style.top=sy+'px'; area.appendChild(ship);
+    const mv=e=>{ const r=area.getBoundingClientRect(); sx=Math.max(16,Math.min(W-16,e.clientX-r.left)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    const start=Date.now(); let comets=[], alive=true, raf, spawnT=0, last=start;
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      const el=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,20-el).toFixed(0)+' s';
+      ship.style.left=(sx-17)+'px';
+      spawnT-=dt;
+      if(spawnT<=0){
+        spawnT=Math.max(.16,.5-el*.015);
+        const c={x:10+rnd(W-40),y:-30,v:110+el*9+rnd(60),el:document.createElement('div')};
+        c.el.className='fall'; c.el.textContent='☄️'; c.el.style.fontSize=(22+rnd(14))+'px';
+        area.appendChild(c.el); comets.push(c);
+      }
+      comets.forEach(c=>{ c.y+=c.v*dt; c.el.style.left=c.x+'px'; c.el.style.top=c.y+'px'; });
+      comets=comets.filter(c=>{ if(c.y>H+30){ c.el.remove(); return false; } return true; });
+      for(const c of comets){ if(Math.abs(c.x+14-sx)<22&&Math.abs(c.y+14-(sy+16))<22){ alive=false; break; } }
+      if(!alive||el>=20){
+        cancelAnimationFrame(raf); area.onpointermove=null; area.onpointerdown=null;
+        const sc=Math.round(Math.min(20,el)*12)+(el>=20?60:0);
+        if(!alive){ ship.textContent='💥'; snd('boom'); }
+        $('mgTimer').textContent='';
+        setTimeout(()=>submitScore(sc),700);
+        return;
+      }
+      raf=requestAnimationFrame(loop);
+    }
+    raf=requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 14 : invasion cosmique (tir auto + déplacement) --- */
+function mgInvasion(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    const ship=document.createElement('div'); ship.className='ship'; ship.textContent='🚀';
+    let sx=W/2; const sy=H-52;
+    ship.style.top=sy+'px'; area.appendChild(ship);
+    const mv=e=>{ const r=area.getBoundingClientRect(); sx=Math.max(16,Math.min(W-16,e.clientX-r.left)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    let score=0, aliens=[], bullets=[], raf, fireT=0, spawnT=0;
+    const start=Date.now(); let last=start;
+    function hitFx(x,y,e){ const h=document.createElement('div'); h.className='hitfx'; h.textContent=e;
+      h.style.left=x+'px'; h.style.top=y+'px'; area.appendChild(h); setTimeout(()=>h.remove(),320); }
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      const el=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,20-el).toFixed(0)+' s · '+score+' pts';
+      ship.style.left=(sx-17)+'px';
+      fireT-=dt;
+      if(fireT<=0){ fireT=.34; snd('shot');
+        const b={x:sx,y:sy-6,el:document.createElement('div')};
+        b.el.className='bullet'; area.appendChild(b.el); bullets.push(b); }
+      spawnT-=dt;
+      if(spawnT<=0){ spawnT=Math.max(.45,.95-el*.025);
+        const a={x:20+rnd(W-56),y:-24,v:34+el*3+rnd(22),el:document.createElement('div')};
+        a.el.className='fall'; a.el.textContent='🛸'; a.el.style.fontSize='28px';
+        area.appendChild(a.el); aliens.push(a); }
+      bullets.forEach(b=>{ b.y-=320*dt; b.el.style.left=(b.x-2)+'px'; b.el.style.top=b.y+'px'; });
+      aliens.forEach(a=>{ a.y+=a.v*dt; a.el.style.left=a.x+'px'; a.el.style.top=a.y+'px'; });
+      for(const b of bullets){
+        for(const a of aliens){
+          if(!a.dead&&!b.dead&&Math.abs(a.x+16-b.x)<20&&Math.abs(a.y+14-b.y)<18){
+            a.dead=b.dead=true; score+=15; snd('boom'); hitFx(a.x,a.y,'💥');
+          }
+        }
+      }
+      aliens=aliens.filter(a=>{
+        if(a.dead){ a.el.remove(); return false; }
+        if(a.y>H-36){ a.el.remove(); score-=10; snd('bad'); hitFx(a.x,H-46,'⚠️'); return false; }
+        return true;
+      });
+      bullets=bullets.filter(b=>{ if(b.dead||b.y<-16){ b.el.remove(); return false; } return true; });
+      if(el>=20){
+        cancelAnimationFrame(raf); area.onpointermove=null; area.onpointerdown=null;
+        $('mgTimer').textContent='';
+        submitScore(Math.max(0,score)); return;
+      }
+      raf=requestAnimationFrame(loop);
+    }
+    raf=requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 15 : tir à l'étoile (précision) --- */
+function mgSniper(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    const am=document.createElement('div'); am.className='ammo'; area.appendChild(am);
+    let score=0, ammo=12, targets=[], raf, spawnT=0, done=false;
+    const start=Date.now(); let last=start;
+    function endGame(){
+      if(done) return; done=true;
+      cancelAnimationFrame(raf); area.onpointerdown=null;
+      $('mgTimer').textContent='';
+      setTimeout(()=>submitScore(Math.max(0,score)),400);
+    }
+    area.onpointerdown=e=>{
+      if(ammo<=0||done) return;
+      ammo--; snd('shot');
+      const r=area.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+      const h=document.createElement('div'); h.className='hitfx'; h.textContent='✛';
+      h.style.left=(px-14)+'px'; h.style.top=(py-14)+'px'; h.style.color='#FFD644'; area.appendChild(h);
+      setTimeout(()=>h.remove(),250);
+      let hit=false;
+      for(const t of targets){
+        if(!t.dead&&Math.abs(t.x+t.s/2-px)<t.s/2+6&&Math.abs(t.y+t.s/2-py)<t.s/2+6){
+          t.dead=hit=true; score+=t.pts; snd('boom');
+          const fx=document.createElement('div'); fx.className='hitfx'; fx.textContent='💥+'+t.pts;
+          fx.style.left=t.x+'px'; fx.style.top=t.y+'px'; area.appendChild(fx);
+          setTimeout(()=>fx.remove(),380); break;
+        }
+      }
+      if(!hit) score-=2;
+      if(ammo<=0) setTimeout(endGame,500);
+    };
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      const el=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,15-el).toFixed(0)+' s';
+      am.textContent='🔸'.repeat(Math.max(0,ammo))||'—';
+      spawnT-=dt;
+      if(spawnT<=0){
+        spawnT=.75;
+        const small=rnd(3)===0, s=small?26:40;
+        const dir=rnd(2)?1:-1;
+        const t={x:dir>0?-s:W+s, y:24+rnd(H-90), v:dir*(70+el*6+rnd(50))*(small?1.5:1), s, pts:small?30:15,
+          el:document.createElement('div')};
+        t.el.className='fall'; t.el.textContent=small?'🛸':'🎯'; t.el.style.fontSize=s+'px';
+        area.appendChild(t.el); targets.push(t);
+      }
+      targets.forEach(t=>{ t.x+=t.v*dt; t.el.style.left=t.x+'px'; t.el.style.top=t.y+'px'; });
+      targets=targets.filter(t=>{ if(t.dead||t.x<-60||t.x>W+60){ t.el.remove(); return false; } return true; });
+      if(el>=15){ endGame(); return; }
+      raf=requestAnimationFrame(loop);
+    }
+    raf=requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 16 : sprint céleste (course tap alterné) --- */
+function mgSprint(area){
+  area.innerHTML=`<div style="width:92%;">
+    <div style="background:rgba(255,255,255,.12);border-radius:12px;height:36px;position:relative;margin-bottom:14px;overflow:hidden;">
+      <div id="spFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,var(--menthe),var(--etoile));border-radius:12px;transition:width .1s;"></div>
+      <div id="spRun" style="position:absolute;top:2px;left:0%;font-size:26px;transition:left .1s;">🏃</div>
+      <div style="position:absolute;right:6px;top:7px;">🏁</div>
+    </div>
+    <div class="titan center" id="spMsg" style="font-size:16px;margin-bottom:10px;">Alterne 👟 GAUCHE / DROITE !</div>
+    <div style="display:flex;gap:12px;">
+      <button class="runbtn" style="background:var(--bleu);" id="spL">👟 GAUCHE</button>
+      <button class="runbtn" style="background:var(--rose);" id="spR">👟 DROITE</button>
+    </div>
+  </div>`;
+  let dist=0, lastSide=null, t0=null, ended=false, timerI=null;
+  function step(side){
+    if(ended) return;
+    if(!t0){ t0=Date.now();
+      timerI=setInterval(()=>{
+        const el=(Date.now()-t0)/1000;
+        $('mgTimer').textContent=el.toFixed(1)+' s';
+        if(el>=15) finish(false);
+      },100);
+    }
+    if(side===lastSide){ $('spMsg').textContent='Alterne les jambes ! 😅'; return; }
+    lastSide=side; dist+=2; snd('step');
+    $('spMsg').textContent=dist+' m / 100 m';
+    area.querySelector('#spFill').style.width=dist+'%';
+    area.querySelector('#spRun').style.left=Math.min(88,dist*.88)+'%';
+    if(dist>=100) finish(true);
+  }
+  function finish(won){
+    if(ended) return; ended=true;
+    clearInterval(timerI);
+    const el=(Date.now()-t0)/1000;
+    $('mgTimer').textContent='';
+    const sc=won?Math.max(60,Math.round(60+(15-el)*30)):dist*2;
+    if(won){ area.querySelector('#spRun').textContent='🎉'; snd('yay'); }
+    setTimeout(()=>submitScore(sc),600);
+  }
+  area.querySelector('#spL').onpointerdown=e=>{ e.preventDefault(); step('L'); };
+  area.querySelector('#spR').onpointerdown=e=>{ e.preventDefault(); step('R'); };
+}
+/* --- mini-jeu 17 : panier d'étoiles (déplacement + collecte) --- */
+function mgCatch(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    const basket=document.createElement('div'); basket.className='ship'; basket.textContent='🧺';
+    let bx=W/2; const by=H-50;
+    basket.style.top=by+'px'; area.appendChild(basket);
+    const mv=e=>{ const r=area.getBoundingClientRect(); bx=Math.max(20,Math.min(W-20,e.clientX-r.left)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    let score=0, items=[], raf, spawnT=0;
+    const start=Date.now(); let last=start;
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      const el=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,15-el).toFixed(0)+' s · '+score+' pts';
+      basket.style.left=(bx-17)+'px';
+      spawnT-=dt;
+      if(spawnT<=0){
+        spawnT=Math.max(.28,.55-el*.015);
+        const r=rnd(10);
+        const kind=r<5?{e:'⭐',p:10,v:90}:r<7?{e:'💣',p:-20,v:110}:r<9?{e:'🪙',p:15,v:120}:{e:'💎',p:30,v:170};
+        const it={x:14+rnd(W-42),y:-24,v:kind.v+el*6+rnd(30),p:kind.p,e:kind.e,el:document.createElement('div')};
+        it.el.className='fall'; it.el.textContent=kind.e; it.el.style.fontSize='26px';
+        area.appendChild(it.el); items.push(it);
+      }
+      items.forEach(it=>{ it.y+=it.v*dt; it.el.style.left=it.x+'px'; it.el.style.top=it.y+'px'; });
+      items=items.filter(it=>{
+        if(it.y>H+26){ it.el.remove(); return false; }
+        if(Math.abs(it.x+13-bx)<26&&Math.abs(it.y+13-(by+14))<22){
+          score+=it.p; snd(it.p>0?'coin':'boom'); it.el.remove(); return false;
+        }
+        return true;
+      });
+      if(el>=15){
+        cancelAnimationFrame(raf); area.onpointermove=null; area.onpointerdown=null;
+        $('mgTimer').textContent='';
+        submitScore(Math.max(0,score)); return;
+      }
+      raf=requestAnimationFrame(loop);
+    }
+    raf=requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 18 : canon cosmique (charge + timing) --- */
+function mgCannon(area){
+  let shot=0, total=0, power=0, dir=1, holding=false, raf=null, target=25+rnd(66);
+  area.innerHTML=`<div style="width:88%;text-align:center;">
+    <div class="titan" id="cnMsg" style="font-size:18px;margin-bottom:14px;">Maintiens pour charger,<br>relâche PILE sur la cible 🎯 !</div>
+    <div style="position:relative;height:46px;border-radius:23px;background:rgba(255,255,255,.12);overflow:hidden;">
+      <div id="cnFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,var(--menthe),var(--etoile),var(--rose));"></div>
+      <div id="cnTgt" style="position:absolute;top:0;bottom:0;width:4px;background:#fff;box-shadow:0 0 10px #fff;"></div>
+      <div id="cnTgtIco" style="position:absolute;top:8px;margin-left:-13px;font-size:24px;">🎯</div>
+    </div>
+    <div class="titan" id="cnPts" style="font-size:24px;color:var(--menthe);margin-top:14px;min-height:30px;"></div>
+    <div style="font-size:44px;margin-top:6px;">🫳💣</div>
+  </div>`;
+  const fill=area.querySelector('#cnFill'), msg=area.querySelector('#cnMsg'), pts=area.querySelector('#cnPts');
+  function setTarget(){ target=25+rnd(66);
+    area.querySelector('#cnTgt').style.left=target+'%';
+    area.querySelector('#cnTgtIco').style.left=target+'%'; }
+  setTarget();
+  function frame(){
+    power+=dir*2.1;
+    if(power>=100||power<=0){ dir*=-1; power=Math.max(0,Math.min(100,power)); }
+    fill.style.width=power+'%';
+    raf=requestAnimationFrame(frame);
+  }
+  area.onpointerdown=e=>{
+    e.preventDefault();
+    if(holding||shot>=3) return;
+    holding=true; power=0; dir=1; snd('whoosh');
+    msg.textContent='Tir '+(shot+1)+'/3 — relâche sur le 🎯 !';
+    raf=requestAnimationFrame(frame);
+  };
+  area.onpointerup=()=>{
+    if(!holding) return;
+    holding=false; cancelAnimationFrame(raf);
+    const d=Math.abs(power-target);
+    const p=d<=4?40:d<=10?25:d<=20?10:2;
+    total+=p; shot++;
+    snd(p>=25?'star':'shot');
+    pts.textContent=(d<=4?'PILE DESSUS ! 💥 ':'')+'+'+p+' pts';
+    if(shot>=3){ setTimeout(()=>submitScore(total),900); }
+    else { setTarget(); msg.textContent='Maintiens pour le tir '+(shot+1)+'/3 !'; }
+  };
+}
+/* --- mini-jeu 19 : mèche folle (push-your-luck) --- */
+function mgFuse(area){
+  let round=0, total=0, holding=false, boomAt=0, t0=0, raf=null;
+  area.innerHTML=`<div style="width:88%;text-align:center;">
+    <div class="titan" id="fzMsg" style="font-size:18px;margin-bottom:10px;">Maintiens la bombe :<br>+30 pts/s… lâche avant le BOUM !</div>
+    <div id="fzBomb" style="font-size:74px;user-select:none;">💣</div>
+    <div class="titan" id="fzPts" style="font-size:26px;color:var(--menthe);min-height:34px;margin-top:8px;"></div>
+    <p class="hint">Manche <span id="fzRd">1</span>/3 — total : <span id="fzTot">0</span> pts</p>
+  </div>`;
+  const bomb=area.querySelector('#fzBomb'), msg=area.querySelector('#fzMsg'), ptsEl=area.querySelector('#fzPts');
+  function frame(){
+    const held=(Date.now()-t0)/1000;
+    ptsEl.textContent='+'+Math.round(held*30)+' pts…';
+    bomb.style.transform='scale('+(1+held*.09)+') rotate('+(Math.sin(held*22)*held*3)+'deg)';
+    if(held>=boomAt){ // BOUM
+      holding=false; cancelAnimationFrame(raf);
+      bomb.textContent='💥'; bomb.style.transform='scale(1.35)'; snd('boom');
+      ptsEl.textContent='BOUM ! 0 pt cette manche 😵';
+      setTimeout(nextRound,1100);
+      return;
+    }
+    if(holding) raf=requestAnimationFrame(frame);
+  }
+  function nextRound(){
+    round++;
+    if(round>=3){ $('mgTimer').textContent=''; submitScore(total); return; }
+    bomb.textContent='💣'; bomb.style.transform='none';
+    area.querySelector('#fzRd').textContent=round+1;
+    ptsEl.textContent='';
+    msg.textContent='Manche suivante… tiens bon !';
+  }
+  area.onpointerdown=e=>{
+    e.preventDefault();
+    if(holding||bomb.textContent==='💥') return;
+    holding=true; t0=Date.now(); boomAt=1.5+Math.random()*3;
+    snd('whoosh');
+    raf=requestAnimationFrame(frame);
+  };
+  area.onpointerup=()=>{
+    if(!holding) return;
+    holding=false; cancelAnimationFrame(raf);
+    const held=(Date.now()-t0)/1000, p=Math.round(held*30);
+    total+=p; snd('coin');
+    area.querySelector('#fzTot').textContent=total;
+    ptsEl.textContent='+'+p+' pts en sécurité ! 😮‍💨';
+    bomb.style.transform='none';
+    setTimeout(nextRound,900);
+  };
+}
+/* --- mini-jeu 20 : cerveau d'étoiles (mémoire des nombres) --- */
+function mgChimp(area){
+  let level=0, score=0;
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{ snd('tap'); runLevel(); };
+  area.appendChild(btn);
+  function runLevel(){
+    const n=Math.min(3+level,7);
+    $('mgTimer').textContent='Niveau '+(level+1);
+    const cells=[];
+    for(let r=0;r<3;r++) for(let c=0;c<4;c++) cells.push([c,r]);
+    cells.sort(()=>Math.random()-.5);
+    area.innerHTML='';
+    const picked=cells.slice(0,n);
+    const pads=picked.map((cell,i)=>{
+      const d=document.createElement('button');
+      d.style.cssText=`position:absolute;left:${6+cell[0]*24}%;top:${6+cell[1]*32}%;width:20%;height:26%;
+        border:none;border-radius:16px;background:rgba(255,255,255,.16);color:#fff;
+        font-family:'Titan One';font-size:26px;cursor:pointer;`;
+      d.textContent=i+1; d.dataset.v=i+1;
+      area.appendChild(d); return d;
+    });
+    let expect=1, masked=false;
+    setTimeout(()=>{
+      masked=true;
+      pads.forEach(p=>{ p.textContent='⭐'; p.style.background='rgba(142,124,255,.35)'; });
+    },1400+level*150);
+    pads.forEach(p=>p.onpointerdown=()=>{
+      if(!masked) return;
+      if(+p.dataset.v===expect){
+        snd('tap');
+        p.textContent=p.dataset.v; p.style.background='rgba(62,230,193,.4)'; p.onpointerdown=null;
+        expect++;
+        if(expect>+pads.length){
+          score+=n*15; level++; snd('coin');
+          if(level>=5){ $('mgTimer').textContent=''; submitScore(score); return; }
+          setTimeout(runLevel,700);
+        }
+      } else {
+        snd('bad');
+        p.textContent='❌';
+        $('mgTimer').textContent='';
+        setTimeout(()=>submitScore(score),800);
+      }
+    });
+  }
+}
+/* --- mini-jeu 21 : l'intrus --- */
+function mgOdd(area){
+  const PAIRS=[['🙂','🙃'],['⭐','🌟'],['🍀','☘️'],['🐵','🙈'],['😀','😃'],['🌸','💮'],['🐶','🐺'],['🟡','🟠'],['🌙','🌛'],['🎈','🪀']];
+  let round=0, score=0, t0=0;
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{ snd('tap'); next(); };
+  area.appendChild(btn);
+  function next(){
+    round++;
+    if(round>8){ $('mgTimer').textContent=''; submitScore(score); return; }
+    $('mgTimer').textContent='Manche '+round+'/8 · '+score+' pts';
+    const pair=PAIRS[rnd(PAIRS.length)];
+    const odd=rnd(16);
+    area.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:88%;height:88%;">'+
+      Array.from({length:16},(_,i)=>
+        `<button class="oddc" data-o="${i===odd?1:0}" style="border:none;border-radius:14px;background:rgba(255,255,255,.1);font-size:28px;cursor:pointer;">${i===odd?pair[1]:pair[0]}</button>`).join('')+'</div>';
+    t0=Date.now();
+    area.querySelectorAll('.oddc').forEach(b=>b.onpointerdown=()=>{
+      if(b.dataset.o==='1'){
+        const el=(Date.now()-t0)/1000;
+        const p=Math.max(8,30-Math.round(el*5));
+        score+=p; snd('coin');
+        b.style.background='rgba(62,230,193,.5)';
+        setTimeout(next,420);
+      } else {
+        score=Math.max(0,score-5); snd('bad');
+        b.style.background='rgba(255,107,107,.5)';
+        $('mgTimer').textContent='Manche '+round+'/8 · '+score+' pts';
+      }
+    });
+  }
+}
+/* --- mini-jeu 22 : bonneteau cosmique --- */
+function mgShell(area){
+  let round=0, score=0;
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{ snd('tap'); runRound(); };
+  area.appendChild(btn);
+  async function runRound(){
+    round++;
+    $('mgTimer').textContent='Manche '+round+'/5 · '+score+' pts';
+    area.innerHTML='<div id="shWrap" style="position:relative;width:88%;height:60%;"></div>'+
+      '<div class="titan center" id="shMsg" style="position:absolute;bottom:18px;left:0;right:0;font-size:18px;">Regarde bien…</div>';
+    const wrap=area.querySelector('#shWrap'), msg=area.querySelector('#shMsg');
+    const slots=[8,38,68]; // % gauche
+    let starAt=rnd(3);
+    const hats=slots.map((L,i)=>{
+      const d=document.createElement('div');
+      d.style.cssText=`position:absolute;top:30%;left:${L}%;width:24%;text-align:center;font-size:52px;
+        transition:left .28s ease-in-out;cursor:pointer;user-select:none;filter:drop-shadow(0 6px 6px rgba(0,0,0,.4));`;
+      d.textContent='🎩'; d.dataset.slot=i;
+      wrap.appendChild(d); return d;
+    });
+    // montre l'étoile
+    hats[starAt].textContent='⭐';
+    await sleep(1000);
+    hats[starAt].textContent='🎩';
+    await sleep(350);
+    // mélange : on échange des positions
+    const pos=[0,1,2]; // pos[i] = slot visuel du chapeau i
+    const swaps=3+round*2, spd=Math.max(120,300-round*35);
+    hats.forEach(h=>h.style.transition='left '+spd/1000+'s ease-in-out');
+    for(let s=0;s<swaps;s++){
+      const a=rnd(3); let b=rnd(3); while(b===a) b=rnd(3);
+      const tmp=pos[a]; pos[a]=pos[b]; pos[b]=tmp;
+      hats[a].style.left=slots[pos[a]]+'%';
+      hats[b].style.left=slots[pos[b]]+'%';
+      snd('whoosh');
+      await sleep(spd+60);
+    }
+    msg.textContent='Où est l\'étoile ⭐ ?';
+    hats.forEach((h,i)=>h.onpointerdown=async()=>{
+      hats.forEach(x=>x.onpointerdown=null);
+      const good=i===starAt;
+      h.textContent=good?'⭐':'💨';
+      hats[starAt].textContent='⭐';
+      if(good){ score+=30; snd('star'); msg.textContent='Trouvée ! +30 🌟'; }
+      else { snd('bad'); msg.textContent='Raté ! Elle était là… 😅'; }
+      await sleep(1000);
+      if(round>=5){ $('mgTimer').textContent=''; submitScore(score); }
+      else runRound();
+    });
+  }
+}
+
+/* --- mini-jeu 23 : fusée folle (flappy) --- */
+function mgFlappy(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const W=area.clientWidth, H=area.clientHeight;
+    const ship=document.createElement('div'); ship.className='ship'; ship.textContent='🚀';
+    ship.style.left='46px'; ship.style.transform='rotate(45deg)';
+    area.appendChild(ship);
+    let y=H/2, vy=0, score=0, walls=[], raf, spawnT=0, dead=false;
+    let last=Date.now();
+    area.onpointerdown=e=>{ e.preventDefault(); vy=-210; snd('tap'); };
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      vy+=560*dt; y+=vy*dt;
+      ship.style.top=(y-16)+'px';
+      ship.style.transform='rotate('+(45+Math.max(-25,Math.min(25,vy*.06)))+'deg)';
+      spawnT-=dt;
+      if(spawnT<=0){
+        spawnT=1.55;
+        const gap=104, gy=50+rnd(Math.max(30,H-160));
+        const mk=(top)=>{ const d=document.createElement('div'); d.className='fall';
+          d.style.cssText+=`left:${W}px;font-size:30px;letter-spacing:-6px;white-space:pre;line-height:26px;width:34px;`;
+          d.textContent=top?'🪨\n'.repeat(Math.ceil(gy/26)).trim():'🪨\n'.repeat(Math.ceil((H-gy-gap)/26)).trim();
+          d.style.top=top?(gy-Math.ceil(gy/26)*26)+'px':(gy+gap)+'px';
+          area.appendChild(d); return d; };
+        walls.push({x:W, gy, gap, t:mk(true), b:mk(false), passed:false});
+      }
+      const spd=95+score*.6;
+      walls.forEach(w=>{ w.x-=spd*dt; w.t.style.left=w.x+'px'; w.b.style.left=w.x+'px'; });
+      walls=walls.filter(w=>{ if(w.x<-40){ w.t.remove(); w.b.remove(); return false; } return true; });
+      for(const w of walls){
+        if(!w.passed&&w.x+17<46){ w.passed=true; score+=10; snd('coin'); }
+        if(Math.abs(w.x+17-63)<26&&(y-14<w.gy||y+14>w.gy+w.gap)) dead=true;
+      }
+      if(y<8||y>H-8) dead=true;
+      $('mgTimer').textContent=score+' pts';
+      if(dead){
+        cancelAnimationFrame(raf); area.onpointerdown=null;
+        ship.textContent='💥'; snd('boom');
+        $('mgTimer').textContent='';
+        setTimeout(()=>submitScore(score),800);
+        return;
+      }
+      raf=requestAnimationFrame(loop);
+    }
+    raf=requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 24 : rythme des étoiles --- */
+function mgRhythm(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    let note=0, score=0, ring=null, raf=null, t0=0, dur=0, waiting=false, ended=false;
+    area.innerHTML=`<div style="text-align:center;width:100%;position:relative;height:100%;">
+      <div id="ryStar" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:54px;">⭐</div>
+      <div id="ryRing" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:5px solid var(--menthe);border-radius:50%;width:300px;height:300px;opacity:0;"></div>
+      <div class="titan" id="ryMsg" style="position:absolute;bottom:14px;left:0;right:0;font-size:18px;"></div>
+    </div>`;
+    const ringEl=area.querySelector('#ryRing'), msg=area.querySelector('#ryMsg'), star=area.querySelector('#ryStar');
+    function launch(){
+      note++;
+      if(note>10){ ended=true; $('mgTimer').textContent=''; submitScore(score); return; }
+      $('mgTimer').textContent='Note '+note+'/10 · '+score+' pts';
+      dur=Math.max(650,1350-note*70); t0=Date.now(); waiting=true;
+      ringEl.style.opacity='1';
+      function anim(){
+        if(!waiting) return;
+        const k=Math.min(1,(Date.now()-t0)/dur);
+        const s=300-k*236;
+        ringEl.style.width=s+'px'; ringEl.style.height=s+'px';
+        ringEl.style.borderColor=k>.82?'#3EE6C1':k>.6?'#FFD644':'#5AC8FA';
+        if(k>=1.18){ }
+        if(k>=1){ // trop tard toléré un instant
+          if((Date.now()-t0)>dur+180){ waiting=false; ringEl.style.opacity='0'; msg.textContent='Trop tard ! 😅'; snd('bad'); setTimeout(launch,600); return; }
+        }
+        raf=requestAnimationFrame(anim);
+      }
+      raf=requestAnimationFrame(anim);
+    }
+    area.onpointerdown=e=>{
+      e.preventDefault();
+      if(!waiting||ended) return;
+      waiting=false; cancelAnimationFrame(raf); ringEl.style.opacity='0';
+      const err=Math.abs((Date.now()-t0)-dur);
+      const p=err<=80?30:err<=160?20:err<=280?10:0;
+      score+=p;
+      star.style.transform='translate(-50%,-50%) scale('+(p>=30?1.5:1.15)+')';
+      setTimeout(()=>star.style.transform='translate(-50%,-50%)',180);
+      msg.textContent=p>=30?'PARFAIT ! +30 🌟':p>=20?'Bien ! +20':p>=10?'Ouf… +10':'Raté ! +0';
+      snd(p>=30?'star':p>0?'coin':'bad');
+      setTimeout(launch,650);
+    };
+    launch();
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 25 : alunissage --- */
+function mgLander(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap'); area.innerHTML=''; area.style.touchAction='none';
+    const H=area.clientHeight;
+    let trial=0, total=0;
+    area.innerHTML=`<div style="position:relative;width:100%;height:100%;">
+      <div id="ldShip" class="ship" style="left:50%;margin-left:-17px;transform:rotate(135deg);">🚀</div>
+      <div id="ldFlame" style="position:absolute;left:50%;margin-left:-8px;font-size:18px;opacity:0;">🔥</div>
+      <div style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:34px;">🌕🌕🌕🌕🌕🌕🌕</div>
+      <div class="titan" id="ldMsg" style="position:absolute;top:8px;left:0;right:0;text-align:center;font-size:15px;">Maintiens = rétrofusées 🔥</div>
+      <div class="titan" id="ldV" style="position:absolute;top:30px;right:12px;font-size:16px;color:var(--menthe);"></div>
+    </div>`;
+    const ship=area.querySelector('#ldShip'), flame=area.querySelector('#ldFlame'),
+      msg=area.querySelector('#ldMsg'), vEl=area.querySelector('#ldV');
+    let y, vy, thrust=false, raf, last;
+    area.onpointerdown=e=>{ e.preventDefault(); thrust=true; };
+    area.onpointerup=()=>{ thrust=false; };
+    function reset(){
+      y=20; vy=30+rnd(30); last=Date.now();
+      $('mgTimer').textContent='Atterrissage '+(trial+1)+'/3';
+      raf=requestAnimationFrame(loop);
+    }
+    function loop(){
+      const now=Date.now(), dt=Math.min(.05,(now-last)/1000); last=now;
+      vy+=(thrust?-150:95)*dt;
+      if(vy<-40) vy=-40;
+      y+=vy*dt;
+      if(y<10){ y=10; vy=Math.max(0,vy); }
+      ship.style.top=y+'px';
+      flame.style.top=(y-6)+'px';
+      flame.style.opacity=thrust?'1':'0';
+      if(thrust&&rnd(4)===0) snd('tick');
+      vEl.textContent=Math.round(vy)+' km/h';
+      vEl.style.color=vy<=32?'#3EE6C1':vy<=60?'#FFD644':'#FF6B6B';
+      if(y>=H-74){ // contact
+        cancelAnimationFrame(raf);
+        const p=vy<=18?50:vy<=32?35:vy<=60?15:0;
+        total+=p; trial++;
+        if(p===0){ ship.textContent='💥'; snd('boom'); msg.textContent='CRASH ! 0 pt 😵'; }
+        else { snd(p>=35?'star':'coin'); msg.textContent=(p>=50?'EN DOUCEUR ! ':'Posé ! ')+'+'+p+' pts'; }
+        setTimeout(()=>{
+          if(trial>=3){ $('mgTimer').textContent=''; submitScore(total); }
+          else { ship.textContent='🚀'; reset(); }
+        },1100);
+        return;
+      }
+      raf=requestAnimationFrame(loop);
+    }
+    reset();
+  };
+  area.appendChild(btn);
+}
+
 /* =================== boucle hôte : résoudre le mini-jeu =================== */
 function startHostLoop(){
   clearInterval(hostI);
@@ -1116,7 +2324,7 @@ function startHostLoop(){
     if(room.status!=='minigame') return;
     const sc=(room.mgScores&&room.mgScores[room.mg.round])||{};
     const n=room.players.filter(p=>sc[p.id]!==undefined).length;
-    const timeout=Date.now()-room.mg.startedAt>90000;
+    const timeout=Date.now()-room.mg.startedAt>150000;
     if(n===room.players.length||(timeout&&n>0)){
       await resolveMg(sc);
     }
@@ -1126,41 +2334,117 @@ function startHostLoop(){
 function renderMgRes(){
   show('scr-mgres');
   const res=room.mg.results||[];
-  const medals=['🥇','🥈','🥉'];
-  const hts=[114,86,64], cols=['#FFD644','#C9D1E0','#D08B4C'];
-  const order=[1,0,2].filter(i=>res[i]);
-  $('mgPodium').innerHTML=order.map((i,k)=>`
-    <div class="pod" style="animation-delay:${(i===0?0.1:0.25+k*0.12)}s;">
-      <div class="pav">${res[i].avatar}</div>
-      <div class="gname">${res[i].name}</div>
-      <div class="base" style="height:${hts[i]}px;background:${cols[i]};">
-        <div class="med">${medals[i]}</div>
-        <div class="g">+${res[i].gain} 🪙</div>
-        <div style="font-size:11px;font-family:'Baloo 2';font-weight:700;">${res[i].score} pts</div>
-      </div>
-    </div>`).join('');
-  $('mgRanks').innerHTML=
-    (room.mg.bonusNote?`<p class="center" style="font-weight:800;color:var(--peche);margin:8px 0 4px;">${room.mg.bonusNote}</p>`:'')+
-    res.slice(3).map((r,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${r.avatar} ${r.name}</span>
-     <span class="hint">${r.score} pts</span><span class="gain">+${r.gain} 🪙</span></div>`).join('');
+  const TR=room.mg.teamRes;
+  if(TR){
+    $('mgPodium').innerHTML='';
+    const teamCard=t=>{
+      const members=res.filter(r=>r.team===t);
+      const win=TR.win===t;
+      return `<div style="flex:1;border-radius:20px;padding:12px 8px;background:${t===0?'rgba(90,200,250,.15)':'rgba(255,107,107,.15)'};border:3px solid ${win?'var(--etoile)':'rgba(255,255,255,.15)'};">
+        <div class="titan" style="font-size:22px;">${t===0?'🔵':'🔴'} ${win?'🏆':''}</div>
+        <div class="titan" style="font-size:26px;color:var(--menthe);">${TR.avg[t]} pts</div>
+        <div style="font-size:12px;opacity:.7;font-weight:700;">de moyenne</div>
+        ${members.map(m=>`<div style="font-weight:700;font-size:13px;margin-top:6px;">${m.avatar} ${m.name}<br>${m.score} pts · <span style="color:var(--menthe);">+${m.gain} 🪙</span></div>`).join('')}
+      </div>`;
+    };
+    $('mgRanks').innerHTML=`<div style="display:flex;gap:10px;align-items:stretch;text-align:center;">${teamCard(0)}${teamCard(1)}</div>`;
+  } else {
+    const medals=['🥇','🥈','🥉'];
+    const hts=[114,86,64], cols=['#FFD644','#C9D1E0','#D08B4C'];
+    const order=[1,0,2].filter(i=>res[i]);
+    $('mgPodium').innerHTML=order.map((i,k)=>`
+      <div class="pod" style="animation-delay:${(i===0?0.1:0.25+k*0.12)}s;">
+        <div class="pav">${res[i].avatar}</div>
+        <div class="gname">${res[i].name}</div>
+        <div class="base" style="height:${hts[i]}px;background:${cols[i]};">
+          <div class="med">${medals[i]}</div>
+          <div class="g">+${res[i].gain} 🪙</div>
+          <div style="font-size:11px;font-family:'Baloo 2';font-weight:700;">${res[i].score} pts</div>
+        </div>
+      </div>`).join('');
+    $('mgRanks').innerHTML=
+      (room.mg.bonusNote?`<p class="center" style="font-weight:800;color:var(--peche);margin:8px 0 4px;">${room.mg.bonusNote}</p>`:'')+
+      res.slice(3).map((r,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${r.avatar} ${r.name}</span>
+       <span class="hint">${r.score} pts</span><span class="gain">+${r.gain} 🪙</span></div>`).join('');
+  }
   $('btnMgNext').style.display=isHost()?'block':'none';
   $('mgWaitHost').style.display=isHost()?'none':'block';
 }
 $('btnMgNext').onclick=async()=>{
-  if(room.round>=room.maxRounds){ room.status='ended'; }
-  else { room.round++; room.status='board'; room.log.push('Tour '+room.round+' !'); }
+  if(room.round>=room.maxRounds){ endGame(); }
+  else {
+    room.round++;
+    if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
+    room.status='board'; room.log.push('Tour '+room.round+' !');
+  }
   await saveRoom();
 };
+function triggerFinale(){
+  const f=rnd(3);
+  if(f===0){
+    room.finale={double:true};
+    fxCast('🚨','DERNIERS TOURS !','Les cases 🪙 et 💥 valent DOUBLE : +6 / −6 !',3400);
+    room.log.push('🚨 Derniers tours : cases doublées !');
+  } else if(f===1){
+    room.finale={promo:true}; room.starCost=10;
+    fxCast('🚨','DERNIERS TOURS !','⭐ SOLDES : l\'étoile ne coûte plus que 10 🪙 !',3400);
+    room.log.push('🚨 Derniers tours : étoile à 10 🪙 !');
+  } else {
+    room.finale={boost:true};
+    const last=[...room.players].sort((a,b)=>(a.stars-b.stars)||(a.coins-b.coins))[0];
+    if(pItems(last).length<2) pItems(last).push('pipe');
+    addCoins(last,5);
+    fxCast('🚨','DERNIERS TOURS !',last.name+' (dernier) reçoit un 🌀 Tuyau et +5 🪙 de rattrapage !',3400);
+    room.log.push('🚨 Rattrapage pour '+last.name+' !');
+  }
+}
+function endGame(){
+  const cats=[
+    {icon:'💰',t:'Étoile du Richissime',d:'a gagné le plus de 🪙 au total',val:p=>p.coinsEarned||0},
+    {icon:'🎮',t:'Étoile du Champion',d:'a gagné le plus de mini-jeux',val:p=>p.mgWins||0},
+    {icon:'🚀',t:'Étoile du Voyageur',d:'a parcouru le plus de cases',val:p=>p.travel||0},
+    {icon:'🎁',t:'Étoile de l\'Aventurier',d:'a déclenché le plus d\'événements',val:p=>p.events||0}
+  ].sort(()=>Math.random()-.5).slice(0,2);
+  room.bonus=cats.map(c=>{
+    const best=Math.max(...room.players.map(c.val));
+    const cands=room.players.filter(p=>c.val(p)===best);
+    const w=cands[rnd(cands.length)];
+    w.stars++;
+    return {icon:c.icon,t:c.t,d:c.d,name:w.name,avatar:w.avatar,val:best};
+  });
+  room.status='ended';
+  room.log.push('🏆 Fin de partie !');
+}
 
 /* =================== fin =================== */
+let bonusShown=false;
 function renderEnd(){
   show('scr-end');
-  const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
-  $('finalRanks').innerHTML=ranked.map((p,i)=>
-    `<div class="rank"><span class="pos">${i===0?'👑':i+1}</span><span>${p.avatar} ${p.name}</span>
-     <span class="gain">⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
-  confetti();
   clearInterval(pollI); clearInterval(hostI);
+  const showRanks=()=>{
+    const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+    $('finalRanks').innerHTML=
+      (room.bonus?room.bonus.map(b=>
+        `<div class="rank" style="border:2px solid var(--etoile);"><span class="pos">${b.icon}</span>
+         <span style="font-size:14px;">${b.t}<br><span class="hint">${b.avatar} ${b.name} (${b.val}) : +1 ⭐</span></span></div>`).join(''):'')+
+      ranked.map((p,i)=>`<div class="rank"><span class="pos">${i===0?'👑':i+1}</span><span>${p.avatar} ${p.name}</span>
+       <span class="gain">⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
+    snd('fanfare');
+    confetti();
+  };
+  if(room.bonus&&!bonusShown){
+    bonusShown=true;
+    $('finalRanks').innerHTML='<p class="center hint">Roulement de tambour… 🥁</p>';
+    (async()=>{
+      await sleep(700);
+      for(const b of room.bonus){
+        snd('star');
+        fxShow({icon:b.icon,title:b.t,text:b.avatar+' '+b.name+' — '+b.d+' ('+b.val+') !<br>+1 ⭐ BONUS !',ms:2800});
+        await sleep(3100);
+      }
+      showRanks();
+    })();
+  } else showRanks();
 }
 function confetti(){
   const c=document.createElement('div'); c.className='confetti'; document.body.appendChild(c);
