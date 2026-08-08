@@ -240,6 +240,12 @@ input[type=text]:focus{border-color:var(--menthe);}
 .ovl{position:fixed; inset:0; background:rgba(14,8,40,.74); z-index:60;
   display:flex; align-items:center; justify-content:center; padding:18px; transition:opacity .3s;}
 .ovl.fx{pointer-events:none; background:rgba(14,8,40,.55);}
+/* panneau bas d'écran : le plateau reste visible (carrefours) */
+.ovl.sheet{background:transparent; pointer-events:none; align-items:flex-end; padding:0;}
+.ovl.sheet .pop{pointer-events:auto; max-width:480px; width:100%;
+  border-radius:22px 22px 0 0; border-bottom:none; max-height:46vh;
+  animation:sheetIn .25s ease-out, popglow 2.4s ease-in-out infinite;}
+@keyframes sheetIn{from{transform:translateY(60px); opacity:0;} to{transform:none; opacity:1;}}
 .pop{background:linear-gradient(160deg,#2B1960,#3A1E6B); border:3px solid var(--etoile);
   border-radius:26px; padding:20px 18px; max-width:340px; width:100%; text-align:center;
   animation:popin .32s cubic-bezier(.2,1.4,.4,1), popglow 2.4s ease-in-out infinite;
@@ -1167,7 +1173,7 @@ function fxCast(icon,title,text,ms){
 }
 function ask(o){
   return new Promise(res=>{
-    const ov=document.createElement('div'); ov.className='ovl';
+    const ov=document.createElement('div'); ov.className='ovl'+(o.sheet?' sheet':'');
     ov.innerHTML=`<div class="pop">${o.icon?`<div class="pic">${o.icon}</div>`:''}<h3>${o.title||''}</h3>${o.text?`<p>${o.text}</p>`:''}<div class="popbtns"></div></div>`;
     const bx=ov.querySelector('.popbtns');
     o.options.forEach(op=>{
@@ -1542,12 +1548,15 @@ function shade(hex,f){
   const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
-/* fait défiler l'écran pour suivre le pion du joueur en cours */
+/* fait défiler l'écran pour suivre le pion du joueur en cours
+   (zone morte : si le pion est déjà bien visible, on ne bouge pas) */
 function scrollToPawn(smooth){
   const el=document.querySelector('#boardWrap .tok.cur');
   if(!el) return;
   const r=el.getBoundingClientRect();
-  const target=r.top+window.scrollY-window.innerHeight*.38;
+  const h=window.innerHeight;
+  if(r.top>h*.2&&r.bottom<h*.62) return; // déjà dans la fenêtre confortable
+  const target=r.top+window.scrollY-h*.36;
   window.scrollTo({top:Math.max(0,target), behavior:smooth===false?'auto':'smooth'});
 }
 function renderBoard(){
@@ -1797,11 +1806,22 @@ async function nextPos(p){
   if(nxt.length<2) return nxt[0];
   snd('pop');
   const labels=node.labels||[];
-  const v=await ask({icon:'🧭',title:'CARREFOUR !',text:p.name+', quel chemin veux-tu prendre ?',
+  // on montre le plateau : scroll sur le pion + sorties surlignées et numérotées
+  scrollToPawn();
+  const cols=['#3EE6C1','#FF8FAB','#FFD644'];
+  const svg=document.querySelector('#boardWrap svg');
+  if(svg) nxt.forEach((j,k)=>{
+    const t=room.board[j];
+    svg.insertAdjacentHTML('beforeend',
+      `<ellipse class="ringA jring" cx="${t.x}" cy="${t.y}" rx="34" ry="22" fill="none" stroke="${cols[k%3]}" stroke-width="4"/>`+
+      `<text class="jring" x="${t.x}" y="${t.y-26}" text-anchor="middle" font-size="16" font-weight="800" fill="${cols[k%3]}" style="text-shadow:0 1px 2px #000;">${k+1}</text>`);
+  });
+  const v=await ask({title:'🧭 CARREFOUR !',text:p.name+', choisis ta route (regarde le plateau ☝️)',sheet:true,
     options:nxt.map((j,k)=>({
-      label:labels[k]||('🧭 Chemin '+(k+1)),
+      label:(k+1)+' — '+(labels[k]||('Chemin '+(k+1))),
       value:j, cls:k===0?'menthe':'rose'
     }))});
+  document.querySelectorAll('.jring').forEach(e=>e.remove());
   return v??nxt[0];
 }
 
@@ -2143,17 +2163,29 @@ async function endTurn(){
     const wantMg=(room.mgEvery||1)===1||room.round%(room.mgEvery||1)===0;
     if(wantMg){
       room.status='minigame';
-      let mgType;
-      do{ mgType=rnd(MG_COUNT); }
-      while((MG_COUNT>1&&mgType===room.lastMg)||(local&&MG_INFO[mgType].rt));
-      room.lastMg=mgType;
+      // jamais deux fois le même mini-jeu tant que toute la ludothèque n'a pas tourné
+      room.mgUsed=room.mgUsed||[];
+      let pool=[];
+      for(let i=0;i<MG_COUNT;i++){
+        if(local&&MG_INFO[i].rt) continue;
+        if(room.mgUsed.indexOf(i)>=0) continue;
+        pool.push(i);
+      }
+      if(!pool.length){
+        room.mgUsed=[];
+        for(let i=0;i<MG_COUNT;i++) if(!(local&&MG_INFO[i].rt)) pool.push(i);
+      }
+      const mgType=pool[rnd(pool.length)];
+      room.mgUsed.push(mgType);
       let teams=null;
       if(MG_INFO[mgType].team||(room.players.length>=4&&rnd(10)<4)){
         const ids=room.players.map(q=>q.id).sort(()=>Math.random()-.5);
         teams={}; ids.forEach((id,i)=>teams[id]=i<Math.ceil(ids.length/2)?0:1);
         room.log.push('🤝 MINI-JEU EN ÉQUIPES : 🔵 contre 🔴 !');
       }
-      room.mg={type:mgType, startedAt:Date.now(), round:room.round, teams};
+      // clé unique manche-tour : les scores d'une manche précédente ne peuvent plus
+      // être confondus avec ceux-ci (bug de résolution automatique en tournoi)
+      room.mg={type:mgType, startedAt:Date.now(), round:(room.manche||1)+'-'+room.round, teams};
       room.log.push('🎮 MINI-JEU ! Tout le monde joue sur son téléphone !');
     } else if(room.round>=room.maxRounds){
       animBusy=false;
