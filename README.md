@@ -29,13 +29,17 @@ chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
 - 🚨 **Derniers tours** : événement spécial au tour 6 (cases doublées, étoile soldée ou rattrapage)
 - 🌟 **2 étoiles bonus secrètes** révélées à la fin (Richissime, Champion, Voyageur, Aventurier)
 
-## Les 33 mini-jeux
+## Les 39 mini-jeux
 
 Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplacement tactile**
 (vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
 🔵🔴 aléatoire à partir de 4 joueurs. Sons synthétisés (WebAudio), bouton 🔊/🔇 en haut à droite.
 
-### 4 arènes EN DIRECT (temps réel, en ligne)
+### 10 arènes EN DIRECT (temps réel, en ligne)
+
+Dont le mode **UN CONTRE TOUS** ⚔️ : un joueur tiré au sort affronte tout le monde
+(Le Tireur Fou 🎯, Gardien du Trésor 👹) — parfait à 3 joueurs ! Et des arènes iso :
+Dalles Piégées ⬛ (le sol s'effondre), Sumo des Glaces 🧊, Roi de la Colline 👑.
 
 - ⚔️ **Bataille Spatiale** : équipes 🔵🔴, pilote au doigt, tirs automatiques, respawn
 - 🏃 **Course Céleste LIVE** : sprint en alternant GAUCHE/DROITE, vous vous voyez courir en direct
