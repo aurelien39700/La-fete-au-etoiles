@@ -949,6 +949,29 @@ async function moveBy(p,d){
 }
 
 async function landEffect(p){
+  // DUEL DE CASE : deux pions sur la même case → duel de dés, le perdant recule !
+  if(p.pos!==0){
+    const squatters=room.players.filter(o=>o.id!==p.id&&!o.gone&&o.pos===p.pos);
+    if(squatters.length){
+      const foe=squatters[rnd(squatters.length)];
+      snd('duel'); vib(30);
+      fxCast('⚔️','CASE OCCUPÉE !',p.name+' débarque chez '+foe.name+' : duel de dés pour la place !',2100);
+      await sleep(2250);
+      let a,b; do{ a=1+rnd(6); b=1+rnd(6); }while(a===b);
+      const win=a>b?p:foe, lose=a>b?foe:p;
+      // le perdant est repoussé d'une case en arrière (un prédécesseur de la case)
+      const prevs=[];
+      room.board.forEach((n,i)=>{ if(n.next&&n.next.indexOf(p.pos)>=0) prevs.push(i); });
+      lose.pos=prevs.length?prevs[rnd(prevs.length)]:0;
+      snd(win===p?'yay':'bad');
+      fxCast('⚔️','DUEL DE CASE !',(p.avatar||'')+' '+a+' 🆚 '+b+' '+(foe.avatar||'')+'<br><b>'+win.name+'</b> garde la place — '+lose.name+' recule !',3000);
+      logAct(win,'⚔️','gagne le <b>duel de case</b> !','⚔️ Duel de case : '+win.name+' bat '+lose.name+' qui recule d\'une case !','win');
+      renderBoard();
+      await saveRoom();
+      await sleep(500);
+      if(lose===p) return; // éjecté : l'effet de la case ne se déclenche pas
+    }
+  }
   // bombe piégée posée par un autre joueur ?
   const trap=room.traps&&room.traps[p.pos];
   if(trap&&trap.by!==p.id){
