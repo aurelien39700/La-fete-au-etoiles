@@ -14,6 +14,31 @@ const PORT = process.env.PORT || 3000;
 // salons en mémoire : code -> { state, scores, clients, lastActive }
 const rooms = new Map();
 
+/* ---------- persistance disque : les salons survivent aux redémarrages ---------- */
+const SAVE_FILE = path.join(__dirname, 'rooms-sauvegarde.json');
+let saveT = null;
+function scheduleSave() {
+  if (saveT) return;
+  saveT = setTimeout(() => {
+    saveT = null;
+    try {
+      const dump = {};
+      for (const [code, r] of rooms) dump[code] = { state: r.state, scores: r.scores, lastActive: r.lastActive };
+      fs.writeFile(SAVE_FILE, JSON.stringify(dump), () => {});
+    } catch (e) {}
+  }, 1500);
+}
+try {
+  const dump = JSON.parse(fs.readFileSync(SAVE_FILE, 'utf8'));
+  const now = Date.now();
+  for (const code in dump) {
+    if (now - (dump[code].lastActive || 0) < 3 * 3600 * 1000) {
+      rooms.set(code, { state: dump[code].state, scores: dump[code].scores || {}, clients: new Set(), lastActive: dump[code].lastActive });
+    }
+  }
+  if (rooms.size) console.log(`[↻] ${rooms.size} salon(s) restauré(s) depuis la sauvegarde`);
+} catch (e) {}
+
 /* ---------- serveur HTTP : sert le jeu ---------- */
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url === '/index.html') {
@@ -59,6 +84,7 @@ function broadcast(room) {
   room.state.mgScores = room.scores; // le serveur est la référence pour les scores
   const msg = JSON.stringify({ t: 'state', state: room.state });
   room.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(msg); });
+  scheduleSave();
 }
 
 function sendTo(ws, obj) {
@@ -117,6 +143,29 @@ wss.on('connection', (ws, req) => {
       sendTo(ws, { t: 'joined', state: room.state });
       broadcast(room);
       console.log(`[+] ${m.player.name} rejoint le salon ${code} (${room.state.players.length} joueurs)`);
+    }
+
+    /* --- restauration d'une partie perdue par le serveur (redémarrage) :
+           un client ré-injecte l'état complet qu'il avait sauvegardé --- */
+    else if (m.t === 'restore' && m.state && m.state.code) {
+      const code = String(m.state.code).toUpperCase();
+      if (rooms.has(code)) {
+        // le salon existe finalement : simple reconnexion
+        const room = rooms.get(code);
+        room.clients.add(ws); ws.roomCode = code; ws.pid = m.playerId || null;
+        room.state.mgScores = room.scores;
+        sendTo(ws, { t: 'joined', state: room.state });
+        return;
+      }
+      if (m.state.status === 'ended') return;
+      const room = { state: m.state, scores: m.state.mgScores || {}, clients: new Set([ws]), lastActive: Date.now() };
+      rooms.set(code, room);
+      ws.roomCode = code; ws.pid = m.playerId || null;
+      room.state.log.push('↻ Partie restaurée après un redémarrage du serveur !');
+      room.state.version = (room.state.version || 0) + 1;
+      sendTo(ws, { t: 'joined', state: room.state });
+      scheduleSave();
+      console.log(`[↻] Salon ${code} restauré par un joueur`);
     }
 
     /* --- reconnexion après coupure --- */

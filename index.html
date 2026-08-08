@@ -664,6 +664,19 @@ function netConnect(url){
 function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function actSend(data){ if(room&&!local) send({t:'act', code:room.code, data}); }
 let lastStateAt=Date.now();
+/* sauvegarde continue : la partie survit à la fermeture du navigateur
+   ET aux redémarrages du serveur (restauration par le premier revenu) */
+let snapT=null;
+function saveSnapshot(){
+  if(snapT||!room) return;
+  snapT=setTimeout(()=>{
+    snapT=null;
+    try{
+      if(!room||room.status==='ended'){ localStorage.removeItem('fete-room'); return; }
+      localStorage.setItem('fete-room',JSON.stringify({state:room, at:Date.now(), url:wsUrl, local:local}));
+    }catch(e){}
+  },1200);
+}
 function applyState(st){
   if(!st) return;
   if(room && !local && st.version<room.version) return; // état plus vieux que le nôtre
@@ -672,6 +685,7 @@ function applyState(st){
   lastStateAt=Date.now();
   if(room.fx && room.fx.seq>lastFxSeq){ lastFxSeq=room.fx.seq; fxShow(room.fx); }
   syncActs();
+  saveSnapshot();
   render();
 }
 setInterval(()=>{ if(pendingState&&!animBusy){ const s=pendingState; pendingState=null; applyState(s); } },400);
@@ -1389,6 +1403,7 @@ function ask(o){
 function newCode(){ const A='ABCDEFGHJKMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++)c+=A[rnd(A.length)]; return c; }
 
 async function saveRoom(){
+  saveSnapshot();
   if(local){ render(); return; }
   room.version=(room.version||0)+1;
   lastStateAt=Date.now();
@@ -1523,32 +1538,65 @@ function enterRoom(){
   lastFxSeq=(room.fx&&room.fx.seq)||0;
   lastActN=room.actN||0;
   statsSaved=false; bonusShown=false; endSeqDone=false; endFanfared=false; lastTurnKey='';
-  if(!local&&room.code&&room.code!=='LOCAL'){
-    try{ localStorage.setItem('fete-last',JSON.stringify({code:room.code,url:wsUrl,at:Date.now()})); }catch(e){}
-  }
+  saveSnapshot();
   render();
   startHostLoop();
 }
+async function resumeOnline(snap){
+  try{ if(!connected||wsUrl!==snap.url) await netConnect(snap.url||getServerUrl()); }
+  catch(e){ return false; }
+  const player={id:me.id,name:me.name||'Joueur',hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
+  let resp=await new Promise(res=>{ joinResolve=res; send({t:'join', code:snap.state.code, player});
+    setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },5000); });
+  if(!resp||!resp.state){
+    // le serveur a perdu le salon (redémarrage) → on lui ré-injecte la partie sauvegardée
+    resp=await new Promise(res=>{ joinResolve=res; send({t:'restore', state:snap.state, playerId:me.id});
+      setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },5000); });
+  }
+  if(!resp||!resp.state) return false;
+  room=resp.state;
+  enterRoom();
+  toast('↻ Partie reprise !');
+  return true;
+}
 window.addEventListener('load',()=>{
   const b=$('btnResume'); if(!b) return;
-  let last=null;
-  try{ last=JSON.parse(localStorage.getItem('fete-last')); }catch(e){}
-  if(!last||!last.code||Date.now()-(last.at||0)>3*3600*1000) return;
+  let snap=null;
+  try{ snap=JSON.parse(localStorage.getItem('fete-room')); }catch(e){}
+  const fresh=snap&&snap.state&&snap.state.code&&Date.now()-(snap.at||0)<3*3600*1000&&snap.state.status!=='ended';
+  if(!fresh) return;
+  if(snap.local){
+    b.style.display='block';
+    b.textContent='↩️ Reprendre la partie locale ('+(snap.state.players||[]).map(p=>p.name).join(', ').slice(0,30)+')';
+    b.onclick=()=>{
+      snd('tap');
+      local=true; room=snap.state; localMapId=room.mapId||'fete';
+      statsSaved=false; bonusShown=false; endSeqDone=false; endFanfared=false; lastTurnKey='';
+      lastActN=room.actN||0;
+      render();
+    };
+    return;
+  }
+  // partie en ligne : reprise AUTOMATIQUE
   b.style.display='block';
-  b.textContent='↩️ Reprendre la partie '+last.code;
-  b.onclick=async()=>{
-    readName();
-    b.disabled=true;
-    try{ if(!connected||wsUrl!==last.url) await netConnect(last.url); }
-    catch(e){ b.disabled=false; toast('Serveur injoignable 😕'); return; }
-    const player={id:me.id,name:me.name,hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
-    const resp=await new Promise(res=>{ joinResolve=res; send({t:'join', code:last.code, player});
-      setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },6000); });
+  b.disabled=true;
+  b.textContent='↻ Reconnexion à la partie '+snap.state.code+'…';
+  (async()=>{
+    await meReady;
+    const ok=await resumeOnline(snap);
+    if(ok){ b.style.display='none'; return; }
     b.disabled=false;
-    if(!resp||!resp.state){ b.style.display='none'; try{ localStorage.removeItem('fete-last'); }catch(e){} return; }
-    room=resp.state;
-    enterRoom();
-  };
+    b.textContent='↩️ Reprendre la partie '+snap.state.code;
+    b.onclick=async()=>{
+      b.disabled=true;
+      const ok2=await resumeOnline(snap);
+      if(!ok2){
+        b.style.display='none';
+        try{ localStorage.removeItem('fete-room'); }catch(e){}
+        toast('Impossible de reprendre cette partie 😕');
+      }
+    };
+  })();
 });
 
 /* =================== rendu =================== */
@@ -5367,7 +5415,7 @@ let bonusShown=false, endSeqDone=false, endFanfared=false;
 function renderEnd(){
   show('scr-end');
   clearInterval(pollI); clearInterval(hostI);
-  try{ localStorage.removeItem('fete-last'); }catch(e){}
+  try{ localStorage.removeItem('fete-room'); }catch(e){}
   recordStats();
   const showRanks=()=>{
     const crowns=room.crowns||{};
