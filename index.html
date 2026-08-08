@@ -328,6 +328,7 @@ body.shake{animation:shake2 .5s;}
   <button class="btn" id="btnCreate">🎲 Créer une partie en ligne</button>
   <button class="btn rose" id="btnGoJoin">🔗 Rejoindre avec un code</button>
   <button class="btn menthe" id="btnLocal">📱 Sur un seul téléphone</button>
+  <button class="btn ghost" id="btnStats">📊 Mes exploits</button>
 </div>
 
 <!-- ============ MODE LOCAL : joueurs ============ -->
@@ -1140,6 +1141,7 @@ $('btnJoin').onclick=async()=>{
 
 function enterRoom(){
   lastFxSeq=(room.fx&&room.fx.seq)||0;
+  statsSaved=false; bonusShown=false; endSeqDone=false; endFanfared=false; lastTurnKey='';
   render();
   startHostLoop();
 }
@@ -1185,20 +1187,85 @@ function updateEmoteBar(){
   bar.style.display=(room&&!local&&['board','minigame','mgres'].indexOf(room.status)>=0)?'flex':'none';
 }
 
-/* ---------- musique d'ambiance discrète (WebAudio) ---------- */
-let musI=null;
+/* ---------- exploits persistants (par téléphone, parties en ligne) ---------- */
+function loadStats(){
+  try{ return JSON.parse(localStorage.getItem('fete-stats'))||{}; }catch(e){ return {}; }
+}
+function saveStats(s){ try{ localStorage.setItem('fete-stats',JSON.stringify(s)); }catch(e){} }
+function statTitle(w){
+  return w>=10?'🏆 Légende Galactique':w>=6?'🌟 Maître de la Fête':w>=3?'🚀 Capitaine Cosmique':w>=1?'✨ Étoile Montante':'🌱 Novice de la Fête';
+}
+let statsSaved=false;
+function recordStats(){
+  if(local||statsSaved||!room) return;
+  const meP=room.players.find(p=>p.id===me.id);
+  if(!meP) return;
+  statsSaved=true;
+  const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+  const s=loadStats();
+  s.games=(s.games||0)+1;
+  if(ranked[0]&&ranked[0].id===me.id) s.wins=(s.wins||0)+1;
+  s.stars=(s.stars||0)+(meP.stars||0);
+  s.coins=(s.coins||0)+(meP.coinsEarned||0);
+  s.mgWins=(s.mgWins||0)+(meP.mgWins||0);
+  s.byHero=s.byHero||{};
+  if(meP.hero) s.byHero[meP.hero]=(s.byHero[meP.hero]||0)+1;
+  saveStats(s);
+}
+window.addEventListener('load',()=>{
+  const b=$('btnStats'); if(!b) return;
+  b.onclick=async()=>{
+    const s=loadStats();
+    const fav=Object.entries(s.byHero||{}).sort((a,b)=>b[1]-a[1])[0];
+    const favH=fav?HEROES.find(h=>h.id===fav[0]):null;
+    await ask({icon:'📊',title:statTitle(s.wins||0),
+      text:`Parties en ligne : <b>${s.games||0}</b> · Victoires : <b>${s.wins||0}</b> 👑<br>`+
+        `⭐ étoiles gagnées : <b>${s.stars||0}</b> · 🪙 pièces amassées : <b>${s.coins||0}</b><br>`+
+        `🎮 mini-jeux gagnés : <b>${s.mgWins||0}</b><br>`+
+        (favH?`Héros favori : ${heroSvg(favH.id,me.color,24)} <b>${favH.name}</b>`:'Joue en ligne pour remplir tes exploits !'),
+      options:[{label:'OK ✨',value:1,cls:'menthe'}]});
+  };
+});
+
+/* ---------- musique d'ambiance discrète, propre à chaque carte ---------- */
+const MAP_MUSIC={
+  fete:    {seq:[262,330,392,523,392,330,294,440], step:1500, w:'triangle'},
+  spirale: {seq:[220,277,330,440,415,330,277,247], step:1750, w:'sine'},
+  archipel:{seq:[294,370,440,494,440,370,330,294], step:1300, w:'triangle'},
+  volcan:  {seq:[196,233,196,175,233,262,233,175], step:1650, w:'sawtooth'}
+};
+let musT=null, musOn=false;
 function music(on){
-  if(on&&musI) return;
-  if(!on){ clearInterval(musI); musI=null; return; }
-  const seq=[262,330,392,523,392,330,294,440];
+  if(on===musOn) return;
+  musOn=on;
+  clearTimeout(musT); musT=null;
+  if(!on) return;
   let mi=0;
-  musI=setInterval(()=>{
-    if(!sndOn||document.hidden) return;
-    const f=seq[mi%seq.length];
-    tone(f/2,1.6,'sine',.02);
-    tone(f,1.9,'triangle',.014,.08);
-    mi++;
-  },1500);
+  const tick=()=>{
+    if(!musOn) return;
+    const M=MAP_MUSIC[(room&&room.mapId)||'fete']||MAP_MUSIC.fete;
+    if(sndOn&&!document.hidden){
+      const f=M.seq[mi%M.seq.length];
+      tone(f/2,1.6,'sine',.02);
+      tone(f,1.9,M.w,M.w==='sawtooth'?.008:.014,.08);
+      mi++;
+    }
+    musT=setTimeout(tick,M.step||1500); // tempo propre à la carte
+  };
+  tick();
+}
+
+/* ---------- jingle de héros au début du tour ---------- */
+const HERO_JINGLE={
+  astro:[523,659,784], robot:[220,220,440], alien:[494,466,523],
+  ghost:[392,330,294], cat:[659,784,659], uni:[523,698,880],
+  dino:[196,247,196], star:[784,988,1175]
+};
+let lastTurnKey='';
+function heroJingle(p){
+  const j=HERO_JINGLE[p&&p.hero];
+  if(!j) return;
+  j.forEach((f,i)=>tone(f,.14,'triangle',.09,i*.11));
 }
 
 /* ---------- étoiles filantes ---------- */
@@ -1265,6 +1332,8 @@ function shade(hex,f){
 function renderBoard(){
   show('scr-board');
   const cur=room.players[room.turn];
+  const tk=room.round+'-'+room.turn;
+  if(tk!==lastTurnKey){ lastTurnKey=tk; heroJingle(cur); }
   const who=local?cur.name+' de jouer !':(myTurn()?'TOI de jouer !':cur.name+' de jouer');
   $('roundInfo').textContent='Tour '+room.round+' / '+room.maxRounds+' — à '+who+
     ((room.bank||0)>0?' · 🏦 '+room.bank+' 🪙':'');
@@ -1375,6 +1444,10 @@ async function useItem(idx){
   const p=room.players[room.turn];
   const id=pItems(p)[idx]; if(!id) return;
   if(id==='shield'){ toast('🛡️ Le bouclier agit tout seul quand on t\'attaque !'); return; }
+  const diceBusy=room.turnFx&&(room.turnFx.double||room.turnFx.triple);
+  if(diceBusy&&(id==='mush'||id==='triple'||id==='loaded')){
+    toast('Un seul dé spécial par tour 😉'); return;
+  }
   if(id==='mush'){
     pItems(p).splice(idx,1);
     room.turnFx=Object.assign({},room.turnFx,{double:true});
@@ -1454,6 +1527,9 @@ $('btnRisk').onclick=()=>startRoll('risk');
 
 async function startRoll(kind,forced){
   if(!myTurn()||animBusy) return;
+  if(kind==='risk'&&room.turnFx&&(room.turnFx.double||room.turnFx.triple)){
+    toast('Ton dé spécial est déjà prêt — lance le dé normal ! 🎲'); return;
+  }
   animBusy=true;
   $('rollBtns').style.display='none'; $('itemRow').innerHTML='';
   const p=room.players[room.turn];
@@ -1702,11 +1778,11 @@ async function passShop(p){
 async function passBoo(p){
   const others=room.players.filter(o=>o.id!==p.id);
   if(!others.length) return;
-  const canStar=p.coins>=30&&others.some(o=>o.stars>0);
+  const canStar=p.coins>=35&&others.some(o=>o.stars>0);
   const act=await ask({icon:'👻',title:'LE FANTÔME VOLEUR…',text:'Il te propose ses services contre quelques pièces…',
     options:[
       {label:'👻 Voler des 🪙 à un joueur (−5 🪙)',value:'coins',disabled:p.coins<5},
-      {label:'💀 Voler une ⭐ ÉTOILE (−30 🪙)',value:'star',cls:'rose',disabled:!canStar},
+      {label:'💀 Voler une ⭐ ÉTOILE (−35 🪙)',value:'star',cls:'rose',disabled:!canStar},
       {label:'Passer son chemin 😇',value:null,cls:'ghost'}
     ]});
   if(!act){ room.log.push('👻 '+p.name+' ignore le fantôme.'); return; }
@@ -1717,7 +1793,7 @@ async function passBoo(p){
       .concat([{label:'Annuler',value:null,cls:'ghost'}])});
   if(!tid) return;
   const t=room.players.find(o=>o.id===tid);
-  p.coins-=act==='star'?30:5;
+  p.coins-=act==='star'?35:5;
   snd('boo');
   if(popShield(t)){
     fxCast('🛡️','RATÉ !','Le bouclier de '+t.name+' repousse le fantôme !');
@@ -1878,6 +1954,7 @@ const MG_INFO=[
   {name:'Bataille Spatiale',desc:'BATAILLE EN DIRECT 🔵🔴 : glisse ton doigt pour piloter, ton vaisseau tire tout seul sur l\'ennemi le plus proche ! 30 s.',rt:true,team:true},
   {name:'Course Céleste LIVE',desc:'COURSE EN DIRECT : tape GAUCHE-DROITE en alternance, premier aux 100 m ! Vous vous voyez courir en temps réel.',rt:true},
   {name:'Ruée aux Étoiles',desc:'DUEL EN DIRECT : pilote ton vaisseau et rafle les ⭐ avant les autres ! Évite les 💣. 30 s.',rt:true},
+  {name:'Capture d\'Étoile',desc:'ÉQUIPES EN DIRECT 🔵🔴 : attrape l\'étoile au centre et rapporte-la dans TA base ! Touche le porteur adverse pour la faire tomber. 35 s.',rt:true,team:true},
   {name:'Ninja d\'Étoiles',desc:'Tranche les ⭐ et 💎 d\'un coup de doigt comme un ninja, évite les 💣 ! 20 s.'},
   {name:'Gonfle-Ballon',desc:'Tape pour gonfler le ballon, encaisse avec STOP avant qu\'il éclate ! 3 ballons.'},
   {name:'Paires Cosmiques',desc:'Retourne les cartes et retrouve les 6 paires en 30 s !'},
@@ -1932,7 +2009,7 @@ function startMiniGame(){
   const type=room.mg.type;
   const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge,
     mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle,
-    mgRaceLive,mgStarRush,mgSlice,mgBalloon,mgPairs,mgMines];
+    mgRaceLive,mgStarRush,mgFlag,mgSlice,mgBalloon,mgPairs,mgMines];
   (games[type]||mgTapo)(area);
 }
 
@@ -3006,7 +3083,7 @@ function mgBattle(area){
         if(k>=1){ b.remove(); cb(tx,ty); } else requestAnimationFrame(anim);
       })();
     }
-    window.mgAct=d=>{
+    const myAct=d=>{
       if(over) return;
       if(d.k==='pos'&&ships[d.id]&&d.id!==me.id){ ships[d.id].x=d.x*W; ships[d.id].y=d.y*H; }
       else if(d.k==='hit'){
@@ -3020,6 +3097,7 @@ function mgBattle(area){
         fire(s,d.x*W,d.y*H,()=>{});
       }
     };
+    window.mgAct=myAct;
     function loop(){
       const now=Date.now(), el2=(now-start)/1000;
       $('mgTimer').textContent=Math.max(0,30-el2).toFixed(0)+' s · '+kills+' touches';
@@ -3048,7 +3126,8 @@ function mgBattle(area){
         }
       }
       if(el2>=30){
-        over=true; window.mgAct=null;
+        over=true;
+        if(window.mgAct===myAct) window.mgAct=null;
         area.onpointermove=null; area.onpointerdown=null;
         $('mgTimer').textContent='';
         snd('fanfare');
@@ -3095,16 +3174,18 @@ function mgRaceLive(area){
       s.el.querySelector('.rlAv').style.left=Math.min(86,s.d*.86)+'%';
       if(s.done) s.el.querySelector('.rlFlag').style.display='block';
     }
-    window.mgAct=d=>{
+    const myAct=d=>{
       if(over) return;
       if(d.k==='rd'&&state[d.id]&&d.id!==me.id){
         state[d.id].d=d.d; if(d.f&&!state[d.id].done){ state[d.id].done=true; finishedCount++; snd('tick'); }
         paint(d.id);
       }
     };
+    window.mgAct=myAct;
     function finish(win){
       if(over) return; over=true;
-      clearInterval(timerI); window.mgAct=null;
+      clearInterval(timerI);
+      if(window.mgAct===myAct) window.mgAct=null;
       const el2=t0?(Date.now()-t0)/1000:99;
       // finir la course domine TOUJOURS ne pas la finir ; premier vu = bonus
       const sc=win
@@ -3173,6 +3254,7 @@ function mgStarRush(area){
       mine.y=Math.max(24,Math.min(H-24,e.clientY-r.top)); };
     area.onpointermove=mv; area.onpointerdown=mv;
     let over=false, lastSend=0;
+    const localStart=Date.now();
     // horloge commune à tous les téléphones (début du mini-jeu), avec garde anti-dérive
     const start=(()=>{
       const s=room.mg.startedAt||Date.now();
@@ -3185,7 +3267,7 @@ function mgStarRush(area){
       area.appendChild(h); setTimeout(()=>h.remove(),380);
     }
     function removeStar(id){ if(live[id]){ live[id].el.remove(); delete live[id]; } taken[id]=1; }
-    window.mgAct=d=>{
+    const myAct=d=>{
       if(over) return;
       if(d.k==='pos'&&ships[d.id]&&d.id!==me.id){
         ships[d.id].x=d.x*W; ships[d.id].y=d.y*H;
@@ -3197,6 +3279,7 @@ function mgStarRush(area){
         removeStar(d.sid);
       }
     };
+    window.mgAct=myAct;
     function loop(){
       const now=Date.now(), el2=now-start;
       $('mgTimer').textContent=Math.max(0,30-el2/1000).toFixed(0)+' s · '+mine.score+' pts';
@@ -3235,8 +3318,9 @@ function mgStarRush(area){
         s.el.querySelector('.srPts').textContent=s.score;
       }
       if(now-lastSend>120){ lastSend=now; actSend({k:'pos',id:me.id,x:mine.x/W,y:mine.y/H,s:mine.score}); }
-      if(el2>=30000){
-        over=true; window.mgAct=null;
+      if((el2>=30000&&now-localStart>=8000)||now-localStart>=42000){
+        over=true;
+        if(window.mgAct===myAct) window.mgAct=null;
         area.onpointermove=null; area.onpointerdown=null;
         $('mgTimer').textContent='';
         snd('fanfare');
@@ -3250,7 +3334,128 @@ function mgStarRush(area){
   area.appendChild(btn);
 }
 
-/* --- mini-jeu 29 : ninja d'étoiles (slice du doigt) --- */
+/* --- mini-jeu 29 : capture d'étoile (temps réel, équipes, drapeau) --- */
+function mgFlag(area){
+  const T=(room.mg&&room.mg.teams)||{};
+  room.players.forEach((p,i)=>{ if(T[p.id]===undefined) T[p.id]=i%2; });
+  const myTeam=T[me.id]||0;
+  // capture les événements arrivés avant le GO (rejoués au lancement)
+  const preActs=[];
+  window.mgAct=d=>{ preActs.push(d); if(preActs.length>300) preActs.shift(); };
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap');
+    const W=area.clientWidth, H=area.clientHeight;
+    area.innerHTML=`
+      <div style="position:absolute;left:0;top:0;bottom:0;width:44px;background:linear-gradient(90deg,rgba(90,200,250,.28),transparent);border-right:2px dashed rgba(90,200,250,.5);"></div>
+      <div style="position:absolute;right:0;top:0;bottom:0;width:44px;background:linear-gradient(-90deg,rgba(255,107,107,.28),transparent);border-left:2px dashed rgba(255,107,107,.5);"></div>
+      <div class="ammo" id="cfScore" style="left:50%;transform:translateX(-50%);">🔵 0 — 0 🔴</div>`;
+    const scores=[0,0], scoreEl=area.querySelector('#cfScore');
+    const upScore=()=>scoreEl.textContent='🔵 '+scores[0]+' — '+scores[1]+' 🔴';
+    const spawn=t=>({x:t===0?30:W-30, y:44+rnd(Math.max(40,H-100))});
+    const ships={};
+    room.players.forEach(p=>{
+      const t=T[p.id]||0, sp=spawn(t);
+      const el=document.createElement('div');
+      el.style.cssText='position:absolute;text-align:center;width:46px;margin-left:-23px;pointer-events:none;transition:opacity .3s;';
+      el.innerHTML=`<div class="cfAv">${pAv(p,28)}</div>
+        <div style="font-size:9px;font-weight:800;color:${t===0?'#5AC8FA':'#FF6B6B'};text-shadow:0 1px 2px #000;">${p.name.slice(0,8)}</div>`;
+      area.appendChild(el);
+      ships[p.id]={x:sp.x,y:sp.y,el,team:t,stun:0};
+    });
+    // le drapeau-étoile
+    const flagEl=document.createElement('div');
+    flagEl.className='fall'; flagEl.textContent='⭐'; flagEl.style.fontSize='30px';
+    area.appendChild(flagEl);
+    let flag={x:W/2,y:H/2,carrier:null};
+    const mine=ships[me.id]||ships[Object.keys(ships)[0]];
+    const mv=e=>{ const r=area.getBoundingClientRect();
+      mine.x=Math.max(16,Math.min(W-16,e.clientX-r.left));
+      mine.y=Math.max(34,Math.min(H-26,e.clientY-r.top)); };
+    area.onpointermove=mv; area.onpointerdown=mv;
+    let caps=0, tags=0, over=false, lastSend=0;
+    const localStart=Date.now();
+    const start=(()=>{ const s=room.mg.startedAt||Date.now(); const off=Date.now()-s;
+      return (off>=0&&off<120000)?s:Date.now(); })();
+    function boom(x,y,e2){ const b=document.createElement('div'); b.className='hitfx'; b.textContent=e2||'💥';
+      b.style.left=(x-15)+'px'; b.style.top=(y-15)+'px'; area.appendChild(b); setTimeout(()=>b.remove(),380); }
+    function resetFlag(){ flag={x:W/2,y:H/2,carrier:null}; }
+    const myAct=d=>{
+      if(over&&d.k!=='fscore') return; // pendant le sursis de fin, on compte encore les captures
+      if(d.k==='pos'&&ships[d.id]&&d.id!==me.id){ ships[d.id].x=d.x*W; ships[d.id].y=d.y*H; }
+      else if(d.k==='ftake'){
+        // ramassages simultanés : arbitrage déterministe identique sur tous les téléphones
+        if(!flag.carrier||flag.carrier===d.id) flag.carrier=d.id;
+        else flag.carrier=[flag.carrier,d.id].sort()[0];
+        snd('tick');
+      }
+      else if(d.k==='fscore'){ scores[d.team]=(scores[d.team]||0)+1; upScore(); resetFlag(); snd('coin'); }
+      else if(d.k==='fdrop'){
+        const bx=flag.x, by=flag.y; // position AVANT le reset
+        if(ships[d.id]) ships[d.id].stun=Date.now()+900;
+        resetFlag(); boom(bx,by);
+      }
+    };
+    window.mgAct=myAct;
+    preActs.splice(0).forEach(d=>{ try{ myAct(d); }catch(e){} });
+    function loop(){
+      const now=Date.now(), el2=(now-start)/1000;
+      $('mgTimer').textContent=Math.max(0,35-el2).toFixed(0)+' s · '+caps+' capture'+(caps>1?'s':'');
+      // position du drapeau
+      if(flag.carrier&&ships[flag.carrier]){ flag.x=ships[flag.carrier].x; flag.y=ships[flag.carrier].y-26; }
+      flagEl.style.left=(flag.x-15)+'px'; flagEl.style.top=(flag.y-15)+'px';
+      flagEl.style.filter=flag.carrier?'drop-shadow(0 0 8px #FFD644)':'none';
+      for(const id in ships){ const s=ships[id];
+        s.el.style.left=s.x+'px'; s.el.style.top=(s.y-18)+'px';
+        s.el.style.opacity=now<(s.stun||0)?'.35':'1'; }
+      if(now>(mine.stun||0)){
+        // ramasser le drapeau libre
+        if(!flag.carrier&&Math.abs(flag.x-mine.x)<26&&Math.abs(flag.y-mine.y)<30){
+          flag.carrier=me.id; snd('star'); actSend({k:'ftake',id:me.id});
+        }
+        // marquer dans sa base
+        if(flag.carrier===me.id){
+          if((myTeam===0&&mine.x<46)||(myTeam===1&&mine.x>W-46)){
+            caps++; scores[myTeam]++; upScore(); boom(mine.x,mine.y,'🎉'); snd('coin');
+            actSend({k:'fscore',team:myTeam});
+            resetFlag();
+          }
+        }
+        // tacler le porteur adverse
+        const cid=flag.carrier;
+        if(cid&&cid!==me.id&&ships[cid]&&ships[cid].team!==myTeam){
+          const s2=ships[cid];
+          if(Math.abs(s2.x-mine.x)<26&&Math.abs(s2.y-mine.y)<26&&now>(s2.stun||0)){
+            tags++; s2.stun=now+900;
+            boom(s2.x,s2.y); snd('boom');
+            actSend({k:'fdrop',id:cid});
+            resetFlag();
+          }
+        }
+      }
+      if(now-lastSend>110){ lastSend=now; actSend({k:'pos',id:me.id,x:mine.x/W,y:mine.y/H}); }
+      // fin : 35 s d'horloge commune, avec 8 s de jeu minimum garanti et 40 s max local
+      if((el2>=35&&now-localStart>=8000)||now-localStart>=40000){
+        over=true;
+        area.onpointermove=null; area.onpointerdown=null;
+        $('mgTimer').textContent='…';
+        // petit sursis : on compte les toutes dernières captures des autres téléphones
+        setTimeout(()=>{
+          if(window.mgAct===myAct) window.mgAct=null;
+          $('mgTimer').textContent='';
+          snd('fanfare');
+          // le score d'équipe domine, la contribution personnelle départage
+          submitScore(scores[myTeam]*50+caps*5+tags*2);
+        },1200);
+        return;
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 30 : ninja d'étoiles (slice du doigt) --- */
 function mgSlice(area){
   const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
   btn.onclick=()=>{
@@ -3528,16 +3733,21 @@ function renderMgRes(){
   $('btnMgNext').style.display=isHost()?'block':'none';
   $('mgWaitHost').style.display=isHost()?'none':'block';
 }
+let advancing=false;
 $('btnMgNext').onclick=async()=>{
-  if(room.round>=room.maxRounds){ endGame(); }
-  else {
-    room.round++;
-    if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
-    else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
-    else fxCast('🎪','TOUR '+room.round+' !','',1400);
-    room.status='board'; room.log.push('Tour '+room.round+' !');
-  }
-  await saveRoom();
+  if(advancing) return; // anti double-tap pendant le duel final
+  advancing=true;
+  try{
+    if(room.round>=room.maxRounds){ await endGame(); }
+    else {
+      room.round++;
+      if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
+      else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
+      else fxCast('🎪','TOUR '+room.round+' !','',1400);
+      room.status='board'; room.log.push('Tour '+room.round+' !');
+    }
+    await saveRoom();
+  } finally { advancing=false; }
 };
 function triggerFinale(){
   const f=rnd(3);
@@ -3558,7 +3768,36 @@ function triggerFinale(){
     room.log.push('🚨 Rattrapage pour '+last.name+' !');
   }
 }
-function endGame(){
+async function finalTieBreak(){
+  // égalité parfaite en tête (étoiles ET pièces) → duel de dés en mort subite
+  animBusy=true; // fige room : l'écho serveur ne doit pas remplacer nos références
+  try{
+    const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+    const top=ranked[0];
+    const tied=room.players.filter(p=>p.stars===top.stars&&p.coins===top.coins);
+    if(tied.length<2) return;
+    snd('duel');
+    fxCast('⚔️','ÉGALITÉ PARFAITE !!','Duel de dés final : '+tied.map(p=>p.name).join(' 🆚 ')+' !',3000);
+    await saveRoom(); await sleep(3200);
+    let winners=tied;
+    for(let g=0;g<6&&winners.length>1;g++){
+      const rolls=winners.map(p=>({p,r:1+rnd(6)}));
+      const max=Math.max(...rolls.map(x=>x.r));
+      snd('dice');
+      fxCast('🎲','DUEL FINAL !',rolls.map(x=>pAv(x.p,20)+' '+x.p.name+' : <b>'+x.r+'</b>').join('<br>'),2600);
+      await saveRoom(); await sleep(2800);
+      winners=rolls.filter(x=>x.r===max).map(x=>x.p);
+    }
+    const w0=winners[rnd(winners.length)];
+    const w=room.players.find(p=>p.id===w0.id)||w0; // toujours l'objet du room courant
+    w.stars++;
+    snd('star');
+    fxCast('👑','VAINQUEUR DU DUEL !',w.name+' arrache la victoire : +1 ⭐ !',3200);
+    room.log.push('⚔️ '+w.name+' remporte le duel final !');
+    await saveRoom(); await sleep(3400);
+  } finally { animBusy=false; }
+}
+async function endGame(){
   const cats=[
     {icon:'💰',t:'Étoile du Richissime',d:'a gagné le plus de 🪙 au total',val:p=>p.coinsEarned||0},
     {icon:'🎮',t:'Étoile du Champion',d:'a gagné le plus de mini-jeux',val:p=>p.mgWins||0},
@@ -3574,15 +3813,17 @@ function endGame(){
     w.stars++;
     room.bonus.push({icon:c.icon,t:c.t,d:c.d,name:w.name,avatar:w.avatar,hero:w.hero,color:w.color,val:best});
   }
+  await finalTieBreak();
   room.status='ended';
   room.log.push('🏆 Fin de partie !');
 }
 
 /* =================== fin =================== */
-let bonusShown=false;
+let bonusShown=false, endSeqDone=false, endFanfared=false;
 function renderEnd(){
   show('scr-end');
   clearInterval(pollI); clearInterval(hostI);
+  recordStats();
   const showRanks=()=>{
     const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
     const med=['🥇','🥈','🥉'], hts=[122,92,70], cols=['#FFD644','#C9D1E0','#D08B4C'];
@@ -3603,10 +3844,10 @@ function renderEnd(){
          <span style="font-size:14px;">${b.t}<br><span class="hint">${pAv(b,18)} ${b.name} (${b.val}) : +1 ⭐</span></span></div>`).join(''):'')+
       ranked.slice(3).map((p,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAv(p,26)} ${p.name}</span>
        <span class="gain">⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
-    snd('fanfare');
-    confetti();
+    if(!endFanfared){ endFanfared=true; snd('fanfare'); confetti(); } // pas de fanfare répétée sur re-render
   };
-  if(room.bonus&&!bonusShown){
+  const hasBonus=room.bonus&&room.bonus.length>0;
+  if(hasBonus&&!bonusShown){
     bonusShown=true;
     $('finalRanks').innerHTML='<p class="center hint">Roulement de tambour… 🥁</p>';
     (async()=>{
@@ -3617,8 +3858,10 @@ function renderEnd(){
         await sleep(3100);
       }
       showRanks();
+      endSeqDone=true;
     })();
-  } else showRanks();
+  } else if(!hasBonus||endSeqDone) showRanks();
+  // sinon : la séquence de révélation est en cours, elle affichera le classement
 }
 function confetti(){
   const c=document.createElement('div'); c.className='confetti'; document.body.appendChild(c);
