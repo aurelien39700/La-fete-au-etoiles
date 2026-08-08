@@ -267,6 +267,13 @@ $('btnShare').onclick=async()=>{
   }catch(e){}
 };
 
+/* terrains d'île illustrés : le décor du plateau vient de Meshy (repli : ellipses) */
+const TER_OK={};
+['fete','spirale','archipel','volcan'].forEach(k=>{
+  const im=new Image();
+  im.onload=()=>{ TER_OK[k]=1; if(room&&room.status==='board') render(); };
+  im.src='/art/terrain-'+k+'.jpg';
+});
 /* ---------- journal vivant : le héros réagit à chaque action ---------- */
 let actBarEl=null, lastActN=0, actQueue=[], actBusy=false;
 function ensureActBar(){
@@ -428,7 +435,15 @@ function tileIcon(t,x,y,active,delay){
    (zone morte : si le pion est déjà bien visible, on ne bouge pas) */
 function scrollToPawn(smooth){
   const el=document.querySelector('#boardWrap .tok.cur');
-  if(!el) return;
+  if(!el){
+    // plateau 3D : la carte entière est cadrée — on ramène juste le diorama à l'écran
+    if(window.B3D&&B3D.ok){
+      const bw=$('boardWrap'), r=bw&&bw.getBoundingClientRect();
+      if(r&&(r.top<-40||r.bottom>window.innerHeight+40))
+        bw.scrollIntoView({block:'center',behavior:smooth===false?'auto':'smooth'});
+    }
+    return;
+  }
   const r=el.getBoundingClientRect();
   const h=window.innerHeight;
   if(r.top>h*.2&&r.bottom<h*.62) return; // déjà dans la fenêtre confortable
@@ -495,6 +510,10 @@ function renderBoard(){
     }
     prevVals[p.id]={c:p.coins,s:p.stars};
   });
+  // PLATEAU VOXEL 3D : pris en charge par le moteur three.js quand il est prêt ;
+  // sinon (WebGL absent, module pas encore chargé) le rendu SVG ci-dessous prend le relais
+  const use3D=!!(window.B3D&&B3D.ok&&B3D.render());
+  if(!use3D){
   // carte façon Mario Party : graphe de nœuds sur une île volante ovale
   const nodes=room.board;
   const TOPC={start:'#F4F0FF',blue:'#5AC8FA',red:'#FF6B6B',lucky:'#3EE6C1',event:'#FF9F45',starT:'#8E7CFF',shop:'#C39BFF',boo:'#9B89D8',duel:'#FF8FAB',bank:'#F0C34E',chance:'#FF9FF3',bowser:'#5B3A8E'};
@@ -502,31 +521,58 @@ function renderBoard(){
   const L=30, H=18, DEP=13, EL=24;         // EL : hauteur d'un étage de relief
   const ty=n=>n.y-(n.h||0)*EL;             // y du plateau de la case (sommet du pilier)
   const MM=room.mapMeta||mapFete().meta;
-  // routes (tous les segments du graphe, ancrées à l'altitude) + escaliers sur les pentes
-  let roadPath='', stairs='';
+  // routes : piste balisée nette — ruban sombre, filets lumineux sur les bords,
+  // chevrons dans le sens de circulation, marches sur les pentes
+  let roadPath='', stairs='', rails='', chevrons='';
   nodes.forEach(n=>n.next.forEach(j=>{
     const m=nodes[j];
-    roadPath+=`M${n.x},${ty(n)} L${m.x},${ty(m)} `;
+    const y1=ty(n), y2=ty(m);
+    roadPath+=`M${n.x},${y1} L${m.x},${y2} `;
+    const dx=m.x-n.x, dy=y2-y1, len=Math.hypot(dx,dy)||1;
+    const ux=dx/len, uy=dy/len, px=-uy, py=ux;
+    // filets de bord (balisage lumineux, en retrait des extrémités)
+    const inset=10;
+    if(len>2*inset){
+      const ax=n.x+ux*inset, ay=y1+uy*inset, bx=m.x-ux*inset, by=y2-uy*inset;
+      [[6.5],[-6.5]].forEach(([o])=>{
+        rails+=`<line x1="${(ax+px*o).toFixed(1)}" y1="${(ay+py*o).toFixed(1)}" x2="${(bx+px*o).toFixed(1)}" y2="${(by+py*o).toFixed(1)}" stroke="rgba(178,156,255,.34)" stroke-width="1.6" stroke-linecap="round"/>`;
+      });
+    }
+    // chevrons directionnels (sens de parcours toujours lisible)
+    const ts=len>78?[.4,.72]:[.55];
+    ts.forEach(t=>{
+      const cx=n.x+dx*t, cy=y1+dy*t;
+      chevrons+=`<path d="M${(cx-ux*3.4+px*4.4).toFixed(1)},${(cy-uy*3.4+py*4.4).toFixed(1)} L${(cx+ux*4).toFixed(1)},${(cy+uy*4).toFixed(1)} L${(cx-ux*3.4-px*4.4).toFixed(1)},${(cy-uy*3.4-py*4.4).toFixed(1)}"
+        stroke="rgba(220,210,255,.66)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    });
     const dh=(m.h||0)-(n.h||0);
     if(dh){
       // marches : petits barreaux perpendiculaires sur le segment en pente
       const steps=Math.abs(dh)*2+1;
-      const dx=m.x-n.x, dy=ty(m)-ty(n), len=Math.hypot(dx,dy)||1;
-      const px=-dy/len*7, py=dx/len*7;
       for(let s=1;s<=steps;s++){
         const t=s/(steps+1);
-        const sx=n.x+dx*t, sy=ty(n)+dy*t;
-        stairs+=`<line x1="${(sx-px).toFixed(1)}" y1="${(sy-py).toFixed(1)}" x2="${(sx+px).toFixed(1)}" y2="${(sy+py).toFixed(1)}" stroke="rgba(255,255,255,.30)" stroke-width="2.5" stroke-linecap="round"/>`;
+        const sx=n.x+dx*t, sy=y1+dy*t;
+        stairs+=`<line x1="${(sx-px*7).toFixed(1)}" y1="${(sy-py*7).toFixed(1)}" x2="${(sx+px*7).toFixed(1)}" y2="${(sy+py*7).toFixed(1)}" stroke="rgba(255,255,255,.30)" stroke-width="2.5" stroke-linecap="round"/>`;
       }
     }
   }));
-  const roads=`
+  const hasTer=!!TER_OK[room.mapId];
+  const roads=hasTer?`
+    <path d="${roadPath}" stroke="rgba(0,0,0,.35)" stroke-width="19" fill="none" stroke-linecap="round"/>
+    <path d="${roadPath}" stroke="#31215C" stroke-width="13" fill="none" stroke-linecap="round" opacity=".96"/>
+    ${rails}
+    ${chevrons}
+    ${stairs}`:`
     <path d="${roadPath}" stroke="#160D38" stroke-width="24" fill="none" stroke-linecap="round"/>
     <path d="${roadPath}" stroke="#2A1858" stroke-width="17" fill="none" stroke-linecap="round"/>
     <path d="${roadPath}" stroke="rgba(255,255,255,.22)" stroke-width="2.5" fill="none" stroke-dasharray="1 9" stroke-linecap="round"/>
     ${stairs}`;
-  // îles organiques (2 ellipses = épaisseur) + anneau décoratif
-  const island=MM.isles.map(I=>`
+  // sol du plateau : terrain illustré pleine surface, sinon îles organiques
+  const V=MM.view||[-26,-24,472,588];
+  const island=hasTer
+    ? `<image href="/art/terrain-${room.mapId}.jpg" x="${V[0]}" y="${V[1]}" width="${V[2]}" height="${V[3]}" preserveAspectRatio="none"/>
+       <rect x="${V[0]}" y="${V[1]}" width="${V[2]}" height="${V[3]}" fill="rgba(14,8,34,.28)"/>`
+    : MM.isles.map(I=>`
     <ellipse cx="${I.cx}" cy="${I.cy+30}" rx="${I.rx}" ry="${I.ry}" fill="#150C36"/>
     <ellipse cx="${I.cx}" cy="${I.cy}" rx="${I.rx}" ry="${I.ry}" fill="#241553" stroke="#3A2A70" stroke-width="3"/>
     <ellipse cx="${I.cx}" cy="${I.cy}" rx="${Math.max(20,I.rx-28)}" ry="${Math.max(20,I.ry-26)}" fill="none" stroke="rgba(255,255,255,.045)" stroke-width="18"/>`).join('');
@@ -545,7 +591,13 @@ function renderBoard(){
     const x=o.n.x, hN=o.n.h||0, y=o.n.y-hN*EL, dep=DEP+hN*EL;
     const active=o.n.t==='starT'&&o.i===room.starIdx;
     const zone=MM.zones&&MM.zones[o.n.z||0];
-    const top=active?'#FFD644':(o.n.t==='blue'&&zone?zone.blue:TOPC[o.n.t]||'#5AC8FA');
+    const vif=o.n.t==='blue'&&zone?zone.blue:TOPC[o.n.t]||'#5AC8FA';
+    // sur terrain illustré : tuiles sobres au ton du thème, le TYPE se lit par
+    // le liseré néon + l'icône (fini le patchwork multicolore criard)
+    const spec=o.n.t!=='blue'&&o.n.t!=='start';
+    const top=active?'#FFD644':(hasTer?shade(vif,spec?.42:.34):vif);
+    const edge=active?'#FFE9A0':(hasTer?vif:shade(vif,.45));
+    const edgeW=hasTer?(spec?2.4:1.3):1.5;
     // strates de roche sur les hauts piliers (lisibilité du relief)
     let strata='';
     for(let s2=1;s2<=hN;s2++){
@@ -557,11 +609,12 @@ function renderBoard(){
       ${hN?`<ellipse cx="${x}" cy="${o.n.y+H*.55}" rx="${L*.85}" ry="${H*.5}" fill="rgba(0,0,0,${(.12+hN*.05).toFixed(2)})"/>`:''}
       ${active?`<ellipse cx="${x}" cy="${y}" rx="${L+22}" ry="${H+16}" fill="#FFD64418"/>
       <ellipse class="ringA" cx="${x}" cy="${y}" rx="${L+8}" ry="${H+6}" fill="none" stroke="#FFD644" stroke-width="4"/>`:''}
-      <polygon points="${x-L},${y} ${x},${y+H} ${x},${y+H+dep} ${x-L},${y+dep}" fill="${shade(top,.5)}"/>
-      <polygon points="${x+L},${y} ${x},${y+H} ${x},${y+H+dep} ${x+L},${y+dep}" fill="${shade(top,.68)}"/>
+      ${hasTer&&spec&&!active?`<ellipse cx="${x}" cy="${y}" rx="${L+9}" ry="${H+7}" fill="${vif}1E"/>`:''}
+      <polygon points="${x-L},${y} ${x},${y+H} ${x},${y+H+dep} ${x-L},${y+dep}" fill="${hasTer?'#191130':shade(top,.5)}"/>
+      <polygon points="${x+L},${y} ${x},${y+H} ${x},${y+H+dep} ${x+L},${y+dep}" fill="${hasTer?'#221741':shade(top,.68)}"/>
       ${strata}
-      <polygon points="${x},${y-H} ${x+L},${y} ${x},${y+H} ${x-L},${y}" fill="${gfill(top)}" stroke="${shade(top,.45)}" stroke-width="1.5"/>
-      <polygon points="${x},${y-H+3} ${x+L-8},${y} ${x},${y+H-3} ${x-L+8},${y}" fill="rgba(255,255,255,.10)"/>
+      <polygon points="${x},${y-H} ${x+L},${y} ${x},${y+H} ${x-L},${y}" fill="${gfill(top)}" stroke="${edge}" stroke-width="${edgeW}"/>
+      <polygon points="${x},${y-H+3} ${x+L-8},${y} ${x},${y+H-3} ${x-L+8},${y}" fill="rgba(255,255,255,${hasTer?'.07':'.10'})"/>
       ${tileIcon(o.n.t,x,y+1,active,(o.i%7)*.38)}
     </g>`;
     const here=room.players.map((p,pi)=>({p,pi})).filter(q=>q.p.pos===o.i);
@@ -573,11 +626,15 @@ function renderBoard(){
         <g class="tok ${q.pi===room.turn?'cur':''}">${pAvBoard(q.p,x+dx,y-3,30)}</g>`;
     });
   });
-  // panneaux de carrefour (tout nœud à 2 sorties)
+  // panneaux de carrefour (tout nœud à 2 sorties) : pastille vectorielle
   const junction=nodes.filter(n=>n.next.length>1)
-    .map(n=>`<text class="deco" x="${n.x+26}" y="${ty(n)-18}" font-size="17" text-anchor="middle">🧭</text>`).join('');
-  // décor de la carte (zones thématiques + espace) — props illustrés si disponibles
-  const deco=(MM.deco||[]).map(d=>{
+    .map(n=>`<g opacity=".9">
+      <circle cx="${n.x+24}" cy="${ty(n)-20}" r="8.5" fill="#20163F" stroke="#FFD644" stroke-width="1.6"/>
+      <path d="M${n.x+24},${ty(n)-25.5} l3.6,5 h-2.1 v3.6 h-3 v-3.6 h-2.1 Z" fill="#FFD644"/>
+    </g>`).join('');
+  // décor de la carte — sur terrain illustré, AUCUN émoticône flottant :
+  // le décor est dans l'image, seuls les props détourés (images) restent
+  const deco=(MM.deco||[]).filter(d=>hasTer?(PROP_FILES[d.e]&&PROP_OK[PROP_FILES[d.e]]):true).map(d=>{
     if(d.st)
       return `<text x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle" ${d.c?`fill="${d.c}"`:''} opacity="${d.c?'.5':'.4'}">${d.e}</text>`;
     const pf=PROP_FILES[d.e];
@@ -615,7 +672,8 @@ function renderBoard(){
   if(room.traps) for(const ti in room.traps){
     if(local||room.traps[ti].by===me.id){
       const n=nodes[ti];
-      if(n) traps+=`<text class="deco" x="${n.x+16}" y="${ty(n)-8}" font-size="13">🧨</text>`;
+      if(n) traps+=`<g><circle cx="${n.x+15}" cy="${ty(n)-12}" r="5" fill="#2B1230" stroke="#FF5A4A" stroke-width="1.8"/>
+        <circle cx="${n.x+15}" cy="${ty(n)-12}" r="1.8" fill="#FF5A4A"><animate attributeName="opacity" values="1;.25;1" dur="1s" repeatCount="indefinite"/></circle></g>`;
     }
   }
   // fond d'ambiance illustré propre à la carte (voile assombrissant pour la lisibilité)
@@ -650,6 +708,7 @@ function renderBoard(){
   const prog=(room.round-1)/Math.max(1,room.maxRounds-1);
   bw.querySelector('svg').style.filter=
     `brightness(${(1.03-prog*.15).toFixed(3)}) saturate(${(1+prog*.16).toFixed(3)}) hue-rotate(-${Math.round(prog*11)}deg)`;
+  } // fin du repli SVG (le 3D gère son propre décor)
   $('rollBtns').style.display=(myTurn()&&!animBusy)?'flex':'none';
   renderItemRow();
   $('turnHint').textContent=(myTurn()&&!animBusy)?'Utilise un objet puis lance un dé !':'⭐ à '+starCost()+' 🪙 en passant dessus';

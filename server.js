@@ -101,7 +101,8 @@ const server = http.createServer((req, res) => {
     if (!/^[\w.-]+$/.test(name)) { res.writeHead(400); res.end(); return; }
     fs.readFile(path.join(__dirname, 'art', name), (err, data) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
-      const ct = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+      const ct = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp'
+        : name.endsWith('.glb') ? 'model/gltf-binary' : 'image/jpeg';
       res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'public, max-age=86400' });
       res.end(data);
     });
@@ -112,6 +113,13 @@ const server = http.createServer((req, res) => {
     fs.readFile(path.join(__dirname, 'js', name), (err, data) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+      res.end(data);
+    });
+  } else if (req.url === '/poc3d') {
+    // maquette plateau 3D (démo)
+    fs.readFile(path.join(__dirname, 'poc3d.html'), (err, data) => {
+      if (err) { res.writeHead(404); res.end('404'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(data);
     });
   } else if (req.url === '/favicon.ico') {

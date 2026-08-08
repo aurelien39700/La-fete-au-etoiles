@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>POC — plateau voxel 3D</title>
+<style>
+html,body{margin:0;height:100%;background:#171030;overflow:hidden;font-family:'Baloo 2',system-ui,sans-serif;}
+#hint{position:fixed;top:10px;left:50%;transform:translateX(-50%);color:#F3EFFF;font-weight:800;
+  background:rgba(23,16,48,.7);border:1px solid rgba(178,156,255,.3);border-radius:12px;padding:6px 14px;font-size:13px;z-index:5;}
+canvas{display:block;}
+</style>
+</head>
+<body>
+<div id="hint">🌋 Volcan Maudit — maquette plateau voxel 3D (glisse pour tourner)</div>
+<script type="importmap">{"imports":{"three":"/js/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from '/js/GLTFLoader.js';
+const spinners=[], rims=[], icoSprites=[];
+
+const DATA={"nodes":[{"t":"start","x":205,"y":15,"h":1,"z":0,"next":[1]},{"t":"event","x":241,"y":34,"h":1,"z":0,"next":[2]},{"t":"red","x":274,"y":68,"h":1,"z":0,"next":[3]},{"t":"blue","x":303,"y":111,"h":1,"z":0,"next":[4,46]},{"t":"shop","x":329,"y":161,"h":1,"z":0,"next":[5]},{"t":"blue","x":352,"y":218,"h":1,"z":0,"next":[6]},{"t":"lucky","x":372,"y":284,"h":1,"z":0,"next":[7]},{"t":"red","x":385,"y":360,"h":1,"z":0,"next":[8]},{"t":"blue","x":387,"y":441,"h":0,"z":3,"next":[9,40]},{"t":"bank","x":379,"y":521,"h":0,"z":3,"next":[10]},{"t":"blue","x":361,"y":593,"h":0,"z":3,"next":[11]},{"t":"duel","x":335,"y":650,"h":0,"z":3,"next":[12]},{"t":"starT","x":305,"y":694,"h":0,"z":3,"next":[13]},{"t":"blue","x":273,"y":726,"h":0,"z":3,"next":[14]},{"t":"chance","x":240,"y":750,"h":0,"z":3,"next":[15]},{"t":"event","x":205,"y":765,"h":0,"z":3,"next":[16]},{"t":"red","x":169,"y":768,"h":0,"z":3,"next":[17]},{"t":"shop","x":132,"y":753,"h":0,"z":3,"next":[18]},{"t":"starT","x":97,"y":718,"h":0,"z":3,"next":[19]},{"t":"blue","x":69,"y":663,"h":0,"z":3,"next":[20]},{"t":"duel","x":49,"y":593,"h":0,"z":3,"next":[21]},{"t":"blue","x":39,"y":516,"h":0,"z":3,"next":[22]},{"t":"red","x":36,"y":438,"h":0,"z":3,"next":[23]},{"t":"lucky","x":39,"y":363,"h":1,"z":0,"next":[24]},{"t":"blue","x":46,"y":290,"h":1,"z":0,"next":[25,37]},{"t":"boo","x":58,"y":218,"h":1,"z":0,"next":[26]},{"t":"blue","x":75,"y":148,"h":1,"z":0,"next":[27]},{"t":"starT","x":99,"y":87,"h":1,"z":0,"next":[28]},{"t":"event","x":130,"y":41,"h":1,"z":0,"next":[29]},{"t":"blue","x":167,"y":16,"h":1,"z":0,"next":[0]},{"t":"blue","x":205,"y":180,"h":3,"z":2,"next":[31]},{"t":"red","x":253,"y":199,"h":3,"z":2,"next":[32]},{"t":"starT","x":283,"y":249,"h":3,"z":2,"next":[33]},{"t":"blue","x":283,"y":311,"h":3,"z":2,"next":[34]},{"t":"bowser","x":253,"y":361,"h":3,"z":2,"next":[35]},{"t":"blue","x":205,"y":380,"h":3,"z":2,"next":[36,47]},{"t":"red","x":157,"y":361,"h":3,"z":2,"next":[37]},{"t":"event","x":127,"y":311,"h":3,"z":2,"next":[38]},{"t":"starT","x":127,"y":249,"h":3,"z":2,"next":[39]},{"t":"blue","x":157,"y":199,"h":3,"z":2,"next":[30]},{"t":"red","x":337,"y":486,"h":0,"z":1,"next":[41]},{"t":"bowser","x":288,"y":525,"h":0,"z":1,"next":[42]},{"t":"blue","x":238,"y":551,"h":0,"z":1,"next":[43]},{"t":"starT","x":188,"y":562,"h":0,"z":1,"next":[44]},{"t":"red","x":138,"y":557,"h":0,"z":1,"next":[45]},{"t":"blue","x":89,"y":540,"h":0,"z":1,"next":[21]},{"t":"bowser","x":278,"y":155,"h":3,"z":2,"next":[31]},{"t":"event","x":222,"y":466,"h":2,"z":1,"next":[42]}],"star":12};
+
+const TYPE_COL={start:0xEDE7FF,blue:0x8F86C8,red:0xE85A50,lucky:0x3EE6C1,event:0xFF9F45,
+  starT:0x8E7CFF,shop:0xC39BFF,boo:0xB9A8E8,duel:0xFF8FAB,bank:0xF0C34E,chance:0xFF9FF3,bowser:0x6B4A9E};
+const TYPE_EMIT={red:0x571510,lucky:0x0E4A3C,event:0x50290A,starT:0x241A5E,shop:0x33205E,
+  boo:0x2A2050,duel:0x53202E,bank:0x4A3A0E,chance:0x4A2545,bowser:0x241040,start:0x333055,blue:0x191430};
+
+const W=innerWidth,H=innerHeight;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x171030);
+scene.fog=new THREE.Fog(0x171030,70,160);
+
+const SC=1/11.5;
+const toW=n=>new THREE.Vector3((n.x-210)*SC,(n.h||0)*1.35,(n.y-390)*SC);
+
+const cam=new THREE.OrthographicCamera(-1,1,1,-1,1,400);
+const VIEW=20.5;
+function sizeCam(){
+  const a=innerWidth/innerHeight;
+  cam.left=-VIEW*a; cam.right=VIEW*a; cam.top=VIEW; cam.bottom=-VIEW;
+  cam.updateProjectionMatrix();
+}
+sizeCam();
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(W,H);
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x8A78C8,1.15));
+const sun=new THREE.DirectionalLight(0xFFE2C4,1.6);
+sun.position.set(26,42,14);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+const sc=sun.shadow.camera; sc.left=-40; sc.right=40; sc.top=40; sc.bottom=-40;
+scene.add(sun);
+const lava=new THREE.PointLight(0xFF7A30,55,40);
+lava.position.set(0,6,-9);
+scene.add(lava);
+
+// ---------- socle voxel (damier basalte, falaise sur les bords) ----------
+const base=new THREE.Group();
+const CELL=2.05;
+const NX=20,NZ=36;
+const g1=new THREE.BoxGeometry(CELL,1,CELL);
+const mA=new THREE.MeshStandardMaterial({color:0x241B44,roughness:.95});
+const mB=new THREE.MeshStandardMaterial({color:0x2B2152,roughness:.95});
+const mLava=new THREE.MeshStandardMaterial({color:0xFF6A22,emissive:0xFF5A18,emissiveIntensity:1.4,roughness:.6});
+for(let i=0;i<NX;i++)for(let j=0;j<NZ;j++){
+  const x=(i-NX/2+.5)*CELL, z=(j-NZ/2+.5)*CELL;
+  const edge=Math.min(i,NX-1-i,j,NZ-1-j);
+  if(edge===0&&Math.random()<.34) continue;           // bord grignoté
+  const isLava=edge<=1&&Math.random()<.16;             // fissures de lave au bord
+  const m=new THREE.Mesh(g1,isLava?mLava:((i+j)%2?mA:mB));
+  m.position.set(x,-0.55-(edge===0?0.42:0)-Math.random()*.06,z);
+  m.scale.y=1+(edge===0?0.5:0);
+  m.receiveShadow=true;
+  base.add(m);
+}
+scene.add(base);
+
+// océan de lave sous l'île
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(300,300),
+  new THREE.MeshBasicMaterial({color:0x3A1220}));
+sea.rotation.x=-Math.PI/2; sea.position.y=-7;
+scene.add(sea);
+
+// ---------- cases : pilier + dalle biseautée + liseré lumineux ----------
+const nodes=DATA.nodes;
+const pill=new THREE.MeshStandardMaterial({color:0x2A2038,roughness:.9});
+nodes.forEach((n,i)=>{
+  const p=toW(n);
+  const hPil=.8+(n.h||0)*1.35;
+  const pl=new THREE.Mesh(new THREE.BoxGeometry(2.5,hPil,2.5),pill);
+  pl.position.set(p.x,p.y-hPil/2+.3,p.z);
+  pl.castShadow=pl.receiveShadow=true;
+  scene.add(pl);
+  const active=n.t==='starT'&&i===DATA.star;
+  const col=active?0xFFD644:TYPE_COL[n.t]||0x8F86C8;
+  const emit=active?0xAA7A00:TYPE_EMIT[n.t]||0x191430;
+  // liseré : socle fin lumineux sous la dalle (il « respire » dans la boucle)
+  const rim=new THREE.Mesh(new THREE.BoxGeometry(2.95,.14,2.95),
+    new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:active?.9:.5,roughness:.4}));
+  rim.position.set(p.x,p.y+.32,p.z);
+  rim.userData={ph:i*.7,base:active?.9:(n.t!=='blue'?.55:.35)};
+  rims.push(rim);
+  scene.add(rim);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(2.62,.34,2.62),
+    new THREE.MeshStandardMaterial({color:col,emissive:emit,emissiveIntensity:.85,roughness:.55}));
+  top.position.set(p.x,p.y+.56,p.z);
+  top.castShadow=top.receiveShadow=true;
+  scene.add(top);
+  if(active){
+    const halo=new THREE.PointLight(0xFFD644,26,10);
+    halo.position.set(p.x,p.y+2.4,p.z);
+    scene.add(halo);
+    const star=new THREE.Mesh(new THREE.OctahedronGeometry(.62),
+      new THREE.MeshStandardMaterial({color:0xFFD644,emissive:0xFFB400,emissiveIntensity:1.6}));
+    star.position.set(p.x,p.y+1.9,p.z);
+    star.userData.spin=1;
+    scene.add(star);
+    spinners.push(star);
+  }
+});
+
+// ---------- chemins : pas japonais voxel entre les cases ----------
+const stepG=new THREE.BoxGeometry(.72,.2,.72);
+const stepM=new THREE.MeshStandardMaterial({color:0x4A3C78,emissive:0x241A4E,emissiveIntensity:.7,roughness:.8});
+nodes.forEach(n=>n.next.forEach(j=>{
+  const a=toW(n), b=toW(nodes[j]);
+  const d=a.distanceTo(b), steps=Math.max(2,Math.round(d/1.5));
+  for(let s=1;s<steps;s++){
+    const t=s/steps;
+    const m=new THREE.Mesh(stepG,stepM);
+    m.position.lerpVectors(a,b,t);
+    m.position.y+=.32;
+    m.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
+    m.receiveShadow=true;
+    scene.add(m);
+  }
+}));
+
+// ---------- volcan central ----------
+const volc=new THREE.Group();
+const cone=new THREE.Mesh(new THREE.ConeGeometry(4.6,5.2,9),
+  new THREE.MeshStandardMaterial({color:0x241B38,roughness:.95,flatShading:true}));
+cone.position.y=2.6; cone.castShadow=true;
+volc.add(cone);
+const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.5,2,1,9),
+  new THREE.MeshStandardMaterial({color:0xFF7A22,emissive:0xFF5A10,emissiveIntensity:2,flatShading:true}));
+crater.position.y=5;
+volc.add(crater);
+volc.position.set(0,4.2,-9.5);
+scene.add(volc);
+
+// rochers low-poly en bord de socle
+const rockM=new THREE.MeshStandardMaterial({color:0x342A58,roughness:1,flatShading:true});
+for(let i=0;i<10;i++){
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(.7+Math.random()*.9),rockM);
+  const ang=Math.random()*Math.PI*2;
+  r.position.set(Math.cos(ang)*(17+Math.random()*3),0,Math.sin(ang)*(30+Math.random()*4));
+  r.castShadow=true;
+  scene.add(r);
+}
+
+// étoiles du ciel
+const starGeo=new THREE.BufferGeometry();
+const sp=[];
+for(let i=0;i<260;i++) sp.push((Math.random()-.5)*260,Math.random()*90-10,(Math.random()-.5)*260);
+starGeo.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+scene.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xFFE9A8,size:.5,sizeAttenuation:true,transparent:true,opacity:.8})));
+
+// ---------- pion : personnage 3D Meshy si dispo, sinon sprite (jamais déformé) ----------
+let pion=new THREE.Group();
+const pionSpr=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true}));
+new THREE.TextureLoader().load('/art/sprite-astro.png',t2=>{
+  t2.colorSpace=THREE.SRGBColorSpace;
+  pionSpr.material.map=t2; pionSpr.material.needsUpdate=true;
+  const r=t2.image.width/t2.image.height;
+  pionSpr.scale.set(3.7*r,3.7,1); // l'échelle suit le PNG : aucune déformation
+  pionSpr.center.set(.5,.12);
+});
+pion.add(pionSpr);
+scene.add(pion);
+let mixer=null;
+function adopte3D(g){
+  // le VRAI Cosmo en 3D remplace le sprite
+  const m=g.scene;
+  const bb=new THREE.Box3().setFromObject(m);
+  const size=bb.getSize(new THREE.Vector3());
+  const s=3.05/size.y;
+  m.scale.setScalar(s);
+  bb.setFromObject(m);
+  m.position.y=-bb.min.y;
+  m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; } });
+  pion.remove(pionSpr);
+  pion.add(m);
+  pion.userData.mesh3d=m;
+  if(g.animations&&g.animations.length){
+    // animation de MARCHE en boucle (rig Meshy)
+    mixer=new THREE.AnimationMixer(m);
+    const walk=g.animations.find(a=>/walk/i.test(a.name))||g.animations[0];
+    mixer.clipAction(walk).play();
+  }
+}
+const gl=new GLTFLoader();
+gl.load('/art/hero3d-astro-anim.glb',adopte3D,undefined,
+  ()=>gl.load('/art/hero3d-astro.glb',adopte3D,undefined,()=>{}));
+
+// ---------- icônes de type posées au-dessus des dalles ----------
+const ICO={start:'🏁',blue:'🪙',red:'💥',lucky:'🍀',event:'🎁',shop:'🛍️',boo:'👻',duel:'⚔️',bank:'🏦',chance:'🎰',bowser:'👹',starT:'⭐'};
+function icoTexture(ch){
+  const c=document.createElement('canvas'); c.width=c.height=96;
+  const g2=c.getContext('2d');
+  g2.font='72px serif'; g2.textAlign='center'; g2.textBaseline='middle';
+  g2.shadowColor='rgba(0,0,0,.55)'; g2.shadowBlur=8; g2.shadowOffsetY=3;
+  g2.fillText(ch,48,52);
+  const t2=new THREE.CanvasTexture(c); t2.colorSpace=THREE.SRGBColorSpace;
+  return t2;
+}
+const icoCache={};
+nodes.forEach((n,i)=>{
+  const active=n.t==='starT'&&i===DATA.star;
+  const ch=active?'⭐':ICO[n.t];
+  if(!ch||n.t==='blue'&&false) return;
+  if(!icoCache[ch]) icoCache[ch]=icoTexture(ch);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:icoCache[ch],transparent:true,depthWrite:false}));
+  const p=toW(n);
+  s.scale.set(1.5,1.5,1);
+  s.position.set(p.x,p.y+1.35,p.z);
+  s.userData={ph:i*.9,y0:p.y+1.35,spec:n.t!=='blue',act:active};
+  icoSprites.push(s);
+  scene.add(s);
+});
+
+// ---------- braises qui montent + fumée du volcan ----------
+const embN=90, embPos=new Float32Array(embN*3), embV=[];
+for(let i=0;i<embN;i++){
+  embPos[i*3]=(Math.random()-.5)*42; embPos[i*3+1]=Math.random()*14-2; embPos[i*3+2]=(Math.random()-.5)*72;
+  embV.push(.008+Math.random()*.02);
+}
+const embGeo=new THREE.BufferGeometry();
+embGeo.setAttribute('position',new THREE.BufferAttribute(embPos,3));
+const embers=new THREE.Points(embGeo,new THREE.PointsMaterial({color:0xFF9A40,size:.42,transparent:true,opacity:.85}));
+scene.add(embers);
+const puffs=[];
+for(let i=0;i<3;i++){
+  const puff=new THREE.Mesh(new THREE.SphereGeometry(1.1+i*.28,7,6),
+    new THREE.MeshStandardMaterial({color:0x4A4258,transparent:true,opacity:.5,flatShading:true}));
+  puff.position.set(0,7+i*1.7,-9.5);
+  puff.userData.o=i*1.4;
+  scene.add(puff); puffs.push(puff);
+}
+
+// ---------- arbres morts low-poly sur le socle ----------
+const woodM=new THREE.MeshStandardMaterial({color:0x241830,roughness:1,flatShading:true});
+for(let i=0;i<7;i++){
+  const g3=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.14,.24,1.8,5),woodM);
+  trunk.position.y=.9; g3.add(trunk);
+  for(let b=0;b<3;b++){
+    const br=new THREE.Mesh(new THREE.CylinderGeometry(.06,.1,1,4),woodM);
+    br.position.set(Math.cos(b*2.1)*.4,1.5+b*.25,Math.sin(b*2.1)*.4);
+    br.rotation.z=.7+Math.random()*.5; br.rotation.y=b*2.1;
+    g3.add(br);
+  }
+  const ang=Math.random()*Math.PI*2;
+  g3.position.set(Math.cos(ang)*(15+Math.random()*3),0,Math.sin(ang)*(26+Math.random()*7));
+  g3.rotation.y=Math.random()*Math.PI;
+  g3.children.forEach(m=>m.castShadow=true);
+  scene.add(g3);
+}
+let cur=0, t0=performance.now();
+function pionAt(i,tt){
+  const a=toW(nodes[i]), b=toW(nodes[nodes[i].next[0]]);
+  const v=new THREE.Vector3().lerpVectors(a,b,tt);
+  // avec l'animation de marche : il MARCHE ; sinon petit saut de pion
+  v.y+=0.78+(mixer?0:Math.sin(tt*Math.PI)*.9);
+  pion.position.copy(v);
+  if(pion.userData.mesh3d) pion.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); // regarde où il va
+}
+
+// ---------- caméra iso + drag pour tourner ----------
+let azim=Math.PI/4, dragX=null;
+addEventListener('pointerdown',e=>dragX={x:e.clientX,a:azim});
+addEventListener('pointermove',e=>{ if(dragX) azim=dragX.a+(e.clientX-dragX.x)*.006; });
+addEventListener('pointerup',()=>dragX=null);
+addEventListener('resize',()=>{ sizeCam(); renderer.setSize(innerWidth,innerHeight); });
+
+let lastF=performance.now();
+(function loop(){
+  requestAnimationFrame(loop);
+  const t=performance.now();
+  const dtF=Math.min(.06,(t-lastF)/1000); lastF=t;
+  if(mixer) mixer.update(dtF);
+  const step=(t-t0)/850;
+  if(step>=1){ t0=t; cur=nodes[cur].next[0]; pionAt(cur,0); }
+  else pionAt(cur,step);
+  crater.material.emissiveIntensity=1.6+Math.sin(t*.004)*.5;
+  mLava.emissiveIntensity=1.2+Math.sin(t*.003)*.5;
+  spinners.forEach(s=>{ s.rotation.y=t*.0016; s.position.y+=Math.sin(t*.003)*.002; });
+  // braises qui montent en boucle
+  const ep=embGeo.attributes.position.array;
+  for(let i=0;i<embN;i++){
+    ep[i*3+1]+=embV[i]*3;
+    if(ep[i*3+1]>15) ep[i*3+1]=-2;
+  }
+  embGeo.attributes.position.needsUpdate=true;
+  // fumée du volcan qui s'élève
+  puffs.forEach(p2=>{
+    p2.position.y=7+p2.userData.o+((t*.0011+p2.userData.o)%3.2);
+    p2.material.opacity=.55-((p2.position.y-7)/3.2)*.4;
+  });
+  // la VIE des cases : icônes qui flottent, liserés qui respirent
+  icoSprites.forEach(s=>{
+    s.position.y=s.userData.y0+Math.sin(t*.0021+s.userData.ph)*.16;
+    if(s.userData.act){ const k=1.5+Math.sin(t*.004)*.22; s.scale.set(k,k,1); }
+    else if(s.userData.spec){ const k=1.5+Math.sin(t*.0028+s.userData.ph)*.08; s.scale.set(k,k,1); }
+  });
+  rims.forEach(r2=>{ r2.material.emissiveIntensity=r2.userData.base+Math.sin(t*.0026+r2.userData.ph)*.22; });
+  const az=azim+Math.sin(t*.00012)*.05;
+  const R=70, el=.82;
+  cam.position.set(Math.sin(az)*R*Math.cos(el),R*Math.sin(el),Math.cos(az)*R*Math.cos(el));
+  cam.lookAt(0,1.5,-2);
+  renderer.render(scene,cam);
+})();
+</script>
+</body>
+</html>
