@@ -857,31 +857,47 @@ function heroInner(id,C){
 function heroSvg(id,color,size){
   return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" style="display:inline-block;vertical-align:middle;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">${heroInner(id,color)}</svg>`;
 }
-/* portraits illustrés disponibles ? (sondés une fois au chargement) */
-const HERO_OK={};
+/* portraits (menus) et sprites détourés (en jeu) disponibles ? sondés au chargement */
+const HERO_OK={}, SPRITE_OK={};
 (function(){
-  let left=HEROES.length;
+  let left=HEROES.length*2;
+  const done=()=>{
+    if(--left!==0) return;
+    // rafraîchit tout ce qui affiche des héros (menu compris)
+    try{ buildAvGrid(); updatePreview(); }catch(e){}
+    try{
+      document.querySelectorAll('#localList .prow').forEach(row=>{
+        row.querySelector('.pav').innerHTML=heroThumb(HEROES[+row.dataset.h].id,AURAS[+row.dataset.c],34);
+      });
+    }catch(e){}
+    if(typeof room!=='undefined'&&room) render();
+  };
   HEROES.forEach(h=>{
     const im=new Image();
-    im.onload=()=>{ HERO_OK[h.id]=1; if(--left===0&&typeof room!=='undefined'&&room) render(); };
-    im.onerror=()=>{ if(--left===0&&typeof room!=='undefined'&&room) render(); };
+    im.onload=()=>{ HERO_OK[h.id]=1; done(); };
+    im.onerror=done;
     im.src='/art/hero-'+h.id+'.jpg';
+    const sp=new Image();
+    sp.onload=()=>{ SPRITE_OK[h.id]=1; done(); };
+    sp.onerror=done;
+    sp.src='/art/sprite-'+h.id+'.png';
   });
 })();
+function heroThumb(id,color,size){
+  if(HERO_OK[id]) return `<img src="/art/hero-${id}.jpg" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;border:2px solid ${color||'#FFD644'};box-shadow:0 2px 5px rgba(0,0,0,.35);">`;
+  return heroSvg(id,color,size);
+}
 function pAv(p,size){
-  if(p&&p.hero&&HERO_OK[p.hero]){
-    return `<img src="/art/hero-${p.hero}.jpg" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;border:2px solid ${p.color||'#FFD644'};box-shadow:0 2px 5px rgba(0,0,0,.4);">`;
+  if(p&&p.hero&&SPRITE_OK[p.hero]){
+    // le personnage détouré, sans fond
+    return `<img src="/art/sprite-${p.hero}.png" alt="" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">`;
   }
   if(p&&p.hero) return heroSvg(p.hero,p.color||'#FFD644',size);
   return '<span style="font-size:'+Math.round(size*.82)+'px;line-height:1;">'+((p&&p.avatar)||'❔')+'</span>';
 }
-let clipSeq=0;
 function pAvBoard(p,x,y,size){ // pour l'intérieur du SVG du plateau
-  if(p&&p.hero&&HERO_OK[p.hero]){
-    const r=size/2, cid='hclip'+(clipSeq++);
-    return `<clipPath id="${cid}"><circle cx="${x}" cy="${y-r}" r="${r}"/></clipPath>
-      <image href="/art/hero-${p.hero}.jpg" x="${x-r}" y="${y-size}" width="${size}" height="${size}" clip-path="url(#${cid})" preserveAspectRatio="xMidYMid slice"/>
-      <circle cx="${x}" cy="${y-r}" r="${r}" fill="none" stroke="${p.color||'#FFD644'}" stroke-width="2.2"/>`;
+  if(p&&p.hero&&SPRITE_OK[p.hero]){
+    return `<image href="/art/sprite-${p.hero}.png" x="${x-size/2}" y="${y-size}" width="${size}" height="${size}" preserveAspectRatio="xMidYMax meet"/>`;
   }
   if(p&&p.hero) return `<svg x="${x-size/2}" y="${y-size}" width="${size}" height="${size}" viewBox="0 0 48 48" style="overflow:visible;">${heroInner(p.hero,p.color||'#FFD644')}</svg>`;
   return `<text x="${x}" y="${y-2}" text-anchor="middle" font-size="${Math.round(size*.85)}">${(p&&p.avatar)||'❔'}</text>`;
@@ -913,7 +929,7 @@ function buildAvGrid(){
   const g=$('avGrid'); g.innerHTML='';
   HEROES.forEach((h,i)=>{
     const d=document.createElement('div'); d.className='av'+(i===selAv?' sel':'');
-    d.innerHTML=heroSvg(h.id,me.color,38)+'<div class="avn">'+h.name+'</div>';
+    d.innerHTML=heroThumb(h.id,me.color,40)+'<div class="avn">'+h.name+'</div>';
     d.onclick=()=>{ selAv=i; me.hero=h.id; me.avatar=h.e; snd('tap');
       document.querySelectorAll('#avGrid .av').forEach((e,j)=>e.classList.toggle('sel',j===i));
       updatePreview(); };
@@ -1398,12 +1414,12 @@ function addLocalRow(name){
   const i=localCount++;
   const row=document.createElement('div'); row.className='prow';
   row.dataset.h=i%HEROES.length; row.dataset.c=i%AURAS.length;
-  row.innerHTML=`<span class="pav" style="cursor:pointer;">${heroSvg(HEROES[i%HEROES.length].id,AURAS[i%AURAS.length],34)}</span>
+  row.innerHTML=`<span class="pav" style="cursor:pointer;">${heroThumb(HEROES[i%HEROES.length].id,AURAS[i%AURAS.length],34)}</span>
     <input type="text" maxlength="12" placeholder="Joueur ${i+1}" value="${name||''}"
       style="flex:1; text-align:left; font-size:16px; padding:8px 12px; border-radius:12px;">`;
   row.querySelector('.pav').onclick=()=>{
     row.dataset.h=(+row.dataset.h+1)%HEROES.length; snd('tap');
-    row.querySelector('.pav').innerHTML=heroSvg(HEROES[+row.dataset.h].id,AURAS[+row.dataset.c],34);
+    row.querySelector('.pav').innerHTML=heroThumb(HEROES[+row.dataset.h].id,AURAS[+row.dataset.c],34);
   };
   $('localList').appendChild(row);
 }
@@ -1575,7 +1591,7 @@ window.addEventListener('load',()=>{
       text:`Parties en ligne : <b>${s.games||0}</b> · Victoires : <b>${s.wins||0}</b> 👑<br>`+
         `⭐ étoiles gagnées : <b>${s.stars||0}</b> · 🪙 pièces amassées : <b>${s.coins||0}</b><br>`+
         `🎮 mini-jeux gagnés : <b>${s.mgWins||0}</b><br>`+
-        (favH?`Héros favori : ${heroSvg(favH.id,me.color,24)} <b>${favH.name}</b><br>`:'')+
+        (favH?`Héros favori : ${heroThumb(favH.id,me.color,24)} <b>${favH.name}</b><br>`:'')+
         `<br><b>Succès (${nAch}/${ACHS.length})</b>`+
         `<div style="text-align:left;font-size:12.5px;margin-top:6px;">`+
         ACHS.map(a=>`<div style="margin:3px 0;opacity:${ach[a.id]?1:.45};">${ach[a.id]?a.e:'🔒'} <b>${a.n}</b> — ${a.d}</div>`).join('')+
