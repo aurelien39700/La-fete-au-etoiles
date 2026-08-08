@@ -8,7 +8,7 @@ Des personnages vectoriels dessinés main (Cosmo l'astronaute, Roboto, Zigzag l'
 Fantômio, Griffou le chat, Étincelle la licorne, Krokos le dino, Stella l'étoile),
 chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
 
-## Les 4 cartes (3D isométrique, choisies par l'hôte dans le salon)
+## Les 4 cartes GÉANTES (48-53 cases, 4-6 carrefours, choisies par l'hôte)
 
 - 🎪 **Île de la Fête** : grande boucle + raccourci risqué, zones Fête Foraine / Bois Étoilé / Glacier Lunaire
 - 🌀 **Spirale Céleste** : un « 8 » à deux boucles, zones Nébuleuse Rose / Ceinture d'Astéroïdes / Aurore Émeraude
