@@ -414,9 +414,14 @@ function ensurePion(p){
     }
     const bb=new THREE.Box3().setFromObject(m);
     const size=bb.getSize(new THREE.Vector3());
-    m.scale.setScalar(HERO_H/Math.max(.0001,size.y));
+    // taille homogène pour TOUS les persos : ni la hauteur ni l'empreinte au sol
+    // ne dépassent (sinon les persos larges/t-pose paraissent géants)
+    const foot=(size.x+size.z)/2;
+    m.scale.setScalar(HERO_H/Math.max(.0001,size.y,foot*.92));
     bb.setFromObject(m);
     m.position.y=-bb.min.y;
+    m.position.x=-(bb.min.x+bb.max.x)/2;
+    m.position.z=-(bb.min.z+bb.max.z)/2;
     m.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
     group.remove(spr);
     group.add(m);
