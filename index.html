@@ -130,6 +130,12 @@ input[type=text]:focus{border-color:var(--menthe);}
 .rdots i{width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.18);}
 .rdots i.done{background:rgba(255,214,68,.55);}
 .rdots i.cur{background:var(--etoile); box-shadow:0 0 8px rgba(255,214,68,.8); animation:pulse 1.2s infinite;}
+.wpart{position:absolute; pointer-events:none; z-index:3; line-height:1;}
+.fxart{width:100%; border-radius:16px; margin-bottom:8px; max-height:32vh; object-fit:cover;
+  box-shadow:0 6px 16px rgba(0,0,0,.4);}
+.ros{display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px;
+  border-radius:50%; background:radial-gradient(circle at 35% 30%,#FFE9A0,#E9B93B);
+  box-shadow:0 1px 3px rgba(0,0,0,.4), inset 0 -2px 3px rgba(140,90,0,.4); font-size:12px;}
 .pcard .pav{width:44px; height:44px; line-height:44px; border-radius:50%; margin:0 auto;
   background:rgba(0,0,0,.28); box-shadow:inset 0 2px 6px rgba(0,0,0,.4);}
 .pcard.turn{border-color:var(--etoile); background:rgba(255,214,68,.12); animation:pulse 1.2s infinite;}
@@ -138,7 +144,7 @@ input[type=text]:focus{border-color:var(--menthe);}
 .pcard .pname{font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:90px;}
 .pcard .pres{font-size:13px; font-weight:700;}
 
-.board-wrap{margin:8px -16px; border-radius:18px; padding:6px 2px;
+.board-wrap{margin:8px -16px; border-radius:18px; padding:6px 2px; position:relative; overflow:hidden;
   background:
     radial-gradient(420px 300px at 80% 4%, rgba(142,124,255,.17), transparent 70%),
     radial-gradient(320px 240px at 8% 94%, rgba(255,95,162,.11), transparent 70%),
@@ -323,6 +329,20 @@ input[type=text]:focus{border-color:var(--menthe);}
 .ichip.off{opacity:.45;}
 .teamband{margin:8px auto 0; max-width:340px; border-radius:14px; padding:6px 10px;
   font-weight:800; font-size:14px; background:rgba(90,200,250,.18); border:2px solid var(--bleu);}
+/* ---------- journal vivant : bulles d'action avec le héros ---------- */
+.actbar{position:fixed; top:8px; left:50%; transform:translateX(-50%); z-index:58;
+  display:flex; flex-direction:column; gap:6px; align-items:center;
+  pointer-events:none; width:max-content; max-width:94vw;}
+.actchip{display:flex; align-items:center; gap:8px;
+  background:linear-gradient(160deg,rgba(43,25,96,.95),rgba(58,30,107,.95));
+  border:2px solid rgba(255,214,68,.5); border-radius:30px; padding:5px 14px 5px 6px;
+  font-weight:800; font-size:14px; white-space:nowrap; max-width:94vw; overflow:hidden;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+  animation:chipIn .3s cubic-bezier(.2,1.4,.4,1), chipOut .35s ease-in 2.1s forwards;}
+.actchip img{animation:chipBounce .55s ease-in-out 2;}
+@keyframes chipIn{from{opacity:0; transform:translateY(-18px) scale(.7);} to{opacity:1; transform:none;}}
+@keyframes chipOut{to{opacity:0; transform:translateY(-14px) scale(.85);}}
+@keyframes chipBounce{0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);}}
 /* ---------- émotes en direct ---------- */
 .emobar{position:fixed; left:6px; bottom:76px; z-index:55; display:none; flex-direction:column; gap:6px;}
 .emobar button{border:2px solid rgba(255,255,255,.22); background:rgba(30,20,64,.72);
@@ -379,7 +399,13 @@ body.shake{animation:shake2 .32s;}
 
 <!-- ============ ACCUEIL ============ -->
 <div class="screen on" id="scr-home">
-  <div class="center">
+  <div id="titleHero" style="position:relative;border-radius:26px;overflow:hidden;margin:12px 0 8px;min-height:216px;display:none;border:2px solid rgba(255,255,255,.12);box-shadow:0 10px 26px rgba(0,0,0,.4);">
+    <div style="position:absolute;inset:0;background:url('/art/bg-fete.jpg') center/cover;filter:brightness(.8);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(rgba(20,12,50,.15),rgba(20,12,50,.55));"></div>
+    <img id="thGroup" alt="" style="position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);height:148px;z-index:2;filter:drop-shadow(0 10px 16px rgba(0,0,0,.55));animation:floaty 3.6s ease-in-out infinite;">
+    <h1 class="logo" style="position:relative;z-index:3;font-size:33px;margin:16px 0 0;text-align:center;">LA FÊTE<br>DES ÉTOILES</h1>
+  </div>
+  <div class="center" id="titlePlain">
     <h1 class="logo">LA FÊTE<br>DES ÉTOILES</h1>
     <p class="tagline">Plateau, dés &amp; mini-jeux — entre amis 🎉</p>
   </div>
@@ -645,6 +671,7 @@ function applyState(st){
   room=st;
   lastStateAt=Date.now();
   if(room.fx && room.fx.seq>lastFxSeq){ lastFxSeq=room.fx.seq; fxShow(room.fx); }
+  syncActs();
   render();
 }
 setInterval(()=>{ if(pendingState&&!animBusy){ const s=pendingState; pendingState=null; applyState(s); } },400);
@@ -676,6 +703,18 @@ function netFail(url){
 window.addEventListener('load',()=>{
   const d=defaultServer();
   if(d) $('serverAddr').value=d.replace(/^wss?:\/\//,'');
+});
+
+/* bannière titre cinématique : visible si le groupe détouré est disponible */
+window.addEventListener('load',()=>{
+  const im=new Image();
+  im.onload=()=>{
+    const g=$('thGroup'); if(!g) return;
+    g.src='/art/sprite-groupe.png';
+    $('titleHero').style.display='block';
+    $('titlePlain').querySelector('h1').style.display='none';
+  };
+  im.src='/art/sprite-groupe.png';
 });
 
 /* fond étoilé */
@@ -1306,14 +1345,23 @@ function applyMap(st,id){
 
 /* ---------- pop-ups : effets (tous les joueurs) & choix (joueur actif) ---------- */
 let lastFxSeq=0;
+const EVART_ICON={'🎰':'chance','👹':'bowser','👻':'boo','💀':'boo','🌟':'star','⚔️':'duel','☄️':'comet'};
+const EVART_OK={};
+['chance','bowser','boo','star','duel','comet'].forEach(k=>{
+  const im=new Image();
+  im.onload=()=>{ EVART_OK[k]=1; };
+  im.src='/art/evart-'+k+'.jpg';
+});
 function fxShow(f){
   snd('pop');
   if(f.icon&&['👹','💥','😵','💀','🌪️','☄️'].indexOf(f.icon)>=0){
     document.body.classList.add('shake');
     setTimeout(()=>document.body.classList.remove('shake'),340);
   }
+  const artK=EVART_ICON[f.icon];
+  const art=(artK&&EVART_OK[artK])?`<img class="fxart" src="/art/evart-${artK}.jpg" alt="">`:'';
   const o=document.createElement('div'); o.className='ovl fx';
-  o.innerHTML=`<div class="pop"><div class="pic">${f.icon||'✨'}</div><h3>${f.title||''}</h3>${f.text?`<p>${f.text}</p>`:''}</div>`;
+  o.innerHTML=`<div class="pop">${art}${art?'':`<div class="pic">${f.icon||'✨'}</div>`}<h3>${f.title||''}</h3>${f.text?`<p>${f.text}</p>`:''}</div>`;
   document.body.appendChild(o);
   setTimeout(()=>{ o.style.opacity='0'; setTimeout(()=>o.remove(),320); }, f.ms||2200);
 }
@@ -1473,6 +1521,7 @@ $('btnJoin').onclick=async()=>{
 
 function enterRoom(){
   lastFxSeq=(room.fx&&room.fx.seq)||0;
+  lastActN=room.actN||0;
   statsSaved=false; bonusShown=false; endSeqDone=false; endFanfared=false; lastTurnKey='';
   if(!local&&room.code&&room.code!=='LOCAL'){
     try{ localStorage.setItem('fete-last',JSON.stringify({code:room.code,url:wsUrl,at:Date.now()})); }catch(e){}
@@ -1517,6 +1566,7 @@ function render(){
   updateEmoteBar();
   keepAwake();
   music(!!room&&room.status!=='lobby'&&room.status!=='ended');
+  weather(!!room&&room.status==='board');
 }
 
 /* ---------- émotes en direct ---------- */
@@ -1594,11 +1644,46 @@ window.addEventListener('load',()=>{
         (favH?`Héros favori : ${heroThumb(favH.id,me.color,24)} <b>${favH.name}</b><br>`:'')+
         `<br><b>Succès (${nAch}/${ACHS.length})</b>`+
         `<div style="text-align:left;font-size:12.5px;margin-top:6px;">`+
-        ACHS.map(a=>`<div style="margin:3px 0;opacity:${ach[a.id]?1:.45};">${ach[a.id]?a.e:'🔒'} <b>${a.n}</b> — ${a.d}</div>`).join('')+
+        ACHS.map(a=>`<div style="margin:3px 0;opacity:${ach[a.id]?1:.45};">${ach[a.id]?('<span class="ros">'+a.e+'</span>'):'🔒'} <b>${a.n}</b> — ${a.d}</div>`).join('')+
         `</div>`,
       options:[{label:'OK ✨',value:1,cls:'menthe'}]});
   };
 });
+
+/* ---------- météo d'ambiance par carte (particules légères) ---------- */
+let weatherI=null, weatherMap='';
+const WEATHER={
+  fete:    {g:['✦','❋','·'], c:['#FFD644','#FF5FA2','#5AC8FA'], dir:'down', dur:[4200,6800]},
+  spirale: {g:['✦','·','✧'], c:['#F09BD8','#9FF7FF','#C39BFF'], dir:'down', dur:[5200,8000]},
+  archipel:{g:['○','◦','·'], c:['#9FF7FF','#3EE6C1','#FFFFFF'], dir:'up',   dur:[4600,7200]},
+  volcan:  {g:['●','✦','·'], c:['#FF9B6B','#FF6B6B','#FFD644'], dir:'up',   dur:[3000,5400]}
+};
+function weather(on){
+  const id=(on&&room)?(room.mapId||'fete'):'';
+  if(id===weatherMap) return;
+  weatherMap=id;
+  clearInterval(weatherI); weatherI=null;
+  if(!id) return;
+  weatherI=setInterval(()=>{
+    if(document.hidden||!room||room.status!=='board') return;
+    const bw=$('boardWrap'); if(!bw||!bw.clientHeight) return;
+    const W2=WEATHER[id]||WEATHER.fete;
+    const el=document.createElement('div');
+    el.className='wpart';
+    el.textContent=W2.g[rnd(W2.g.length)];
+    el.style.cssText+=`left:${2+rnd(95)}%;color:${W2.c[rnd(W2.c.length)]};font-size:${7+rnd(7)}px;opacity:0;${W2.dir==='down'?'top:-14px;':'bottom:-14px;'}`;
+    bw.appendChild(el);
+    const h=bw.clientHeight+28;
+    const dur=W2.dur[0]+rnd(W2.dur[1]-W2.dur[0]);
+    el.animate([
+      {transform:'translate(0,0)', opacity:0},
+      {opacity:.8, offset:.12},
+      {opacity:.65, offset:.85},
+      {transform:`translate(${rnd(44)-22}px,${W2.dir==='down'?h:-h}px)`, opacity:0}
+    ],{duration:dur, easing:'linear'});
+    setTimeout(()=>el.remove(),dur+40);
+  },540);
+}
 
 /* ---------- musique d'ambiance discrète, propre à chaque carte ---------- */
 const MAP_MUSIC={
@@ -1725,6 +1810,54 @@ function shade(hex,f){
   const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
+/* ---------- journal vivant : le héros réagit à chaque action ---------- */
+let actBarEl=null, lastActN=0, actQueue=[], actBusy=false;
+function ensureActBar(){
+  if(!actBarEl){ actBarEl=document.createElement('div'); actBarEl.className='actbar'; document.body.appendChild(actBarEl); }
+  return actBarEl;
+}
+function playActChip(a){
+  const p=room&&room.players.find(q=>q.id===a.pid);
+  const bar=ensureActBar();
+  const chip=document.createElement('div'); chip.className='actchip';
+  chip.innerHTML=(p?pAv(p,30):'')+'<span style="font-size:17px;">'+(a.icon||'')+'</span><span>'+a.txt+'</span>';
+  bar.appendChild(chip);
+  while(bar.children.length>3) bar.firstChild.remove();
+  setTimeout(()=>chip.remove(),2600);
+}
+function pumpActs(){
+  if(actBusy) return;
+  const next=actQueue.shift();
+  if(!next) return;
+  actBusy=true; playActChip(next);
+  setTimeout(()=>{ actBusy=false; pumpActs(); },520);
+}
+function logAct(p,icon,txt,logTxt){
+  room.log.push(logTxt||((p?p.name+' ':'')+txt.replace(/<[^>]*>/g,'')));
+  room.actN=(room.actN||0)+1;
+  room.acts=(room.acts||[]).slice(-5);
+  room.acts.push({n:room.actN, pid:p&&p.id, icon, txt});
+  lastActN=room.actN;
+  actQueue.push({pid:p&&p.id, icon, txt});
+  pumpActs();
+}
+function syncActs(){
+  if(!room||!room.acts||!room.acts.length) return;
+  const fresh=room.acts.filter(a=>a.n>lastActN);
+  if(!fresh.length) return;
+  lastActN=room.acts[room.acts.length-1].n;
+  fresh.forEach(a=>actQueue.push(a));
+  pumpActs();
+}
+
+/* props de décor illustrés (remplacent les emojis des îles si présents) */
+const PROP_FILES={'🎪':'prop-chapiteau','🎡':'prop-roue','🎠':'prop-carrousel','🌴':'prop-palmier','🌋':'prop-volcan','⛄':'prop-neige'};
+const PROP_OK={};
+Object.values(PROP_FILES).forEach(f=>{
+  const im=new Image(); im.onload=()=>{ PROP_OK[f]=1; if(room&&room.status==='board') render(); };
+  im.src='/art/'+f+'.png';
+});
+
 /* deltas de pièces/étoiles flottants sur les cartes du HUD */
 let prevVals={}, prevRoomCode='';
 function spawnDelta(pid,txt,good){
@@ -1954,12 +2087,18 @@ function renderBoard(){
   // panneaux de carrefour (tout nœud à 2 sorties)
   const junction=nodes.filter(n=>n.next.length>1)
     .map(n=>`<text class="deco" x="${n.x+26}" y="${n.y-18}" font-size="17" text-anchor="middle">🧭</text>`).join('');
-  // décor de la carte (zones thématiques + espace)
-  const deco=(MM.deco||[]).map(d=>
-    d.st
-      ? `<text x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle" ${d.c?`fill="${d.c}"`:''} opacity="${d.c?'.5':'.4'}">${d.e}</text>`
-      : `<text class="deco" ${d.d?`style="animation-delay:${d.d}s"`:''} x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle">${d.e}</text>`
-  ).join('');
+  // décor de la carte (zones thématiques + espace) — props illustrés si disponibles
+  const deco=(MM.deco||[]).map(d=>{
+    if(d.st)
+      return `<text x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle" ${d.c?`fill="${d.c}"`:''} opacity="${d.c?'.5':'.4'}">${d.e}</text>`;
+    const pf=PROP_FILES[d.e];
+    if(pf&&PROP_OK[pf]){
+      const w=d.s*2.3;
+      return `<image class="deco" ${d.d?`style="animation-delay:${d.d}s"`:''} href="/art/${pf}.png"
+        x="${d.x-w/2}" y="${d.y-w*.92}" width="${w}" height="${w}" preserveAspectRatio="xMidYMax meet"/>`;
+    }
+    return `<text class="deco" ${d.d?`style="animation-delay:${d.d}s"`:''} x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle">${d.e}</text>`;
+  }).join('');
   // aperçu de portée du dé : pastilles 1-6 sur les cases atteignables à mon tour
   let reach='';
   if(myTurn()&&!animBusy){
@@ -1999,6 +2138,14 @@ function renderBoard(){
     bw.style.backgroundSize='cover';
     bw.style.backgroundPosition='center';
   }
+  // lampions de gala pour les derniers tours
+  let lamps='';
+  if(room.round>=room.maxRounds-2){
+    nodes.forEach((n,i)=>{
+      if(i%4===0) lamps+=`<circle cx="${n.x}" cy="${n.y-30}" r="3" fill="#FFD644" opacity=".9">
+        <animate attributeName="opacity" values=".9;.35;.9" dur="${(1.5+(i%3)*.5).toFixed(1)}s" repeatCount="indefinite"/></circle>`;
+    });
+  }
   bw.innerHTML=`<svg viewBox="${(MM.view||[-26,-24,472,588]).join(' ')}" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
     <defs>${defs}</defs>
     ${island}
@@ -2007,8 +2154,13 @@ function renderBoard(){
     ${cells}
     ${reach}
     ${traps}
+    ${lamps}
     ${junction}
   </svg>`;
+  // la nuit tombe au fil des tours
+  const prog=(room.round-1)/Math.max(1,room.maxRounds-1);
+  bw.querySelector('svg').style.filter=
+    `brightness(${(1.03-prog*.15).toFixed(3)}) saturate(${(1+prog*.16).toFixed(3)}) hue-rotate(-${Math.round(prog*11)}deg)`;
   $('rollBtns').style.display=(myTurn()&&!animBusy)?'flex':'none';
   renderItemRow();
   $('turnHint').textContent=(myTurn()&&!animBusy)?'Utilise un objet puis lance un dé !':'⭐ à '+starCost()+' 🪙 en passant dessus';
@@ -2197,20 +2349,36 @@ async function moveBy(p,d){
   const robbed={};
   for(let s=0;s<d;s++){
     p.pos=await nextPos(p); p.travel=(p.travel||0)+1;
-    if(p.pos===0){ addCoins(p,8); room.log.push('🏁 '+p.name+' finit un tour de plateau : +8 🪙'); }
+    if(p.pos===0){ addCoins(p,8); logAct(p,'🏁','tour complet : <b>+8 🪙</b>','🏁 '+p.name+' finit un tour de plateau : +8 🪙'); }
     if(magnet){
       room.players.forEach(o=>{
         if(o.id!==p.id&&o.pos===p.pos&&!robbed[o.id]){
           robbed[o.id]=1;
           if(popShield(o)){ room.log.push('🛡️ '+o.name+' bloque l\'Aimant de '+p.name+' !'); }
           else{ const st=Math.min(5,o.coins); o.coins-=st; addCoins(p,st);
-            room.log.push('🧲 '+p.name+' aimante '+st+' 🪙 à '+o.name+' !'); }
+            logAct(p,'🧲','aimante <b>'+st+' 🪙</b> à '+o.name,'🧲 '+p.name+' aimante '+st+' 🪙 à '+o.name+' !'); }
         }
       });
     }
     snd('step');
     renderBoard();
     scrollToPawn();
+    // poussière au pas + squash à l'atterrissage : le pion MARCHE
+    const pawnEl=document.querySelector('#boardWrap .tok.cur');
+    if(pawnEl){
+      try{
+        const r2=pawnEl.getBoundingClientRect();
+        const dust=document.createElement('div');
+        dust.textContent='💨';
+        dust.style.cssText=`position:fixed;left:${r2.left+r2.width/2-8}px;top:${r2.bottom-8}px;font-size:11px;pointer-events:none;z-index:40;opacity:.75;`;
+        document.body.appendChild(dust);
+        dust.animate([{transform:'translate(0,0) scale(1)',opacity:.75},{transform:'translate(-15px,-7px) scale(1.5)',opacity:0}],{duration:470});
+        setTimeout(()=>dust.remove(),480);
+        if(s===d-1) pawnEl.animate(
+          [{transform:'scale(1,1)'},{transform:'scale(1.28,.7)'},{transform:'scale(.92,1.12)'},{transform:'scale(1,1)'}],
+          {duration:430,easing:'ease-out'});
+      }catch(e){}
+    }
     await sleep(620);
     const t=room.board[p.pos].t;
     if(t==='starT'&&p.pos===room.starIdx) await passStar(p);
@@ -2219,7 +2387,7 @@ async function moveBy(p,d){
     else if(t==='bank'&&s<d-1){
       const dep=Math.min(3,p.coins);
       if(dep>0){ p.coins-=dep; room.bank=(room.bank||0)+dep; snd('coin');
-        room.log.push('🏦 '+p.name+' dépose '+dep+' 🪙 à la banque ('+room.bank+' 🪙 dedans) !'); }
+        logAct(p,'🏦','dépose '+dep+' 🪙 (cagnotte : <b>'+room.bank+'</b>)','🏦 '+p.name+' dépose '+dep+' 🪙 à la banque ('+room.bank+' 🪙 dedans) !'); }
     }
   }
   await landEffect(p);
@@ -2244,12 +2412,12 @@ async function landEffect(p){
   }
   const t=room.board[p.pos].t;
   const dbl=room.finale&&room.finale.double;
-  if(t==='blue'){ const g=dbl?6:3; addCoins(p,g); snd('coin'); room.log.push(p.name+' gagne +'+g+' 🪙'); }
+  if(t==='blue'){ const g=dbl?6:3; addCoins(p,g); snd('coin'); logAct(p,'🪙','<b>+'+g+' 🪙</b>',p.name+' gagne +'+g+' 🪙'); }
   else if(t==='red'){
     const l=dbl?6:3;
     if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe la case piège !');
       room.log.push('🛡️ '+p.name+' bloque la case piège !'); }
-    else{ addCoins(p,-l); snd('bad'); room.log.push(p.name+' perd −'+l+' 🪙'); }
+    else{ addCoins(p,-l); snd('bad'); logAct(p,'💥','<b>−'+l+' 🪙</b>',p.name+' perd −'+l+' 🪙'); }
   }
   else if(t==='lucky'){
     const r=rnd(4);
@@ -2261,7 +2429,7 @@ async function landEffect(p){
     } else {
       const g=r===2?15:8;
       addCoins(p,g); snd('coin');
-      room.log.push('🍀 Case chance ! '+p.name+' gagne +'+g+' 🪙');
+      logAct(p,'🍀','<b>+'+g+' 🪙</b> (chance !)','🍀 Case chance ! '+p.name+' gagne +'+g+' 🪙');
       if(g===15) fxCast('🍀','JACKPOT CHANCE !','+15 🪙 pour '+p.name+' !');
     }
   }
@@ -2389,7 +2557,7 @@ async function passShop(p){
   p.coins-=ITEMS[id].price;
   pItems(p).push(id);
   p.itemsBought=(p.itemsBought||0)+1;
-  room.log.push('🛍️ '+p.name+' achète '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+  logAct(p,ITEMS[id].e,'achète <b>'+ITEMS[id].name+'</b>','🛍️ '+p.name+' achète '+ITEMS[id].e+' '+ITEMS[id].name+' !');
   renderBoard(); await saveRoom();
 }
 
@@ -2645,8 +2813,14 @@ function renderMg(){
   if(!$('scr-mg').classList.contains('on')){
     snd('fanfare');
     mgPlayed=false; show('scr-mg');
-    if(local){ localMg={idx:0,scores:{}}; passPhone(); }
-    else startMiniGame();
+    // roulette de sélection + compte à rebours façon Mario Party
+    mgIntro(()=>{
+      if(local){ localMg={idx:0,scores:{}}; passPhone(); }
+      else {
+        startMiniGame();
+        setTimeout(()=>{ const go=document.querySelector('#mgArea .big-tap'); if(go) go.click(); },150);
+      }
+    });
   }
   if(!local) updateMgStatus();
 }
@@ -2667,10 +2841,67 @@ async function updateMgStatus(){
   $('mgStatus').textContent='Ont fini : '+done.join(', ')+' ('+done.length+'/'+room.players.length+')';
 }
 
+/* roulette qui fait défiler les mini-jeux, puis 3-2-1 */
+function mgIntro(cb){
+  const area=$('mgArea');
+  area.innerHTML='';
+  const ov=document.createElement('div');
+  ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:6;text-align:center;padding:14px;';
+  ov.innerHTML=`<div class="hint" style="font-weight:800;letter-spacing:2px;">MINI-JEU</div>
+    <div class="titan" id="riName" style="font-size:23px;color:var(--etoile);min-height:60px;display:flex;align-items:center;"></div>
+    <div class="titan" id="riCnt" style="font-size:52px;min-height:64px;"></div>`;
+  area.appendChild(ov);
+  const nameEl=ov.querySelector('#riName'), cnt=ov.querySelector('#riCnt');
+  let ticks=0;
+  const spin=setInterval(()=>{
+    nameEl.textContent=MG_INFO[rnd(MG_COUNT)].name;
+    if(ticks%2===0) snd('tick');
+    if(++ticks>=22){
+      clearInterval(spin);
+      nameEl.textContent=MG_INFO[room.mg.type].name;
+      snd('star'); vib(20);
+      let n=3;
+      cnt.textContent=n; cnt.style.color='#FF6B6B';
+      const ci=setInterval(()=>{
+        n--;
+        if(n<=0){
+          clearInterval(ci);
+          cnt.textContent='GO !'; cnt.style.color='#3EE6C1'; snd('yay');
+          setTimeout(()=>{ ov.remove(); cb&&cb(); },350);
+        } else {
+          snd('tap');
+          cnt.textContent=n;
+          cnt.style.color=n===2?'#FFD644':'#3EE6C1';
+        }
+      },650);
+    }
+  },90);
+}
+/* fonds d'arène illustrés par famille de mini-jeu */
+const ARENA_OK={};
+['espace','glace','course','dalles','fete'].forEach(k=>{
+  const im=new Image(); im.onload=()=>{ ARENA_OK[k]=1; }; im.src='/art/arena-'+k+'.jpg';
+});
+const MG_BG=(()=>{
+  const m={};
+  [0,12,13,14,22,24,25,27,33,38].forEach(i=>m[i]='espace');
+  [36].forEach(i=>m[i]='glace');
+  [15,26].forEach(i=>m[i]='course');
+  [3,19,20,21,30,31,32,34,35,37].forEach(i=>m[i]='dalles');
+  return m;
+})();
 function startMiniGame(){
   const area=$('mgArea'); area.innerHTML='';
   area.onpointerdown=null; area.onpointermove=null; area.onpointerup=null; area.onpointercancel=null;
   area.style.touchAction='none';
+  const fam=MG_BG[room.mg?room.mg.type:-1]||'fete';
+  if(ARENA_OK[fam]){
+    area.style.backgroundImage=`linear-gradient(rgba(10,6,30,.55),rgba(10,6,30,.66)), url('/art/arena-${fam}.jpg')`;
+    area.style.backgroundSize='cover';
+    area.style.backgroundPosition='center';
+  } else {
+    area.style.backgroundImage='';
+  }
   window.mgAct=null;
   mgDone=false; mgRoundKey=room.mg?room.mg.round:null;
   clearInterval(mgTimerI); mgTimerI=null;
