@@ -70,6 +70,7 @@ wss.on('connection', (ws, req) => {
       const room = { state: m.state, scores: {}, clients: new Set([ws]), lastActive: Date.now() };
       rooms.set(code, room);
       ws.roomCode = code;
+      ws.pid = m.state.players[0] ? m.state.players[0].id : null;
       room.state.mgScores = room.scores;
       sendTo(ws, { t: 'created', code, state: room.state });
       console.log(`[+] Salon ${code} créé (${room.state.players[0]?.name || '?'})`);
@@ -83,15 +84,23 @@ wss.on('connection', (ws, req) => {
       const already = room.state.players.find(p => p.id === m.player.id);
       if (already) {
         // reconnexion d'un joueur connu : ok même en cours de partie
-        room.clients.add(ws); ws.roomCode = code;
+        room.clients.add(ws); ws.roomCode = code; ws.pid = m.player.id;
         room.state.mgScores = room.scores;
-        sendTo(ws, { t: 'joined', state: room.state });
+        if (already.gone) {
+          already.gone = false;
+          room.state.version = (room.state.version || 0) + 1;
+          room.state.log.push('🔌 ' + already.name + ' est de retour !');
+          sendTo(ws, { t: 'joined', state: room.state });
+          broadcast(room);
+        } else {
+          sendTo(ws, { t: 'joined', state: room.state });
+        }
         console.log(`[~] ${already.name} se reconnecte au salon ${code}`);
         return;
       }
       if (room.state.status !== 'lobby') { sendTo(ws, { t: 'error', msg: 'Cette partie a déjà commencé.' }); return; }
       if (room.state.players.length >= 6) { sendTo(ws, { t: 'error', msg: 'Le salon est plein (6 max).' }); return; }
-      room.clients.add(ws); ws.roomCode = code;
+      room.clients.add(ws); ws.roomCode = code; ws.pid = m.player.id;
       room.state.players.push(m.player);
       room.state.log.push(m.player.name + ' rejoint la fête !');
       room.state.version = (room.state.version || 0) + 1;
@@ -106,6 +115,16 @@ wss.on('connection', (ws, req) => {
       const room = rooms.get(code);
       if (!room) { sendTo(ws, { t: 'error', msg: 'Cette partie n\'existe plus.' }); return; }
       room.clients.add(ws); ws.roomCode = code;
+      if (m.playerId) {
+        ws.pid = m.playerId;
+        const p = room.state.players.find(q => q.id === m.playerId);
+        if (p && p.gone) {
+          p.gone = false;
+          room.state.version = (room.state.version || 0) + 1;
+          room.state.log.push('🔌 ' + p.name + ' est de retour !');
+          broadcast(room);
+        }
+      }
       room.state.mgScores = room.scores;
       sendTo(ws, { t: 'joined', state: room.state });
     }
@@ -117,7 +136,9 @@ wss.on('connection', (ws, req) => {
       if (!room) return;
       m.state.code = code;                        // le code ne change jamais
       if ((m.state.version || 0) <= (room.state.version || 0)) {
-        m.state.version = (room.state.version || 0) + 1;  // toujours croissant
+        // état périmé : on le rejette et on resynchronise l'expéditeur
+        sendTo(ws, { t: 'state', state: room.state });
+        return;
       }
       room.state = m.state;
       broadcast(room);
@@ -145,7 +166,29 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     const room = rooms.get(ws.roomCode);
-    if (room) room.clients.delete(ws);
+    if (!room) return;
+    room.clients.delete(ws);
+    const pid = ws.pid, code = ws.roomCode;
+    if (!pid) return;
+    // après 45 s sans reconnexion : retiré du salon, ou marqué absent en partie
+    setTimeout(() => {
+      const r = rooms.get(code);
+      if (!r) return;
+      for (const c of r.clients) if (c.pid === pid && c.readyState === WebSocket.OPEN) return;
+      const p = r.state.players.find(q => q.id === pid);
+      if (!p || p.gone) return;
+      if (r.state.status === 'lobby') {
+        r.state.players = r.state.players.filter(q => q.id !== pid);
+        if (r.state.hostId === pid && r.state.players[0]) r.state.hostId = r.state.players[0].id;
+        r.state.log.push('👋 ' + p.name + ' a quitté le salon.');
+      } else {
+        p.gone = true;
+        r.state.log.push('💤 ' + p.name + ' a quitté la partie…');
+      }
+      r.state.version = (r.state.version || 0) + 1;
+      broadcast(r);
+      console.log(`[-] ${p.name} absent du salon ${code}`);
+    }, 45000);
   });
 });
 

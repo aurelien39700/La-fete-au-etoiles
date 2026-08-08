@@ -2,24 +2,34 @@
 
 Un party game multijoueur façon Mario Party (plateau + 25 mini-jeux) où chacun joue depuis son téléphone.
 
-## Les 3 cartes (3D isométrique, choisies par l'hôte dans le salon)
+## Les 8 héros
+
+Des personnages vectoriels dessinés main (Cosmo l'astronaute, Roboto, Zigzag l'alien,
+Fantômio, Griffou le chat, Étincelle la licorne, Krokos le dino, Stella l'étoile),
+chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
+
+## Les 4 cartes (3D isométrique, choisies par l'hôte dans le salon)
 
 - 🎪 **Île de la Fête** : grande boucle + raccourci risqué, zones Fête Foraine / Bois Étoilé / Glacier Lunaire
 - 🌀 **Spirale Céleste** : un « 8 » à deux boucles, zones Nébuleuse Rose / Ceinture d'Astéroïdes / Aurore Émeraude
-- 🏝️ **Archipel Perdu** : deux îles (Plage Dorée, Jungle Sauvage) reliées par des ponts hantés par le Roi Fantôme
+- 🏝️ **Archipel Perdu** : deux îles (Plage Dorée, Jungle Sauvage) reliées par des ponts hantés
+- 🌋 **Volcan Maudit** : pentes déchiquetées + Caldera Interdite (2 étoiles à l'intérieur, 3 cases danger) — étoiles à 15 🪙
 
 ## Le plateau
 
 - Boucles avec **carrefours 🧭** : tu choisis ton chemin !
 - ⭐ **Étoiles** à acheter (20 🪙) — celle-ci se déplace à chaque achat
-- 🛍️ **Boutique** : 5 objets (Champi Double, Dé Pipé, Aimant, Bouclier, Tuyau Magique)
+- 🛍️ **Boutique** : 8 objets (Champi Double, Dé Pipé, Aimant, Bouclier, Bombe Piégée,
+  Dé Triple, OVNI, Tuyau Magique)
+- 😂 **Émotes en direct** pendant la partie (barre à gauche), écran toujours allumé (wake lock),
+  musique d'ambiance discrète
 - 👻 **Fantôme voleur** : paie-le pour voler pièces… ou une étoile !
 - ⚔️ **Duel**, 🏦 **Banque** (dépôt en passant, jackpot en s'arrêtant), 🎰 **Chance Time**, 👹 **Roi Fantôme** (malus dramatiques), 🍀 chance, 🎁 événements
 - 🔥 **Dé chaos** (0 ou 8–10) en alternative au dé classique
 - 🚨 **Derniers tours** : événement spécial au tour 6 (cases doublées, étoile soldée ou rattrapage)
 - 🌟 **2 étoiles bonus secrètes** révélées à la fin (Richissime, Champion, Voyageur, Aventurier)
 
-## Les 28 mini-jeux
+## Les 32 mini-jeux
 
 Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplacement tactile**
 (vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
