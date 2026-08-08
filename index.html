@@ -792,6 +792,16 @@ const HEROES=[
   {id:'peng',  name:'Frisquet',  e:'🐧'},
   {id:'flam',  name:'Braise',    e:'🔥'}
 ];
+/* skins alternatifs : costumes débloqués par les exploits (Mes exploits) */
+const SKINS=[
+  {id:'astro2', hero:'astro', name:'Cosmo Pirate',       e:'🏴‍☠️', need:'vainqueur'},
+  {id:'robot2', hero:'robot', name:'Roboto Chevalier',   e:'⚔️',  need:'ninja'},
+  {id:'ghost2', hero:'ghost', name:'Fantômio Royal',     e:'👑',  need:'serial'},
+  {id:'cat2',   hero:'cat',   name:'Griffou Sorcier',    e:'🪄',  need:'voleur'},
+  {id:'dino2',  hero:'dino',  name:'Krokos Dragon',      e:'🐉',  need:'marathon'},
+  {id:'peng2',  hero:'peng',  name:'Frisquet Capitaine', e:'⚓',  need:'globetrotteur'}
+];
+function skinOf(id){ return SKINS.find(s=>s.id===id); }
 function heroInner(id,C){
   C=C||'#FFD644';
   const D=shade(C,.62), T=tint(C,.55);
@@ -910,10 +920,11 @@ function heroInner(id,C){
 function heroSvg(id,color,size){
   return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" style="display:inline-block;vertical-align:middle;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">${heroInner(id,color)}</svg>`;
 }
-/* portraits (menus) et sprites détourés (en jeu) disponibles ? sondés au chargement */
-const HERO_OK={}, SPRITE_OK={};
+/* portraits (menus), sprites détourés, poses (victoire/défaite) et skins :
+   sondés au chargement, repli propre si l'image manque */
+const HERO_OK={}, SPRITE_OK={}, POSE_OK={}, SKIN_OK={};
 (function(){
-  let left=HEROES.length*2;
+  let left=HEROES.length*4+SKINS.length;
   const done=()=>{
     if(--left!==0) return;
     // rafraîchit tout ce qui affiche des héros (menu compris)
@@ -925,32 +936,51 @@ const HERO_OK={}, SPRITE_OK={};
     }catch(e){}
     if(typeof room!=='undefined'&&room) render();
   };
-  HEROES.forEach(h=>{
+  const probe=(src,cb)=>{
     const im=new Image();
-    im.onload=()=>{ HERO_OK[h.id]=1; done(); };
+    im.onload=()=>{ cb(); done(); };
     im.onerror=done;
-    im.src='/art/hero-'+h.id+'.jpg';
-    const sp=new Image();
-    sp.onload=()=>{ SPRITE_OK[h.id]=1; done(); };
-    sp.onerror=done;
-    sp.src='/art/sprite-'+h.id+'.png';
+    im.src=src;
+  };
+  HEROES.forEach(h=>{
+    probe('/art/hero-'+h.id+'.jpg',()=>HERO_OK[h.id]=1);
+    probe('/art/sprite-'+h.id+'.png',()=>SPRITE_OK[h.id]=1);
+    probe('/art/pose-'+h.id+'-win.png',()=>POSE_OK[h.id+'-win']=1);
+    probe('/art/pose-'+h.id+'-sad.png',()=>POSE_OK[h.id+'-sad']=1);
   });
+  SKINS.forEach(s=>probe('/art/sprite-'+s.id+'.png',()=>SKIN_OK[s.id]=1));
 })();
 function heroThumb(id,color,size){
   if(HERO_OK[id]) return `<img src="/art/hero-${id}.jpg" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;border:2px solid ${color||'#FFD644'};box-shadow:0 2px 5px rgba(0,0,0,.35);">`;
   return heroSvg(id,color,size);
 }
+function pSpriteId(p){ // visuel en jeu : skin détouré si équipé et dispo, sinon héros de base
+  if(p&&p.skin&&SKIN_OK[p.skin]) return p.skin;
+  if(p&&p.hero&&SPRITE_OK[p.hero]) return p.hero;
+  return null;
+}
 function pAv(p,size){
-  if(p&&p.hero&&SPRITE_OK[p.hero]){
+  const sp=pSpriteId(p);
+  if(sp){
     // le personnage détouré, sans fond
-    return `<img src="/art/sprite-${p.hero}.png" alt="" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">`;
+    return `<img src="/art/sprite-${sp}.png" alt="" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">`;
   }
   if(p&&p.hero) return heroSvg(p.hero,p.color||'#FFD644',size);
   return '<span style="font-size:'+Math.round(size*.82)+'px;line-height:1;">'+((p&&p.avatar)||'❔')+'</span>';
 }
+function pAvPose(p,size,mood){ // pose émotion (win/sad) du héros de base, repli sur pAv
+  if(mood&&p){
+    const sk=p.skin&&skinOf(p.skin);
+    const base=sk?sk.hero:p.hero;
+    if(base&&POSE_OK[base+'-'+mood])
+      return `<img src="/art/pose-${base}-${mood}.png" alt="" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45));">`;
+  }
+  return pAv(p,size);
+}
 function pAvBoard(p,x,y,size){ // pour l'intérieur du SVG du plateau
-  if(p&&p.hero&&SPRITE_OK[p.hero]){
-    return `<image href="/art/sprite-${p.hero}.png" x="${x-size/2}" y="${y-size}" width="${size}" height="${size}" preserveAspectRatio="xMidYMax meet"/>`;
+  const sp=pSpriteId(p);
+  if(sp){
+    return `<image href="/art/sprite-${sp}.png" x="${x-size/2}" y="${y-size}" width="${size}" height="${size}" preserveAspectRatio="xMidYMax meet"/>`;
   }
   if(p&&p.hero) return `<svg x="${x-size/2}" y="${y-size}" width="${size}" height="${size}" viewBox="0 0 48 48" style="overflow:visible;">${heroInner(p.hero,p.color||'#FFD644')}</svg>`;
   return `<text x="${x}" y="${y-2}" text-anchor="middle" font-size="${Math.round(size*.85)}">${(p&&p.avatar)||'❔'}</text>`;
@@ -962,16 +992,22 @@ AVATARS.length=0; AVATARS.push(...AVATARS2);
 const AURAS=['#FF5FA2','#FFD644','#3EE6C1','#5AC8FA','#FF9F45','#C39BFF'];
 const RND_A=['Capitaine','Princesse','Docteur','Ninja','Super','Petit','Grand','Méga','Turbo','Sir'];
 const RND_B=['Fusée','Étoile','Nouille','Banane','Comète','Paillette','Tonnerre','Bulle','Cactus','Pixel'];
-let me={id:null,name:'',hero:HEROES[0].id,avatar:HEROES[0].e,color:AURAS[2]};
+let me={id:null,name:'',hero:HEROES[0].id,avatar:HEROES[0].e,color:AURAS[2],skin:null};
 let selAv=0, selCol=2;
 
 function updatePreview(){
-  // grand portrait illustré du héros (repli sur le SVG si l'image manque)
+  // grand portrait illustré du héros (skin en pied si équipé, repli sur le SVG)
   const pv=$('prevAv'); pv.innerHTML='';
   const im=document.createElement('img');
-  im.src='/art/hero-'+me.hero+'.jpg'; im.alt='';
-  im.style.cssText='width:116px;height:116px;border-radius:26px;object-fit:cover;'+
-    'box-shadow:0 8px 18px rgba(0,0,0,.45);border:3px solid '+me.color+';';
+  if(me.skin&&SKIN_OK[me.skin]){
+    im.src='/art/sprite-'+me.skin+'.png'; im.alt='';
+    im.style.cssText='width:116px;height:116px;object-fit:contain;'+
+      'filter:drop-shadow(0 8px 14px rgba(0,0,0,.5));';
+  } else {
+    im.src='/art/hero-'+me.hero+'.jpg'; im.alt='';
+    im.style.cssText='width:116px;height:116px;border-radius:26px;object-fit:cover;'+
+      'box-shadow:0 8px 18px rgba(0,0,0,.45);border:3px solid '+me.color+';';
+  }
   im.onerror=()=>{ pv.innerHTML=heroSvg(me.hero,me.color,66); };
   pv.appendChild(im);
   $('prevName').textContent=me.name||($('myName').value.trim())||'Ton pseudo';
@@ -981,11 +1017,32 @@ function updatePreview(){
 function buildAvGrid(){
   const g=$('avGrid'); g.innerHTML='';
   HEROES.forEach((h,i)=>{
-    const d=document.createElement('div'); d.className='av'+(i===selAv?' sel':'');
+    const d=document.createElement('div'); d.className='av'+(i===selAv&&!me.skin?' sel':'');
     d.innerHTML=heroThumb(h.id,me.color,40)+'<div class="avn">'+h.name+'</div>';
-    d.onclick=()=>{ selAv=i; me.hero=h.id; me.avatar=h.e; snd('tap');
-      document.querySelectorAll('#avGrid .av').forEach((e,j)=>e.classList.toggle('sel',j===i));
-      updatePreview(); };
+    d.onclick=()=>{ selAv=i; me.hero=h.id; me.avatar=h.e; me.skin=null; snd('tap');
+      buildAvGrid(); updatePreview(); };
+    g.appendChild(d);
+  });
+  // costumes à débloquer via Mes exploits
+  const ach=loadStats().ach||{};
+  SKINS.forEach(s=>{
+    const un=!!ach[s.need];
+    const d=document.createElement('div'); d.className='av'+(me.skin===s.id?' sel':'');
+    const gray=un?'':'filter:grayscale(1) brightness(.55);';
+    const vis=SKIN_OK[s.id]
+      ?`<img src="/art/sprite-${s.id}.png" alt="" style="width:40px;height:40px;object-fit:contain;${gray}">`
+      :`<span style="font-size:26px;line-height:40px;${gray}">${s.e}</span>`;
+    d.innerHTML=vis+'<div class="avn">'+(un?'✨':'🔒')+' '+s.name+'</div>';
+    d.onclick=()=>{
+      if(!un){
+        const a=ACHS.find(x=>x.id===s.need);
+        toast('🔒 '+s.name+' — exploit « '+(a?a.n:'?')+' » : '+(a?a.d.toLowerCase():'')+' !');
+        return;
+      }
+      const hi=HEROES.findIndex(h=>h.id===s.hero);
+      selAv=hi; me.hero=s.hero; me.avatar=HEROES[hi].e; me.skin=s.id; snd('tap');
+      buildAvGrid(); updatePreview();
+    };
     g.appendChild(d);
   });
 }
@@ -1028,6 +1085,14 @@ async function loadMe(){
       me.hero=saved.hero; selAv=HEROES.findIndex(h=>h.id===saved.hero);
       me.avatar=HEROES[selAv].e;
     }
+    if(saved.skin){
+      const s=skinOf(saved.skin);
+      if(s && (loadStats().ach||{})[s.need]){
+        me.skin=s.id; me.hero=s.hero;
+        selAv=HEROES.findIndex(h=>h.id===s.hero);
+        me.avatar=HEROES[selAv].e;
+      }
+    }
     if(saved.color && allAuras().includes(saved.color)){
       me.color=saved.color;
     }
@@ -1041,7 +1106,7 @@ const meReady=loadMe();
 
 function readName(){
   me.name=($('myName').value||'').trim()||('Joueur'+rnd(99));
-  S.set('fete-me',{id:me.id,name:me.name,hero:me.hero,color:me.color});
+  S.set('fete-me',{id:me.id,name:me.name,hero:me.hero,color:me.color,skin:me.skin||null});
 }
 
 /* =================== état de partie =================== */
@@ -1064,6 +1129,17 @@ const ITEMS={
   pipe:  {e:'🌀', name:'Tuyau Magique',  price:15, desc:'Téléporte-toi sur l\'étoile !'}
 };
 const ITEM_IDS=Object.keys(ITEMS);
+/* vignettes illustrées des objets (repli emoji si absentes) */
+const ITEM_OK={};
+ITEM_IDS.forEach(id=>{
+  const im=new Image();
+  im.onload=()=>{ ITEM_OK[id]=1; };
+  im.src='/art/item-'+id+'.png';
+});
+function itemPic(id,size){
+  if(ITEM_OK[id]) return `<img src="/art/item-${id}.png" alt="" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));">`;
+  return `<span style="font-size:${Math.round(size*.72)}px;line-height:1;vertical-align:middle;">${ITEMS[id]?ITEMS[id].e:'❔'}</span>`;
+}
 function pItems(p){ if(!p.items) p.items=[]; return p.items; }
 function addCoins(p,n){ if(n>0) p.coinsEarned=(p.coinsEarned||0)+n; p.coins=Math.max(0,p.coins+n); }
 function popShield(p){ const it=pItems(p), i=it.indexOf('shield'); if(i>=0){ it.splice(i,1); return true; } return false; }
@@ -1359,9 +1435,10 @@ function applyMap(st,id){
 
 /* ---------- pop-ups : effets (tous les joueurs) & choix (joueur actif) ---------- */
 let lastFxSeq=0;
-const EVART_ICON={'🎰':'chance','👹':'bowser','👻':'boo','💀':'boo','🌟':'star','⚔️':'duel','☄️':'comet'};
+const EVART_ICON={'🎰':'chance','👹':'bowser','👻':'boo','💀':'boo','🌟':'star','⚔️':'duel','☄️':'comet',
+  '🌪️':'tornado','🌠':'rain','💨':'wind','🏦':'bank','🧨':'bombe','💥':'bombe','🛸':'ovni','🌀':'pipe'};
 const EVART_OK={};
-['chance','bowser','boo','star','duel','comet'].forEach(k=>{
+['chance','bowser','boo','star','duel','comet','tornado','rain','wind','bank','bombe','ovni','pipe'].forEach(k=>{
   const im=new Image();
   im.onload=()=>{ EVART_OK[k]=1; };
   im.src='/art/evart-'+k+'.jpg';
@@ -1424,7 +1501,7 @@ $('btnCreate').onclick=async()=>{
   }
   $('netNotice').style.display='none';
   const st={code:'', hostId:me.id, status:'lobby', version:1,
-    players:[{id:me.id,name:me.name,hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
+    players:[{id:me.id,name:me.name,hero:me.hero,skin:me.skin||null,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
     turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
     startCoins:10, mgEvery:1, tourney:false, manche:1, crowns:{},
     log:['La partie est créée !'], mg:null, mgScores:{}};
@@ -1499,6 +1576,8 @@ $('btnStartLocal').onclick=()=>{
     id:'loc'+i,
     name:(r.querySelector('input').value||'').trim()||('Joueur'+(i+1)),
     hero:HEROES[+r.dataset.h].id, avatar:HEROES[+r.dataset.h].e,
+    // le costume équipé suit le propriétaire du téléphone (1er joueur, même héros)
+    skin:(i===0&&me.skin&&skinOf(me.skin)&&skinOf(me.skin).hero===HEROES[+r.dataset.h].id)?me.skin:null,
     color:AURAS[+r.dataset.c], pos:0, coins:10, stars:0,
     items:[], travel:0, mgWins:0, coinsEarned:0
   }));
@@ -1526,7 +1605,7 @@ $('btnJoin').onclick=async()=>{
   if(!url){ toast('Indique d\'abord l\'adresse du serveur sur l\'accueil ⚙️'); show('scr-home'); return; }
   try{ if(!connected||wsUrl!==url) await netConnect(url); }
   catch(e){ show('scr-home'); netFail(url); return; }
-  const player={id:me.id,name:me.name,hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
+  const player={id:me.id,name:me.name,hero:me.hero,skin:me.skin||null,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
   const resp=await new Promise(res=>{ joinResolve=res; send({t:'join', code, player});
     setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },6000); });
   if(!resp||!resp.state) return; // l'erreur a déjà été affichée
@@ -1545,7 +1624,7 @@ function enterRoom(){
 async function resumeOnline(snap){
   try{ if(!connected||wsUrl!==snap.url) await netConnect(snap.url||getServerUrl()); }
   catch(e){ return false; }
-  const player={id:me.id,name:me.name||'Joueur',hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
+  const player={id:me.id,name:me.name||'Joueur',hero:me.hero,skin:me.skin||null,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0};
   let resp=await new Promise(res=>{ joinResolve=res; send({t:'join', code:snap.state.code, player});
     setTimeout(()=>{ if(joinResolve){ joinResolve(null); joinResolve=null; } },5000); });
   if(!resp||!resp.state){
@@ -1868,7 +1947,7 @@ function playActChip(a){
   const p=room&&room.players.find(q=>q.id===a.pid);
   const bar=ensureActBar();
   const chip=document.createElement('div'); chip.className='actchip';
-  chip.innerHTML=(p?pAv(p,30):'')+'<span style="font-size:17px;">'+(a.icon||'')+'</span><span>'+a.txt+'</span>';
+  chip.innerHTML=(p?pAvPose(p,a.mood?36:30,a.mood):'')+'<span style="font-size:17px;">'+(a.icon||'')+'</span><span>'+a.txt+'</span>';
   bar.appendChild(chip);
   while(bar.children.length>3) bar.firstChild.remove();
   setTimeout(()=>chip.remove(),2600);
@@ -1880,13 +1959,13 @@ function pumpActs(){
   actBusy=true; playActChip(next);
   setTimeout(()=>{ actBusy=false; pumpActs(); },520);
 }
-function logAct(p,icon,txt,logTxt){
+function logAct(p,icon,txt,logTxt,mood){
   room.log.push(logTxt||((p?p.name+' ':'')+txt.replace(/<[^>]*>/g,'')));
   room.actN=(room.actN||0)+1;
   room.acts=(room.acts||[]).slice(-5);
-  room.acts.push({n:room.actN, pid:p&&p.id, icon, txt});
+  room.acts.push({n:room.actN, pid:p&&p.id, icon, txt, mood:mood||null});
   lastActN=room.actN;
-  actQueue.push({pid:p&&p.id, icon, txt});
+  actQueue.push({pid:p&&p.id, icon, txt, mood:mood||null});
   pumpActs();
 }
 function syncActs(){
@@ -2219,7 +2298,7 @@ function renderItemRow(){
   const row=$('itemRow');
   if(!myTurn()||animBusy){ row.innerHTML=''; return; }
   const p=room.players[room.turn];
-  row.innerHTML=pItems(p).map((id,i)=>ITEMS[id]?`<button class="ichip" data-i="${i}" title="${ITEMS[id].name}">${ITEMS[id].e}</button>`:'').join('');
+  row.innerHTML=pItems(p).map((id,i)=>ITEMS[id]?`<button class="ichip" data-i="${i}" title="${ITEMS[id].name}">${itemPic(id,26)}</button>`:'').join('');
   row.querySelectorAll('.ichip').forEach(b=>b.onclick=()=>useItem(+b.dataset.i));
 }
 
@@ -2397,14 +2476,14 @@ async function moveBy(p,d){
   const robbed={};
   for(let s=0;s<d;s++){
     p.pos=await nextPos(p); p.travel=(p.travel||0)+1;
-    if(p.pos===0){ addCoins(p,8); logAct(p,'🏁','tour complet : <b>+8 🪙</b>','🏁 '+p.name+' finit un tour de plateau : +8 🪙'); }
+    if(p.pos===0){ addCoins(p,8); logAct(p,'🏁','tour complet : <b>+8 🪙</b>','🏁 '+p.name+' finit un tour de plateau : +8 🪙','win'); }
     if(magnet){
       room.players.forEach(o=>{
         if(o.id!==p.id&&o.pos===p.pos&&!robbed[o.id]){
           robbed[o.id]=1;
           if(popShield(o)){ room.log.push('🛡️ '+o.name+' bloque l\'Aimant de '+p.name+' !'); }
           else{ const st=Math.min(5,o.coins); o.coins-=st; addCoins(p,st);
-            logAct(p,'🧲','aimante <b>'+st+' 🪙</b> à '+o.name,'🧲 '+p.name+' aimante '+st+' 🪙 à '+o.name+' !'); }
+            logAct(p,'🧲','aimante <b>'+st+' 🪙</b> à '+o.name,'🧲 '+p.name+' aimante '+st+' 🪙 à '+o.name+' !','win'); }
         }
       });
     }
@@ -2465,19 +2544,19 @@ async function landEffect(p){
     const l=dbl?6:3;
     if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe la case piège !');
       room.log.push('🛡️ '+p.name+' bloque la case piège !'); }
-    else{ addCoins(p,-l); snd('bad'); logAct(p,'💥','<b>−'+l+' 🪙</b>',p.name+' perd −'+l+' 🪙'); }
+    else{ addCoins(p,-l); snd('bad'); logAct(p,'💥','<b>−'+l+' 🪙</b>',p.name+' perd −'+l+' 🪙','sad'); }
   }
   else if(t==='lucky'){
     const r=rnd(4);
     if(r===3&&pItems(p).length<2){
       const id=ITEM_IDS[rnd(ITEM_IDS.length)];
       pItems(p).push(id); snd('coin');
-      fxCast('🍀','COUP DE CHANCE !',p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+      fxCast('🍀','COUP DE CHANCE !',p.name+' trouve '+itemPic(id,54)+' <b>'+ITEMS[id].name+'</b> !');
       room.log.push('🍀 '+p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
     } else {
       const g=r===2?15:8;
       addCoins(p,g); snd('coin');
-      logAct(p,'🍀','<b>+'+g+' 🪙</b> (chance !)','🍀 Case chance ! '+p.name+' gagne +'+g+' 🪙');
+      logAct(p,'🍀','<b>+'+g+' 🪙</b> (chance !)','🍀 Case chance ! '+p.name+' gagne +'+g+' 🪙','win');
       if(g===15) fxCast('🍀','JACKPOT CHANCE !','+15 🪙 pour '+p.name+' !');
     }
   }
@@ -2588,14 +2667,15 @@ async function passStar(p){
   const others=(room.starSpots||STAR_SPOTS).filter(x=>x!==room.starIdx);
   room.starIdx=others[rnd(others.length)];
   fxCast('🌟','ÉTOILE !',p.name+' achète une ÉTOILE ! Elle réapparaît ailleurs…',2600);
-  room.log.push('🌟 '+p.name+' achète une ÉTOILE !');
+  logAct(p,'🌟','décroche une <b>ÉTOILE</b> !','🌟 '+p.name+' achète une ÉTOILE !','win');
   renderBoard(); await saveRoom();
 }
 
 async function passShop(p){
   if(pItems(p).length>=2){ room.log.push('🛍️ '+p.name+' passe à la boutique… sac plein (2 objets max) !'); return; }
   const opts=ITEM_IDS.map(id=>({
-    label:ITEMS[id].e+' '+ITEMS[id].name+' — '+ITEMS[id].price+' 🪙<br><span style="font-size:12px;opacity:.75;font-weight:600;">'+ITEMS[id].desc+'</span>',
+    label:'<span style="display:flex;align-items:center;gap:9px;text-align:left;">'+itemPic(id,42)+
+      '<span>'+ITEMS[id].name+' — '+ITEMS[id].price+' 🪙<br><span style="font-size:12px;opacity:.75;font-weight:600;">'+ITEMS[id].desc+'</span></span></span>',
     value:id, disabled:p.coins<ITEMS[id].price, cls:'menthe'
   }));
   opts.push({label:'Non merci 👋',value:null,cls:'ghost'});
@@ -2731,7 +2811,7 @@ async function doEvent(p){
   else if(ev==='item'){
     const id=ITEM_IDS[rnd(ITEM_IDS.length)];
     pItems(p).push(id);
-    fxCast('🎁','OBJET TROUVÉ !',p.name+' reçoit '+ITEMS[id].e+' '+ITEMS[id].name+' !');
+    fxCast('🎁','OBJET TROUVÉ !',p.name+' reçoit '+itemPic(id,54)+' <b>'+ITEMS[id].name+'</b> !');
     room.log.push('🎁 '+p.name+' trouve '+ITEMS[id].e+' '+ITEMS[id].name+' !');
   }
   renderBoard(); await sleep(1100);
@@ -3004,10 +3084,10 @@ async function resolveMg(scores){
       const pl=room.players.find(x=>x.id===p.id);
       addCoins(pl,g);
       if((isSolo&&soloWins)||(!isSolo&&!soloWins)) pl.mgWins=(pl.mgWins||0)+1;
-      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,color:p.color,score:scores[p.id]??0,gain:g,solo:isSolo};
+      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,skin:p.skin||null,color:p.color,score:scores[p.id]??0,gain:g,solo:isSolo};
     });
     room.mg.vsRes={soloScore:Math.round(soloScore),avg:Math.round(avg),soloWins,
-      soloName:soloP?soloP.name:'?',soloHero:soloP&&soloP.hero,soloColor:soloP&&soloP.color,soloAvatar:soloP&&soloP.avatar};
+      soloName:soloP?soloP.name:'?',soloHero:soloP&&soloP.hero,soloSkin:soloP&&soloP.skin,soloColor:soloP&&soloP.color,soloAvatar:soloP&&soloP.avatar};
     room.log.push(soloWins?('⚔️ '+(soloP?soloP.name:'?')+' bat tout le monde À LUI TOUT SEUL !')
       :('⚔️ L\'équipe fait tomber '+(soloP?soloP.name:'?')+' !'));
   } else if(T){
@@ -3019,7 +3099,7 @@ async function resolveMg(scores){
       const t=T[p.id]||0, g=t===win?10:4;
       const pl=room.players.find(x=>x.id===p.id);
       addCoins(pl,g); if(t===win) pl.mgWins=(pl.mgWins||0)+1;
-      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,color:p.color,score:scores[p.id]??0,gain:g,team:t};
+      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,skin:p.skin||null,color:p.color,score:scores[p.id]??0,gain:g,team:t};
     });
     room.mg.teamRes={tot:[Math.round(tot[0]),Math.round(tot[1])],avg:[Math.round(avg[0]),Math.round(avg[1])],win};
     room.log.push('🏅 L\'équipe '+(win===0?'🔵':'🔴')+' gagne le mini-jeu !');
@@ -3029,7 +3109,7 @@ async function resolveMg(scores){
     results=ranked.map((p,i)=>{
       const g=(scores[p.id]===undefined)?0:(gains[i]??1);
       const pl=room.players.find(x=>x.id===p.id); addCoins(pl,g);
-      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,color:p.color,score:scores[p.id]??0,gain:g};
+      return {id:p.id,name:p.name,avatar:p.avatar,hero:p.hero,skin:p.skin||null,color:p.color,score:scores[p.id]??0,gain:g};
     });
     if(results[0]&&results[0].gain>0){
       const wp=room.players.find(x=>x.id===results[0].id);
@@ -5228,7 +5308,7 @@ function renderMgRes(){
     $('mgRanks').innerHTML=`<div style="display:flex;gap:10px;align-items:stretch;text-align:center;">
       <div style="flex:1;border-radius:20px;padding:12px 8px;background:rgba(255,159,69,.16);border:3px solid ${VR.soloWins?'var(--etoile)':'rgba(255,255,255,.15)'};">
         <div class="titan" style="font-size:19px;">🎯 SEUL ${VR.soloWins?'🏆':''}</div>
-        <div style="margin-top:6px;">${pAv({hero:VR.soloHero,color:VR.soloColor,avatar:VR.soloAvatar},34)}</div>
+        <div style="margin-top:6px;">${pAvPose({hero:VR.soloHero,skin:VR.soloSkin,color:VR.soloColor,avatar:VR.soloAvatar},46,VR.soloWins?'win':'sad')}</div>
         <div style="font-weight:800;font-size:14px;">${VR.soloName}</div>
         <div class="titan" style="font-size:24px;color:var(--menthe);">${VR.soloScore} pts</div>
         <div style="font-size:12px;color:var(--menthe);font-weight:800;">+${VR.soloWins?15:2} 🪙</div>
@@ -5237,7 +5317,7 @@ function renderMgRes(){
         <div class="titan" style="font-size:19px;">👥 L'ÉQUIPE ${VR.soloWins?'':'🏆'}</div>
         <div class="titan" style="font-size:24px;color:var(--menthe);">${VR.avg} pts</div>
         <div style="font-size:11px;opacity:.7;font-weight:700;">de moyenne</div>
-        ${teamRows.map(m=>`<div style="font-weight:700;font-size:13px;margin-top:5px;">${pAv(m,18)} ${m.name} — ${m.score} pts <span style="color:var(--menthe);">+${m.gain} 🪙</span></div>`).join('')}
+        ${teamRows.map(m=>`<div style="font-weight:700;font-size:13px;margin-top:5px;">${pAvPose(m,24,VR.soloWins?'sad':'win')} ${m.name} — ${m.score} pts <span style="color:var(--menthe);">+${m.gain} 🪙</span></div>`).join('')}
       </div>
     </div>`;
   } else if(TR){
@@ -5249,7 +5329,7 @@ function renderMgRes(){
         <div class="titan" style="font-size:22px;">${t===0?'🔵':'🔴'} ${win?'🏆':''}</div>
         <div class="titan" style="font-size:26px;color:var(--menthe);">${TR.avg[t]} pts</div>
         <div style="font-size:12px;opacity:.7;font-weight:700;">de moyenne</div>
-        ${members.map(m=>`<div style="font-weight:700;font-size:13px;margin-top:6px;">${pAv(m,20)} ${m.name}<br>${m.score} pts · <span style="color:var(--menthe);">+${m.gain} 🪙</span></div>`).join('')}
+        ${members.map(m=>`<div style="font-weight:700;font-size:13px;margin-top:6px;">${pAvPose(m,26,win?'win':'sad')} ${m.name}<br>${m.score} pts · <span style="color:var(--menthe);">+${m.gain} 🪙</span></div>`).join('')}
       </div>`;
     };
     $('mgRanks').innerHTML=`<div style="display:flex;gap:10px;align-items:stretch;text-align:center;">${teamCard(0)}${teamCard(1)}</div>`;
@@ -5259,7 +5339,7 @@ function renderMgRes(){
     const order=[1,0,2].filter(i=>res[i]);
     $('mgPodium').innerHTML=order.map((i,k)=>`
       <div class="pod" style="animation-delay:${(i===0?0.1:0.25+k*0.12)}s;">
-        <div class="pav">${pAv(res[i],42)}</div>
+        <div class="pav">${pAvPose(res[i],i===0?50:42,i===0?'win':(i===res.length-1?'sad':null))}</div>
         <div class="gname">${res[i].name}</div>
         <div class="base" style="height:${hts[i]}px;background:${cols[i]};">
           <div class="med">${medals[i]}</div>
@@ -5269,7 +5349,7 @@ function renderMgRes(){
       </div>`).join('');
     $('mgRanks').innerHTML=
       (room.mg.bonusNote?`<p class="center" style="font-weight:800;color:var(--peche);margin:8px 0 4px;">${room.mg.bonusNote}</p>`:'')+
-      res.slice(3).map((r,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAv(r,22)} ${r.name}</span>
+      res.slice(3).map((r,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAvPose(r,22,i+4===res.length?'sad':null)} ${r.name}</span>
        <span class="hint">${r.score} pts</span><span class="gain">+${r.gain} 🪙</span></div>`).join('');
   }
   $('btnMgNext').style.display=isHost()?'block':'none';
@@ -5428,7 +5508,7 @@ function renderEnd(){
     $('finalRanks').innerHTML=
       `<div class="podium">`+order.map((i,k)=>`
         <div class="pod" style="animation-delay:${(i===0?0.1:0.25+k*0.12)}s;">
-          <div class="pav">${pAv(ranked[i],48)}</div>
+          <div class="pav">${pAvPose(ranked[i],i===0?58:48,i===0?'win':(i===ranked.length-1?'sad':null))}</div>
           <div class="gname">${i===0?'👑 ':''}${ranked[i].name}</div>
           <div class="base" style="height:${hts[i]}px;background:${cols[i]};">
             <div class="med">${med[i]}</div>
@@ -5439,7 +5519,7 @@ function renderEnd(){
       (room.bonus?room.bonus.map(b=>
         `<div class="rank" style="border:2px solid var(--etoile);"><span class="pos">${b.icon}</span>
          <span style="font-size:14px;">${b.t}<br><span class="hint">${pAv(b,18)} ${b.name} (${b.val}) : +1 ⭐</span></span></div>`).join(''):'')+
-      ranked.slice(3).map((p,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAv(p,26)} ${p.name}</span>
+      ranked.slice(3).map((p,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAvPose(p,26,i+4===ranked.length?'sad':null)} ${p.name}</span>
        <span class="gain">${room.tourney?('👑'+(crowns[p.id]||0)+' · '):''}⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
     if(!endFanfared){
       endFanfared=true; snd('fanfare'); confetti();
