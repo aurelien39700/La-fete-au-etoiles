@@ -45,6 +45,17 @@ Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplace
 En fin de partie : **duel de dés en mort subite** en cas d'égalité parfaite, et
 **📊 Mes exploits** sur l'accueil (stats persistantes et titres de rang).
 
+## Rejouabilité
+
+- ⚙️ **Réglages par l'hôte** (salon et mode local) : 6/8/10/12 tours, pièces de
+  départ 5/10/20, mini-jeux à chaque tour ou un tour sur deux
+- 🏆 **Mode tournoi** : 3 manches courtes, le vainqueur de chaque manche gagne une
+  couronne 👑 (les pièces/étoiles repartent de zéro, les couronnes restent) —
+  premier à 2 couronnes, écran de champion
+- 🎖️ **11 succès à débloquer** (par téléphone) : Première Couronne, Complice du
+  Fantôme, Mains Vides, Globe-Trotteur… avec **3 auras spéciales en récompense**
+  (Or Céleste, Rubis Ardent, Diamant Lunaire) dans le créateur de personnage
+
 ## Installation (une seule fois)
 
 1. Installe **Node.js** (version 18 ou plus) : https://nodejs.org

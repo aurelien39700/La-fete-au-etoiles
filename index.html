@@ -215,9 +215,11 @@ input[type=text]:focus{border-color:var(--menthe);}
 .prev-name{font-family:'Titan One'; font-size:20px; margin-top:8px; min-height:24px;}
 .mini-btn{flex:0 0 56px; border:none; border-radius:16px; font-size:22px; background:rgba(255,255,255,.14); color:#fff; cursor:pointer;}
 .mini-btn:active{transform:scale(.92);}
-.colors{display:flex; gap:8px; margin:6px 0 4px;}
-.col{flex:1; height:38px; border-radius:14px; border:3px solid transparent; cursor:pointer; transition:transform .1s;}
-.col.sel{border-color:#fff; transform:scale(1.1);}
+.colors{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:6px 0 4px;}
+.col{height:38px; border-radius:14px; border:3px solid transparent; cursor:pointer;
+  transition:transform .1s; position:relative;}
+.col.sel{border-color:#fff; transform:scale(1.08);}
+.col .lk{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:15px;}
 
 /* ---------- podium ---------- */
 .podium{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:14px 0 4px; min-height:210px;}
@@ -338,6 +340,12 @@ body.shake{animation:shake2 .5s;}
   <div id="localList"></div>
   <button class="btn ghost" id="btnAddLocal">+ Ajouter un joueur</button>
   <button class="btn ghost" id="btnLocalMap">🗺️ Carte : 🎪 Île de la Fête</button>
+  <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:4px 0;">
+    <button class="ichip" id="btnLocalRounds" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">🔁 8 tours</button>
+    <button class="ichip" id="btnLocalCoins" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">🪙 Départ 10</button>
+    <button class="ichip" id="btnLocalMgEvery" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">🎮 Chaque tour</button>
+    <button class="ichip off" id="btnLocalTourney" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">🏆 Tournoi : non</button>
+  </div>
   <button class="btn" id="btnStartLocal">🚀 C'est parti !</button>
   <button class="btn ghost" onclick="show('scr-home')">← Retour</button>
 </div>
@@ -357,6 +365,7 @@ body.shake{animation:shake2 .5s;}
   <button class="btn ghost" id="btnShare" style="margin:8px 0 2px;">📣 Partager le code</button>
   <p class="hint center">2 à 6 joueurs — même Wi-Fi ou lien Render</p>
   <div id="mapRow" class="center" style="margin:6px 0 2px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"></div>
+  <div id="setRow" class="center" style="margin:4px 0 2px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"></div>
   <div class="plist" id="lobbyList"></div>
   <button class="btn" id="btnStart" style="display:none;">🚀 Lancer la partie !</button>
   <p class="hint center" id="waitHost" style="display:none;">En attente que l'hôte lance la partie…</p>
@@ -403,9 +412,17 @@ body.shake{animation:shake2 .5s;}
   <p class="hint center" id="mgWaitHost" style="display:none;">L'hôte va continuer la partie…</p>
 </div>
 
+<!-- ============ FIN DE MANCHE (tournoi) ============ -->
+<div class="screen" id="scr-manche">
+  <h2 class="center logo" style="font-size:30px;">🏆 Manche <span id="mancheNum"></span> terminée !</h2>
+  <div id="mancheRanks"></div>
+  <button class="btn" id="btnMancheNext" style="display:none;">⚔️ Manche suivante !</button>
+  <p class="hint center" id="mancheWait" style="display:none;">L'hôte va lancer la manche suivante…</p>
+</div>
+
 <!-- ============ FIN ============ -->
 <div class="screen" id="scr-end">
-  <h2 class="center logo" style="font-size:32px;">🏆 FIN DE PARTIE 🏆</h2>
+  <h2 class="center logo" style="font-size:32px;" id="endTitle">🏆 FIN DE PARTIE 🏆</h2>
   <div id="finalRanks"></div>
   <button class="btn rose" onclick="location.reload()">Rejouer</button>
 </div>
@@ -576,6 +593,43 @@ window.addEventListener('load',()=>{
   s.textContent='✦'; s.style.left=rnd(100)+'vw'; s.style.top=rnd(100)+'vh';
   s.style.fontSize=(8+rnd(12))+'px'; s.style.animationDelay=(Math.random()*3)+'s'; bg.appendChild(s);} })();
 
+/* =================== exploits, succès & auras à débloquer (définitions) =================== */
+function loadStats(){
+  try{ return JSON.parse(localStorage.getItem('fete-stats'))||{}; }catch(e){ return {}; }
+}
+function saveStats(s){ try{ localStorage.setItem('fete-stats',JSON.stringify(s)); }catch(e){} }
+function statTitle(w){
+  return w>=10?'🏆 Légende Galactique':w>=6?'🌟 Maître de la Fête':w>=3?'🚀 Capitaine Cosmique':w>=1?'✨ Étoile Montante':'🌱 Novice de la Fête';
+}
+const ACHS=[
+  {id:'premiere',e:'🎉',n:'Bienvenue à la Fête',d:'Jouer ta première partie en ligne',c:s=>(s.games||0)>=1},
+  {id:'vainqueur',e:'👑',n:'Première Couronne',d:'Gagner une partie',c:s=>(s.wins||0)>=1},
+  {id:'serial',e:'🔥',n:'Triple Couronne',d:'Gagner 3 parties',c:s=>(s.wins||0)>=3},
+  {id:'marathon',e:'🏃',n:'Marathonien',d:'Jouer 10 parties',c:s=>(s.games||0)>=10},
+  {id:'ninja',e:'🎮',n:'Ninja des Mini-Jeux',d:'Gagner 10 mini-jeux en tout',c:s=>(s.mgWins||0)>=10},
+  {id:'voleur',e:'👻',n:'Complice du Fantôme',d:'Voler une étoile à un joueur',c:s=>(s.thefts||0)>=1},
+  {id:'richard',e:'💰',n:'Richissime',d:'Finir une partie avec 60 🪙 ou plus',c:(s,g)=>g&&g.coins>=60},
+  {id:'collec',e:'🌟',n:'Constellation',d:'Finir une partie avec 4 ⭐ ou plus',c:(s,g)=>g&&g.stars>=4},
+  {id:'ascete',e:'🧘',n:'Mains Vides',d:'Gagner sans acheter un seul objet',c:(s,g)=>g&&g.won&&!g.itemsBought},
+  {id:'globetrotteur',e:'🗺️',n:'Globe-Trotteur',d:'Jouer sur les 4 cartes',c:s=>Object.keys(s.maps||{}).length>=4},
+  {id:'tournoi',e:'🏆',n:'Grand Champion',d:'Gagner un tournoi',c:(s,g)=>g&&g.tourneyWon}
+];
+const UNLOCK_AURAS=[
+  {color:'#FFD700', name:'Or Céleste',      need:'vainqueur', hint:'gagne une partie'},
+  {color:'#FF3860', name:'Rubis Ardent',    need:'serial',    hint:'gagne 3 parties'},
+  {color:'#9FF7FF', name:'Diamant Lunaire', need:'marathon',  hint:'joue 10 parties'}
+];
+function allAuras(){
+  const a=loadStats().ach||{};
+  return AURAS.concat(UNLOCK_AURAS.filter(u=>a[u.need]).map(u=>u.color));
+}
+function checkAchievements(s,g){
+  s.ach=s.ach||{};
+  const fresh=[];
+  ACHS.forEach(a=>{ if(!s.ach[a.id]&&a.c(s,g)){ s.ach[a.id]=1; fresh.push(a); } });
+  return fresh;
+}
+
 /* =================== héros vectoriels (SVG, colorés par l'aura) =================== */
 function tint(hex,f){ // éclaircit vers le blanc (f 0..1)
   const n=parseInt(hex.slice(1),16);
@@ -724,16 +778,28 @@ function buildAvGrid(){
     g.appendChild(d);
   });
 }
+function buildColGrid(){
+  const c=$('colGrid'); c.innerHTML='';
+  const ach=loadStats().ach||{};
+  const addSw=(col,unlocked,u)=>{
+    const d=document.createElement('div');
+    d.className='col'+(me.color===col?' sel':'');
+    d.style.background=unlocked?col:'rgba(255,255,255,.12)';
+    if(!unlocked) d.innerHTML='<span class="lk">🔒</span>';
+    d.title=u?u.name:'';
+    d.onclick=()=>{
+      if(!unlocked){ toast('🔒 '+u.name+' : '+u.hint+' pour la débloquer !'); return; }
+      me.color=col; snd('tap');
+      buildColGrid(); buildAvGrid(); updatePreview();
+    };
+    c.appendChild(d);
+  };
+  AURAS.forEach(col=>addSw(col,true,null));
+  UNLOCK_AURAS.forEach(u=>addSw(u.color,!!ach[u.need],u));
+}
 (()=>{
   buildAvGrid();
-  const c=$('colGrid');
-  AURAS.forEach((col,i)=>{
-    const d=document.createElement('div'); d.className='col'+(i===selCol?' sel':''); d.style.background=col;
-    d.onclick=()=>{ selCol=i; me.color=col;
-      document.querySelectorAll('#colGrid .col').forEach((e,j)=>e.classList.toggle('sel',j===i));
-      buildAvGrid(); updatePreview(); };
-    c.appendChild(d);
-  });
+  buildColGrid();
   $('myName').addEventListener('input',()=>{ me.name=$('myName').value.trim(); updatePreview(); });
   $('btnRndName').onclick=()=>{
     const n=RND_A[rnd(RND_A.length)]+RND_B[rnd(RND_B.length)];
@@ -751,10 +817,10 @@ async function loadMe(){
       me.hero=saved.hero; selAv=HEROES.findIndex(h=>h.id===saved.hero);
       me.avatar=HEROES[selAv].e;
     }
-    if(saved.color && AURAS.includes(saved.color)){
-      me.color=saved.color; selCol=AURAS.indexOf(saved.color);
-      document.querySelectorAll('#colGrid .col').forEach((e,j)=>e.classList.toggle('sel',j===selCol));
+    if(saved.color && allAuras().includes(saved.color)){
+      me.color=saved.color;
     }
+    buildColGrid();
     buildAvGrid();
     updatePreview();
   }
@@ -1139,6 +1205,7 @@ $('btnCreate').onclick=async()=>{
   const st={code:'', hostId:me.id, status:'lobby', version:1,
     players:[{id:me.id,name:me.name,hero:me.hero,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
     turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
+    startCoins:10, mgEvery:1, tourney:false, manche:1, crowns:{},
     log:['La partie est créée !'], mg:null, mgScores:{}};
   applyMap(st,'fete');
   const resp=await new Promise(res=>{ createResolve=res; send({t:'create', state:st});
@@ -1154,6 +1221,8 @@ let local=false;
 let localMg=null;
 let localCount=0;
 let localMapId='fete';
+const localSet={rounds:8, coins:10, mgEvery:1, tourney:false};
+const ROUND_OPTS=[6,8,10,12], COIN_OPTS=[5,10,20];
 window.addEventListener('load',()=>{
   const b=$('btnLocalMap'); if(!b) return;
   b.onclick=()=>{
@@ -1161,6 +1230,25 @@ window.addEventListener('load',()=>{
     const n=MAP_LIST[(i+1)%MAP_LIST.length];
     localMapId=n.id; snd('tap');
     b.textContent='🗺️ Carte : '+n.e+' '+n.name;
+  };
+  $('btnLocalRounds').onclick=()=>{
+    localSet.rounds=ROUND_OPTS[(ROUND_OPTS.indexOf(localSet.rounds)+1)%ROUND_OPTS.length];
+    snd('tap'); $('btnLocalRounds').textContent='🔁 '+localSet.rounds+' tours';
+  };
+  $('btnLocalCoins').onclick=()=>{
+    localSet.coins=COIN_OPTS[(COIN_OPTS.indexOf(localSet.coins)+1)%COIN_OPTS.length];
+    snd('tap'); $('btnLocalCoins').textContent='🪙 Départ '+localSet.coins;
+  };
+  $('btnLocalMgEvery').onclick=()=>{
+    localSet.mgEvery=localSet.mgEvery===1?2:1;
+    snd('tap'); $('btnLocalMgEvery').textContent=localSet.mgEvery===1?'🎮 Chaque tour':'🎮 1 tour sur 2';
+  };
+  $('btnLocalTourney').onclick=()=>{
+    localSet.tourney=!localSet.tourney;
+    snd('tap');
+    $('btnLocalTourney').textContent='🏆 Tournoi : '+(localSet.tourney?'OUI':'non');
+    $('btnLocalTourney').classList.toggle('off',!localSet.tourney);
+    if(localSet.tourney&&localSet.rounds>6){ localSet.rounds=6; $('btnLocalRounds').textContent='🔁 6 tours'; }
   };
 });
 function addLocalRow(name){
@@ -1197,9 +1285,13 @@ $('btnStartLocal').onclick=()=>{
   local=true; roomKey='';
   clearInterval(pollI); clearInterval(hostI);
   room={code:'LOCAL', hostId:'local', status:'board', version:1,
-    players, turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
+    players, turn:0, round:1, maxRounds:localSet.rounds, starCost:20, bank:0,
+    startCoins:localSet.coins, mgEvery:localSet.mgEvery,
+    tourney:localSet.tourney, manche:1, crowns:{},
     log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null, mgScores:{}};
   applyMap(room, localMapId);
+  room.players.forEach(p=>p.coins=localSet.coins);
+  if(localSet.tourney) room.log.push('🏆 TOURNOI en 3 manches : que le meilleur gagne !');
   render();
 };
 
@@ -1238,6 +1330,7 @@ function render(){
   else if(room.status==='board') renderBoard();
   else if(room.status==='minigame') renderMg();
   else if(room.status==='mgres') renderMgRes();
+  else if(room.status==='manche') renderManche();
   else if(room.status==='ended') renderEnd();
   updateEmoteBar();
   keepAwake();
@@ -1270,13 +1363,6 @@ function updateEmoteBar(){
 }
 
 /* ---------- exploits persistants (par téléphone, parties en ligne) ---------- */
-function loadStats(){
-  try{ return JSON.parse(localStorage.getItem('fete-stats'))||{}; }catch(e){ return {}; }
-}
-function saveStats(s){ try{ localStorage.setItem('fete-stats',JSON.stringify(s)); }catch(e){} }
-function statTitle(w){
-  return w>=10?'🏆 Légende Galactique':w>=6?'🌟 Maître de la Fête':w>=3?'🚀 Capitaine Cosmique':w>=1?'✨ Étoile Montante':'🌱 Novice de la Fête';
-}
 let statsSaved=false;
 function recordStats(){
   if(local||statsSaved||!room) return;
@@ -1284,15 +1370,32 @@ function recordStats(){
   if(!meP) return;
   statsSaved=true;
   const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+  const crowns=room.crowns||{};
+  const winnerId=room.tourney
+    ? (Object.entries(crowns).sort((a,b)=>b[1]-a[1])[0]||[])[0]
+    : (ranked[0]&&ranked[0].id);
+  const won=winnerId===me.id;
   const s=loadStats();
   s.games=(s.games||0)+1;
-  if(ranked[0]&&ranked[0].id===me.id) s.wins=(s.wins||0)+1;
+  if(won) s.wins=(s.wins||0)+1;
   s.stars=(s.stars||0)+(meP.stars||0);
   s.coins=(s.coins||0)+(meP.coinsEarned||0);
   s.mgWins=(s.mgWins||0)+(meP.mgWins||0);
+  s.thefts=(s.thefts||0)+(meP.thefts||0);
+  s.maps=s.maps||{}; s.maps[room.mapId||'fete']=1;
   s.byHero=s.byHero||{};
   if(meP.hero) s.byHero[meP.hero]=(s.byHero[meP.hero]||0)+1;
+  const g={coins:meP.coins||0, stars:meP.stars||0, won,
+    itemsBought:meP.itemsBought||0, tourneyWon:!!(room.tourney&&won)};
+  const fresh=checkAchievements(s,g);
   saveStats(s);
+  // annonce les succès tout juste débloqués (par-dessus le podium)
+  fresh.forEach((a,i)=>setTimeout(()=>{
+    snd('star');
+    fxShow({icon:a.e,title:'SUCCÈS DÉBLOQUÉ !',text:'<b>'+a.n+'</b><br>'+a.d,ms:2600});
+    const aura=UNLOCK_AURAS.find(u=>u.need===a.id);
+    if(aura) setTimeout(()=>toast('🎨 Nouvelle aura débloquée : '+aura.name+' !'),2700);
+  },1200+i*2900));
 }
 window.addEventListener('load',()=>{
   const b=$('btnStats'); if(!b) return;
@@ -1300,11 +1403,17 @@ window.addEventListener('load',()=>{
     const s=loadStats();
     const fav=Object.entries(s.byHero||{}).sort((a,b)=>b[1]-a[1])[0];
     const favH=fav?HEROES.find(h=>h.id===fav[0]):null;
+    const ach=s.ach||{};
+    const nAch=Object.keys(ach).length;
     await ask({icon:'📊',title:statTitle(s.wins||0),
       text:`Parties en ligne : <b>${s.games||0}</b> · Victoires : <b>${s.wins||0}</b> 👑<br>`+
         `⭐ étoiles gagnées : <b>${s.stars||0}</b> · 🪙 pièces amassées : <b>${s.coins||0}</b><br>`+
         `🎮 mini-jeux gagnés : <b>${s.mgWins||0}</b><br>`+
-        (favH?`Héros favori : ${heroSvg(favH.id,me.color,24)} <b>${favH.name}</b>`:'Joue en ligne pour remplir tes exploits !'),
+        (favH?`Héros favori : ${heroSvg(favH.id,me.color,24)} <b>${favH.name}</b><br>`:'')+
+        `<br><b>Succès (${nAch}/${ACHS.length})</b>`+
+        `<div style="text-align:left;font-size:12.5px;margin-top:6px;">`+
+        ACHS.map(a=>`<div style="margin:3px 0;opacity:${ach[a.id]?1:.45};">${ach[a.id]?a.e:'🔒'} <b>${a.n}</b> — ${a.d}</div>`).join('')+
+        `</div>`,
       options:[{label:'OK ✨',value:1,cls:'menthe'}]});
   };
 });
@@ -1385,6 +1494,26 @@ function renderLobby(){
     snd('tap');
     await saveRoom();
   });
+  const chip=(id,label,off)=>`<button class="ichip ${off?'off':''}" data-s="${id}" style="font-size:13px;font-weight:800;font-family:'Baloo 2';">${label}</button>`;
+  if(isHost()){
+    $('setRow').innerHTML=
+      chip('rounds','🔁 '+(room.maxRounds||8)+' tours')+
+      chip('coins','🪙 Départ '+(room.startCoins||10))+
+      chip('mg','🎮 '+((room.mgEvery||1)===1?'Chaque tour':'1 tour sur 2'))+
+      chip('tourney','🏆 Tournoi : '+(room.tourney?'OUI':'non'),!room.tourney);
+    $('setRow').querySelectorAll('.ichip').forEach(b=>b.onclick=async()=>{
+      const s=b.dataset.s;
+      if(s==='rounds') room.maxRounds=ROUND_OPTS[(ROUND_OPTS.indexOf(room.maxRounds||8)+1)%ROUND_OPTS.length];
+      else if(s==='coins') room.startCoins=COIN_OPTS[(COIN_OPTS.indexOf(room.startCoins||10)+1)%COIN_OPTS.length];
+      else if(s==='mg') room.mgEvery=(room.mgEvery||1)===1?2:1;
+      else if(s==='tourney'){ room.tourney=!room.tourney; if(room.tourney&&room.maxRounds>6) room.maxRounds=6; }
+      snd('tap');
+      await saveRoom();
+    });
+  } else {
+    $('setRow').innerHTML='<span class="hint">🔁 '+(room.maxRounds||8)+' tours · 🪙 départ '+(room.startCoins||10)+
+      ' · 🎮 '+((room.mgEvery||1)===1?'chaque tour':'1 tour sur 2')+(room.tourney?' · 🏆 TOURNOI':'')+'</span>';
+  }
   $('lobbyList').innerHTML=room.players.map(p=>
     `<div class="prow" style="border-left:5px solid ${p.color||'#FFD644'};"><span class="pav">${pAv(p,32)}</span>${p.name}
      ${p.id===room.hostId?'<span class="tag">HÔTE</span>':''}</div>`).join('');
@@ -1394,7 +1523,9 @@ function renderLobby(){
 }
 
 $('btnStart').onclick=async()=>{
+  room.players.forEach(p=>p.coins=room.startCoins||10);
   room.status='board'; room.log.push('🎉 C\'est parti ! '+room.players[0].name+' commence.');
+  if(room.tourney) room.log.push('🏆 TOURNOI en 3 manches : que le meilleur gagne !');
   await saveRoom();
 };
 $('btnShare').onclick=async()=>{
@@ -1866,6 +1997,7 @@ async function passShop(p){
   if(!id){ room.log.push('🛍️ '+p.name+' lèche la vitrine de la boutique.'); return; }
   p.coins-=ITEMS[id].price;
   pItems(p).push(id);
+  p.itemsBought=(p.itemsBought||0)+1;
   room.log.push('🛍️ '+p.name+' achète '+ITEMS[id].e+' '+ITEMS[id].name+' !');
   renderBoard(); await saveRoom();
 }
@@ -1895,6 +2027,7 @@ async function passBoo(p){
     room.log.push('🛡️ '+t.name+' bloque le fantôme envoyé par '+p.name+' !');
   } else if(act==='star'){
     t.stars--; p.stars++;
+    p.thefts=(p.thefts||0)+1;
     fxCast('💀','VOL D\'ÉTOILE !',p.name+' vole une ⭐ à '+t.name+' !!',3000);
     room.log.push('💀 '+p.name+' vole une ÉTOILE à '+t.name+' !');
   } else {
@@ -1995,23 +2128,41 @@ async function doEvent(p){
   renderBoard(); await sleep(1100);
 }
 
+function advanceRoundCore(){
+  room.round++;
+  if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
+  else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
+  else fxCast('🎪','TOUR '+room.round+' !','',1400);
+  room.status='board'; room.log.push('Tour '+room.round+' !');
+}
+
 async function endTurn(){
   room.turnFx=null;
   if(room.turn===room.players.length-1){
     room.turn=0;
-    room.status='minigame';
-    let mgType;
-    do{ mgType=rnd(MG_COUNT); }
-    while((MG_COUNT>1&&mgType===room.lastMg)||(local&&MG_INFO[mgType].rt));
-    room.lastMg=mgType;
-    let teams=null;
-    if(MG_INFO[mgType].team||(room.players.length>=4&&rnd(10)<4)){
-      const ids=room.players.map(q=>q.id).sort(()=>Math.random()-.5);
-      teams={}; ids.forEach((id,i)=>teams[id]=i<Math.ceil(ids.length/2)?0:1);
-      room.log.push('🤝 MINI-JEU EN ÉQUIPES : 🔵 contre 🔴 !');
+    const wantMg=(room.mgEvery||1)===1||room.round%(room.mgEvery||1)===0;
+    if(wantMg){
+      room.status='minigame';
+      let mgType;
+      do{ mgType=rnd(MG_COUNT); }
+      while((MG_COUNT>1&&mgType===room.lastMg)||(local&&MG_INFO[mgType].rt));
+      room.lastMg=mgType;
+      let teams=null;
+      if(MG_INFO[mgType].team||(room.players.length>=4&&rnd(10)<4)){
+        const ids=room.players.map(q=>q.id).sort(()=>Math.random()-.5);
+        teams={}; ids.forEach((id,i)=>teams[id]=i<Math.ceil(ids.length/2)?0:1);
+        room.log.push('🤝 MINI-JEU EN ÉQUIPES : 🔵 contre 🔴 !');
+      }
+      room.mg={type:mgType, startedAt:Date.now(), round:room.round, teams};
+      room.log.push('🎮 MINI-JEU ! Tout le monde joue sur son téléphone !');
+    } else if(room.round>=room.maxRounds){
+      animBusy=false;
+      await endGame();
+      await saveRoom();
+      return;
+    } else {
+      advanceRoundCore(); // pas de mini-jeu ce tour-ci
     }
-    room.mg={type:mgType, startedAt:Date.now(), round:room.round, teams};
-    room.log.push('🎮 MINI-JEU ! Tout le monde joue sur son téléphone !');
   } else {
     room.turn++;
   }
@@ -3834,13 +3985,7 @@ $('btnMgNext').onclick=async()=>{
   advancing=true;
   try{
     if(room.round>=room.maxRounds){ await endGame(); }
-    else {
-      room.round++;
-      if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
-      else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
-      else fxCast('🎪','TOUR '+room.round+' !','',1400);
-      room.status='board'; room.log.push('Tour '+room.round+' !');
-    }
+    else advanceRoundCore();
     await saveRoom();
   } finally { advancing=false; }
 };
@@ -3909,9 +4054,65 @@ async function endGame(){
     room.bonus.push({icon:c.icon,t:c.t,d:c.d,name:w.name,avatar:w.avatar,hero:w.hero,color:w.color,val:best});
   }
   await finalTieBreak();
+  if(room.tourney){
+    // tournoi : le vainqueur de la manche prend une couronne
+    const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+    const champ=ranked[0];
+    room.crowns=room.crowns||{};
+    room.crowns[champ.id]=(room.crowns[champ.id]||0)+1;
+    room.log.push('👑 '+champ.name+' remporte la manche '+room.manche+' !');
+    const maxCrowns=Math.max(...Object.values(room.crowns));
+    if(maxCrowns>=2||room.manche>=3){
+      room.status='ended'; // champion du tournoi
+      room.log.push('🏆 Fin du tournoi !');
+    } else {
+      room.status='manche';
+    }
+    return;
+  }
   room.status='ended';
   room.log.push('🏆 Fin de partie !');
 }
+
+function resetManche(){
+  const cost=mapById(room.mapId).starCost||20;
+  room.players.forEach(p=>{
+    p.pos=0; p.coins=room.startCoins||10; p.stars=0; p.items=[];
+    p.travel=0; p.mgWins=0; p.events=0; p.coinsEarned=0;
+  });
+  room.round=1; room.bank=0; room.traps={}; room.finale=null;
+  room.starCost=cost; room.starIdx=(room.starSpots||[8])[0];
+  room.bonus=null; room.lastWinner=null; room.lastMg=undefined;
+  room.turn=0; room.turnFx=null;
+  room.log.push('🏆 MANCHE '+room.manche+' — tout le monde repart de zéro, les couronnes restent !');
+}
+
+function renderManche(){
+  show('scr-manche');
+  $('mancheNum').textContent=room.manche;
+  const crowns=room.crowns||{};
+  const ranked=[...room.players].sort((a,b)=>(crowns[b.id]||0)-(crowns[a.id]||0)||(b.stars-a.stars)||(b.coins-a.coins));
+  $('mancheRanks').innerHTML=
+    (room.bonus&&room.bonus.length?`<p class="center hint">Étoiles bonus : ${room.bonus.map(b=>b.icon+' '+b.name).join(' · ')}</p>`:'')+
+    ranked.map(p=>`<div class="rank${(crowns[p.id]||0)>0?' winner':''}">
+      <span class="pos">${'👑'.repeat(crowns[p.id]||0)||'·'}</span>
+      <span>${pAv(p,26)} ${p.name}</span>
+      <span class="gain">⭐${p.stars} · 🪙${p.coins}</span></div>`).join('')+
+    '<p class="center hint" style="margin-top:10px;">Premier à 2 couronnes (ou meilleur en 3 manches) 🏆</p>';
+  $('btnMancheNext').style.display=isHost()?'block':'none';
+  $('mancheWait').style.display=isHost()?'none':'block';
+}
+$('btnMancheNext').onclick=async()=>{
+  if(advancing) return;
+  advancing=true;
+  try{
+    room.manche++;
+    resetManche();
+    room.status='board';
+    fxCast('🏆','MANCHE '+room.manche+' !','Les couronnes restent, tout le reste repart de zéro !',2600);
+    await saveRoom();
+  } finally { advancing=false; }
+};
 
 /* =================== fin =================== */
 let bonusShown=false, endSeqDone=false, endFanfared=false;
@@ -3920,7 +4121,11 @@ function renderEnd(){
   clearInterval(pollI); clearInterval(hostI);
   recordStats();
   const showRanks=()=>{
-    const ranked=[...room.players].sort((a,b)=>(b.stars-a.stars)||(b.coins-a.coins));
+    const crowns=room.crowns||{};
+    const ranked=[...room.players].sort((a,b)=>room.tourney
+      ?(((crowns[b.id]||0)-(crowns[a.id]||0))||(b.stars-a.stars)||(b.coins-a.coins))
+      :((b.stars-a.stars)||(b.coins-a.coins)));
+    $('endTitle').textContent=room.tourney?'🏆 CHAMPION DU TOURNOI 🏆':'🏆 FIN DE PARTIE 🏆';
     const med=['🥇','🥈','🥉'], hts=[122,92,70], cols=['#FFD644','#C9D1E0','#D08B4C'];
     const order=[1,0,2].filter(i=>ranked[i]);
     $('finalRanks').innerHTML=
@@ -3930,15 +4135,15 @@ function renderEnd(){
           <div class="gname">${i===0?'👑 ':''}${ranked[i].name}</div>
           <div class="base" style="height:${hts[i]}px;background:${cols[i]};">
             <div class="med">${med[i]}</div>
-            <div class="g">⭐${ranked[i].stars}</div>
-            <div style="font-size:11px;font-family:'Baloo 2';font-weight:700;">🪙${ranked[i].coins}</div>
+            <div class="g">${room.tourney?('👑'+(crowns[ranked[i].id]||0)):('⭐'+ranked[i].stars)}</div>
+            <div style="font-size:11px;font-family:'Baloo 2';font-weight:700;">${room.tourney?('⭐'+ranked[i].stars+' '):''}🪙${ranked[i].coins}</div>
           </div>
         </div>`).join('')+`</div>`+
       (room.bonus?room.bonus.map(b=>
         `<div class="rank" style="border:2px solid var(--etoile);"><span class="pos">${b.icon}</span>
          <span style="font-size:14px;">${b.t}<br><span class="hint">${pAv(b,18)} ${b.name} (${b.val}) : +1 ⭐</span></span></div>`).join(''):'')+
       ranked.slice(3).map((p,i)=>`<div class="rank"><span class="pos">${i+4}</span><span>${pAv(p,26)} ${p.name}</span>
-       <span class="gain">⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
+       <span class="gain">${room.tourney?('👑'+(crowns[p.id]||0)+' · '):''}⭐${p.stars} · 🪙${p.coins}</span></div>`).join('');
     if(!endFanfared){ endFanfared=true; snd('fanfare'); confetti(); } // pas de fanfare répétée sur re-render
   };
   const hasBonus=room.bonus&&room.bonus.length>0;
