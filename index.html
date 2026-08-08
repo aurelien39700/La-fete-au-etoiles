@@ -651,7 +651,9 @@ const HEROES=[
   {id:'cat',   name:'Griffou',   e:'🐱'},
   {id:'uni',   name:'Étincelle', e:'🦄'},
   {id:'dino',  name:'Krokos',    e:'🦖'},
-  {id:'star',  name:'Stella',    e:'⭐'}
+  {id:'star',  name:'Stella',    e:'⭐'},
+  {id:'peng',  name:'Frisquet',  e:'🐧'},
+  {id:'flam',  name:'Braise',    e:'🔥'}
 ];
 function heroInner(id,C){
   C=C||'#FFD644';
@@ -723,6 +725,28 @@ function heroInner(id,C){
       <ellipse cx="20" cy="37" rx="7" ry="7.4" fill="${T}"/>
       <path d="M31 32 Q42 34 44 42 Q36 42 30 40 Z" fill="${C}"/>
       <ellipse cx="13" cy="45" rx="4.4" ry="2.8" fill="${D}"/><ellipse cx="25" cy="45.4" rx="4.4" ry="2.8" fill="${D}"/>`;
+    case 'peng': return `
+      <ellipse cx="24" cy="26" rx="14" ry="18" fill="#2B2B3B"/>
+      <ellipse cx="24" cy="30" rx="9.4" ry="12.5" fill="#F6F4FF"/>
+      <circle cx="18.6" cy="17" r="2.6" fill="#1E1440"/><circle cx="29.4" cy="17" r="2.6" fill="#1E1440"/>
+      <circle cx="19.4" cy="16.2" r=".9" fill="#fff"/><circle cx="30.2" cy="16.2" r=".9" fill="#fff"/>
+      <path d="M21 21.6 L24 25 L27 21.6 Z" fill="#FF9F45"/>
+      <path d="M10.5 24 Q6 30 9.5 36 Q13 33 13.4 27 Z" fill="#2B2B3B"/>
+      <path d="M37.5 24 Q42 30 38.5 36 Q35 33 34.6 27 Z" fill="#2B2B3B"/>
+      <path d="M13 12 Q10 6 15.5 6.6 Q14 9 15.4 11 Z" fill="${C}"/>
+      <path d="M12 13.4 Q24 5.5 36 13.4 Q24 9.5 12 13.4 Z" fill="${C}"/>
+      <path d="M14 41 Q11 45 15 45.4 L20 45.4 Q21 42.6 19 41 Z" fill="#FF9F45"/>
+      <path d="M34 41 Q37 45 33 45.4 L28 45.4 Q27 42.6 29 41 Z" fill="#FF9F45"/>
+      <path d="M15 34 Q24 38.5 33 34" stroke="${C}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`;
+    case 'flam': return `
+      <path d="M24 2 C30 10 36 13 36 24 C36 34 31 40 24 40 C17 40 12 34 12 24 C12 17 15 14 17 10 C18 15 20 16 21 15 C20 10 21 6 24 2 Z" fill="${C}"/>
+      <path d="M24 12 C28 17 30 19 30 26 C30 32 27.4 35.5 24 35.5 C20.6 35.5 18 32 18 26 C18 21 20 18.6 21.4 16 C22 19 23.4 19.6 24 18.6 C23.4 16 23 14.4 24 12 Z" fill="${T}"/>
+      <circle cx="20.6" cy="25.4" r="2.3" fill="#1E1440"/><circle cx="27.4" cy="25.4" r="2.3" fill="#1E1440"/>
+      <circle cx="21.4" cy="24.6" r=".85" fill="#fff"/><circle cx="28.2" cy="24.6" r=".85" fill="#fff"/>
+      <path d="M21.4 30 Q24 32.4 26.6 30" stroke="#1E1440" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <ellipse cx="24" cy="44" rx="8.4" ry="2.4" fill="${D}" opacity=".5"/>
+      <path d="M9 30 Q6.6 26 9.6 23.6 Q10.6 26.6 12.4 27.6 Z" fill="${C}" opacity=".85"/>
+      <path d="M39 30 Q41.4 26 38.4 23.6 Q37.4 26.6 35.6 27.6 Z" fill="${C}" opacity=".85"/>`;
     case 'star': return `
       <path d="M24 2 L29.4 15.8 L44 16.6 L32.6 25.6 L36.6 39.8 L24 31.8 L11.4 39.8 L15.4 25.6 L4 16.6 L18.6 15.8 Z" fill="${C}" stroke="${D}" stroke-width="1.4"/>
       <circle cx="19.6" cy="20" r="2.6" fill="#1E1440"/><circle cx="28.4" cy="20" r="2.6" fill="#1E1440"/>
@@ -1456,7 +1480,8 @@ function music(on){
 const HERO_JINGLE={
   astro:[523,659,784], robot:[220,220,440], alien:[494,466,523],
   ghost:[392,330,294], cat:[659,784,659], uni:[523,698,880],
-  dino:[196,247,196], star:[784,988,1175]
+  dino:[196,247,196], star:[784,988,1175],
+  peng:[440,349,440], flam:[330,415,554]
 };
 let lastTurnKey='';
 function heroJingle(p){
@@ -1634,6 +1659,18 @@ function scrollToPawn(smooth){
   const target=r.top+window.scrollY-h*.36;
   window.scrollTo({top:Math.max(0,target), behavior:smooth===false?'auto':'smooth'});
 }
+function distToStar(fromIdx){
+  if(fromIdx===room.starIdx) return 0;
+  const seen=new Set([fromIdx]), q=[[fromIdx,0]];
+  while(q.length){
+    const it=q.shift();
+    for(const j of room.board[it[0]].next){
+      if(j===room.starIdx) return it[1]+1;
+      if(!seen.has(j)){ seen.add(j); q.push([j,it[1]+1]); }
+    }
+  }
+  return -1;
+}
 function renderBoard(){
   show('scr-board');
   const cur=room.players[room.turn];
@@ -1643,7 +1680,10 @@ function renderBoard(){
     setTimeout(()=>scrollToPawn(),120); // tout le monde suit le joueur dont c'est le tour
   }
   const who=local?cur.name+' de jouer !':(myTurn()?'TOI de jouer !':cur.name+' de jouer');
+  const myP=local?cur:room.players.find(p=>p.id===me.id);
+  const dStar=myP?distToStar(myP.pos):-1;
   $('roundInfo').textContent='Tour '+room.round+' / '+room.maxRounds+' — à '+who+
+    (dStar>=0?' · ⭐ à '+dStar+' case'+(dStar>1?'s':''):'')+
     ((room.bank||0)>0?' · 🏦 '+room.bank+' 🪙':'');
   $('hud').innerHTML=room.players.map((p,i)=>
     `<div class="pcard ${i===room.turn?'turn':''}" ${p.gone?'style="opacity:.4;"':''}>
@@ -1714,6 +1754,28 @@ function renderBoard(){
       ? `<text x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle" ${d.c?`fill="${d.c}"`:''} opacity="${d.c?'.5':'.4'}">${d.e}</text>`
       : `<text class="deco" ${d.d?`style="animation-delay:${d.d}s"`:''} x="${d.x}" y="${d.y}" font-size="${d.s}" text-anchor="middle">${d.e}</text>`
   ).join('');
+  // aperçu de portée du dé : pastilles 1-6 sur les cases atteignables à mon tour
+  let reach='';
+  if(myTurn()&&!animBusy){
+    const src=local?cur:room.players.find(p=>p.id===me.id);
+    if(src){
+      const depth={}; depth[src.pos]=0;
+      const q=[src.pos];
+      while(q.length){
+        const i=q.shift();
+        if(depth[i]>=6) continue;
+        for(const j of nodes[i].next) if(depth[j]===undefined){ depth[j]=depth[i]+1; q.push(j); }
+      }
+      for(const i in depth){
+        const d=depth[i];
+        if(d<1) continue;
+        const n=nodes[i];
+        reach+=`<g opacity=".8">
+          <circle cx="${n.x}" cy="${n.y-H-8}" r="6.6" fill="rgba(18,11,44,.75)" stroke="rgba(255,255,255,.55)" stroke-width="1"/>
+          <text x="${n.x}" y="${n.y-H-5}" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="800">${d}</text></g>`;
+      }
+    }
+  }
   // bombes piégées : visibles uniquement par leur poseur (ou en mode local)
   let traps='';
   if(room.traps) for(const ti in room.traps){
@@ -1728,6 +1790,7 @@ function renderBoard(){
     ${deco}
     ${roads}
     ${cells}
+    ${reach}
     ${traps}
     ${junction}
   </svg>`;

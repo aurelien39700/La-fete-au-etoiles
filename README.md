@@ -2,11 +2,12 @@
 
 Un party game multijoueur façon Mario Party (plateau + 25 mini-jeux) où chacun joue depuis son téléphone.
 
-## Les 8 héros
+## Les 10 héros
 
 Des personnages vectoriels dessinés main (Cosmo l'astronaute, Roboto, Zigzag l'alien,
-Fantômio, Griffou le chat, Étincelle la licorne, Krokos le dino, Stella l'étoile),
-chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
+Fantômio, Griffou le chat, Étincelle la licorne, Krokos le dino, Stella l'étoile,
+Frisquet le pingouin, Braise le phénix),
+chacun teinté par la **couleur d'aura** choisie (9 couleurs dont 3 à débloquer) — 90 combinaisons.
 
 ## Les 4 cartes GÉANTES (48-53 cases, 4-6 carrefours, choisies par l'hôte)
 
@@ -35,7 +36,7 @@ Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplace
 (vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
 🔵🔴 aléatoire à partir de 4 joueurs. Sons synthétisés (WebAudio), bouton 🔊/🔇 en haut à droite.
 
-### 10 arènes EN DIRECT (temps réel, en ligne)
+### 9 arènes EN DIRECT (temps réel, en ligne)
 
 Dont le mode **UN CONTRE TOUS** ⚔️ : un joueur tiré au sort affronte tout le monde
 (Le Tireur Fou 🎯, Gardien du Trésor 👹) — parfait à 3 joueurs ! Et des arènes iso :
