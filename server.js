@@ -39,9 +39,54 @@ try {
   if (rooms.size) console.log(`[↻] ${rooms.size} salon(s) restauré(s) depuis la sauvegarde`);
 } catch (e) {}
 
+/* ---------- profils joueurs : les exploits ne se perdent JAMAIS ----------
+   Chaque joueur a un « Code Étoile » (6 lettres/chiffres). Ses stats/succès
+   y sont adossés côté serveur, avec fusion prudente (compteurs au max,
+   succès en union) : vider le navigateur ou changer de téléphone ne fait
+   plus rien perdre. Sans expiration, sauvegardé sur disque. */
+const PROF_FILE = path.join(__dirname, 'profils-sauvegarde.json');
+const profils = new Map(); // star -> { data, updatedAt }
+let profT = null;
+function scheduleProfSave() {
+  if (profT) return;
+  profT = setTimeout(() => {
+    profT = null;
+    try {
+      // borne de sécurité : on garde les 5000 profils les plus récents
+      const entries = [...profils.entries()].sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0)).slice(0, 5000);
+      fs.writeFile(PROF_FILE, JSON.stringify(Object.fromEntries(entries)), () => {});
+    } catch (e) {}
+  }, 1500);
+}
+try {
+  const dump = JSON.parse(fs.readFileSync(PROF_FILE, 'utf8'));
+  for (const star in dump) profils.set(star, dump[star]);
+  if (profils.size) console.log(`[★] ${profils.size} profil(s) joueurs chargés`);
+} catch (e) {}
+function genStar() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for (let i = 0; i < 6; i++) c += A[Math.floor(Math.random() * A.length)];
+  return profils.has(c) ? genStar() : c;
+}
+function mergeProf(a, b) {
+  // fusion sans perte : compteurs au max, succès et cartes en union
+  a = a || {}; b = b || {};
+  const out = Object.assign({}, a, b);
+  ['games', 'wins', 'stars', 'coins', 'mgWins', 'thefts'].forEach(k => {
+    out[k] = Math.max(a[k] || 0, b[k] || 0);
+  });
+  out.ach = Object.assign({}, a.ach || {}, b.ach || {});
+  out.maps = Object.assign({}, a.maps || {}, b.maps || {});
+  out.byHero = {};
+  const heroes = new Set([...Object.keys(a.byHero || {}), ...Object.keys(b.byHero || {})]);
+  heroes.forEach(h => { out.byHero[h] = Math.max((a.byHero || {})[h] || 0, (b.byHero || {})[h] || 0); });
+  return out;
+}
+
 /* ---------- serveur HTTP : sert le jeu ---------- */
 const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/index.html') {
+  if (req.url === '/' || req.url === '/index.html' || req.url.startsWith('/?')) {
     fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
       if (err) { res.writeHead(500); res.end('index.html introuvable — place-le à côté de server.js'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -58,6 +103,15 @@ const server = http.createServer((req, res) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       const ct = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
       res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    });
+  } else if (req.url.startsWith('/js/')) {
+    // sert les modules du jeu (découpage de index.html)
+    const name = req.url.slice(4).split('?')[0];
+    if (!/^[\w.-]+\.js$/.test(name)) { res.writeHead(400); res.end(); return; }
+    fs.readFile(path.join(__dirname, 'js', name), (err, data) => {
+      if (err) { res.writeHead(404); res.end('404'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
       res.end(data);
     });
   } else if (req.url === '/favicon.ico') {
@@ -209,6 +263,32 @@ wss.on('connection', (ws, req) => {
       if (!room) return;
       const msg = JSON.stringify({ t: 'act', data: m.data });
       room.clients.forEach(c => { if (c !== ws && c.readyState === WebSocket.OPEN) c.send(msg); });
+    }
+
+    /* --- profil joueur : synchronisation (création ou fusion) --- */
+    else if (m.t === 'prof-sync') {
+      let star = String(m.star || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      if (star && profils.has(star)) {
+        const cur = profils.get(star);
+        cur.data = mergeProf(cur.data, m.data || {});
+        cur.updatedAt = Date.now();
+        sendTo(ws, { t: 'prof', star, data: cur.data });
+      } else {
+        // code inconnu (serveur réinitialisé ?) ou premier passage : on (re)crée
+        if (!star || star.length < 6) star = genStar();
+        profils.set(star, { data: m.data || {}, updatedAt: Date.now() });
+        sendTo(ws, { t: 'prof', star, data: profils.get(star).data });
+        console.log(`[★] Profil ${star} créé`);
+      }
+      scheduleProfSave();
+    }
+
+    /* --- profil joueur : récupération sur un autre appareil --- */
+    else if (m.t === 'prof-load') {
+      const star = String(m.star || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      const p = profils.get(star);
+      if (p) { p.updatedAt = Date.now(); sendTo(ws, { t: 'prof', star, data: p.data, loaded: 1 }); scheduleProfSave(); }
+      else sendTo(ws, { t: 'prof-miss', star });
     }
 
     /* --- score de mini-jeu --- */
