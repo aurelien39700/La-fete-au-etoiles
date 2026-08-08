@@ -153,6 +153,46 @@ input[type=text]:focus{border-color:var(--menthe);}
 @keyframes hop{0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px);}}
 .ringA{transform-box:fill-box; transform-origin:center; animation:ringp 1.3s infinite;}
 .deco{transform-box:fill-box; transform-origin:center; animation:floaty 3.6s ease-in-out infinite;}
+/* ---------- cases vivantes : chaque entité a sa personnalité ---------- */
+.ti{transform-box:fill-box; transform-origin:center;}
+.ti-blue{animation:tiCoin 2.9s ease-in-out infinite;}
+@keyframes tiCoin{0%,100%{transform:translateY(0) scaleX(1);}
+  25%{transform:translateY(-3.5px) scaleX(.32);}
+  50%{transform:translateY(-5px) scaleX(1);}
+  75%{transform:translateY(-2.5px) scaleX(.32);}}
+.ti-star{animation:tiFloat 2.6s ease-in-out infinite;}
+.ti-starOff{animation:tiFloat 3.8s ease-in-out infinite;}
+@keyframes tiFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.ti-red{animation:tiThrob 2.3s ease-in-out infinite;}
+@keyframes tiThrob{0%,100%{transform:scale(1) rotate(-2deg);}50%{transform:scale(1.13) rotate(2deg);}}
+.ti-lucky{animation:tiSway 3.2s ease-in-out infinite;}
+.ti-shop{animation:tiSway 3.6s ease-in-out infinite;}
+@keyframes tiSway{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
+.ti-event{animation:tiHop 3.4s ease-in-out infinite;}
+@keyframes tiHop{0%,70%,100%{transform:translateY(0) scale(1,1);}
+  77%{transform:translateY(-6px) scale(.95,1.07);}
+  85%{transform:translateY(0) scale(1.07,.93);}
+  92%{transform:translateY(-2px) scale(1,1);}}
+.ti-boo{animation:tiGhost 3.5s ease-in-out infinite;}
+@keyframes tiGhost{0%,100%{transform:translate(0,0);opacity:1;}
+  25%{transform:translate(-2.5px,-4px);opacity:.7;}
+  50%{transform:translate(0,-6px);opacity:1;}
+  75%{transform:translate(2.5px,-3px);opacity:.78;}}
+.ti-duel{animation:tiClash 3.1s ease-in-out infinite;}
+@keyframes tiClash{0%,62%,100%{transform:rotate(0);}
+  69%{transform:rotate(-7deg) scale(1.07);}
+  76%{transform:rotate(6deg) scale(1.1);}
+  83%{transform:rotate(-3deg) scale(1.02);}
+  90%{transform:rotate(0);}}
+.ti-bank{animation:tiBeat 3.9s ease-in-out infinite;}
+@keyframes tiBeat{0%,86%,100%{transform:scale(1);}92%{transform:scale(1.1);}}
+.ti-chance{animation:tiJiggle 3.3s ease-in-out infinite;}
+@keyframes tiJiggle{0%,68%,100%{transform:rotate(0);}
+  75%{transform:rotate(4deg);}82%{transform:rotate(-4deg);}89%{transform:rotate(2deg);}}
+.ti-bowser{animation:tiMenace 2.7s ease-in-out infinite;}
+@keyframes tiMenace{0%,100%{transform:scale(1) translateY(0);}50%{transform:scale(1.12) translateY(-2.5px);}}
+.ti-start{animation:tiFlag 2.4s ease-in-out infinite;}
+@keyframes tiFlag{0%,100%{transform:skewX(0);}50%{transform:skewX(-6deg);}}
 @keyframes ringp{0%,100%{opacity:.9; transform:scale(1);} 50%{opacity:.2; transform:scale(1.15);}}
 .legend{font-size:12px; opacity:.7; margin:4px 0 0; font-weight:600;}
 
@@ -836,7 +876,14 @@ let me={id:null,name:'',hero:HEROES[0].id,avatar:HEROES[0].e,color:AURAS[2]};
 let selAv=0, selCol=2;
 
 function updatePreview(){
-  $('prevAv').innerHTML=heroSvg(me.hero,me.color,66);
+  // grand portrait illustré du héros (repli sur le SVG si l'image manque)
+  const pv=$('prevAv'); pv.innerHTML='';
+  const im=document.createElement('img');
+  im.src='/art/hero-'+me.hero+'.jpg'; im.alt='';
+  im.style.cssText='width:116px;height:116px;border-radius:26px;object-fit:cover;'+
+    'box-shadow:0 8px 18px rgba(0,0,0,.45);border:3px solid '+me.color+';';
+  im.onerror=()=>{ pv.innerHTML=heroSvg(me.hero,me.color,66); };
+  pv.appendChild(im);
   $('prevName').textContent=me.name||($('myName').value.trim())||'Ton pseudo';
   $('prevCard').style.borderColor=me.color;
   $('prevCard').style.background=`radial-gradient(circle at 50% 0%, ${me.color}55, transparent 72%), rgba(255,255,255,.07)`;
@@ -1670,8 +1717,9 @@ function starBurst(x,y){
   }
 }
 
-/* icônes vectorielles des cases (nettes sur tous les téléphones) */
-function tileIcon(t,x,y,active){
+/* icônes vectorielles des cases (nettes sur tous les téléphones),
+   ANIMÉES par type — le plateau vit. delay décale les cycles entre cases. */
+function tileIcon(t,x,y,active,delay){
   const s='stroke="rgba(0,0,0,.3)" stroke-width="1"';
   let g='';
   switch(t){
@@ -1742,7 +1790,11 @@ function tileIcon(t,x,y,active){
       <circle r="5.2" fill="none" stroke="#C79A00" stroke-width="1.1" opacity=".8"/>
       <path d="M0 -3.4 L1.1 -1 L3.6 -0.9 L1.8 0.8 L2.4 3.3 L0 2 L-2.4 3.3 L-1.8 0.8 L-3.6 -0.9 L-1.1 -1 Z" fill="#B8860B" opacity=".85"/>`;
   }
-  return `<g transform="translate(${x},${y}) scale(.92)">${g}</g>`;
+  const cls=t==='starT'?(active?'star':'starOff'):(t in {blue:1,red:1,lucky:1,event:1,shop:1,boo:1,duel:1,bank:1,chance:1,bowser:1,start:1}?t:'blue');
+  return `<ellipse cx="${x}" cy="${y+7}" rx="8" ry="2.8" fill="rgba(0,0,0,.25)"/>
+    <g class="ti ti-${cls}" style="animation-delay:${(delay||0).toFixed(2)}s">
+      <g transform="translate(${x},${y-4}) scale(.92)">${g}</g>
+    </g>`;
 }
 
 /* fait défiler l'écran pour suivre le pion du joueur en cours
@@ -1851,7 +1903,7 @@ function renderBoard(){
       <polygon points="${x+L},${y} ${x},${y+H} ${x},${y+H+DEP} ${x+L},${y+DEP}" fill="${shade(top,.68)}"/>
       <polygon points="${x},${y-H} ${x+L},${y} ${x},${y+H} ${x-L},${y}" fill="${gfill(top)}" stroke="${shade(top,.45)}" stroke-width="1.5"/>
       <polygon points="${x},${y-H+3} ${x+L-8},${y} ${x},${y+H-3} ${x-L+8},${y}" fill="rgba(255,255,255,.10)"/>
-      ${tileIcon(o.n.t,x,y+1,active)}
+      ${tileIcon(o.n.t,x,y+1,active,(o.i%7)*.38)}
     </g>`;
     const here=room.players.map((p,pi)=>({p,pi})).filter(q=>q.p.pos===o.i);
     here.forEach((q,k)=>{
