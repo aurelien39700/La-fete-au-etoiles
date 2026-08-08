@@ -10,10 +10,10 @@ chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
 
 ## Les 4 cartes GÉANTES (48-53 cases, 4-6 carrefours, choisies par l'hôte)
 
-- 🎪 **Île de la Fête** : grande boucle + raccourci risqué, zones Fête Foraine / Bois Étoilé / Glacier Lunaire
-- 🌀 **Spirale Céleste** : un « 8 » à deux boucles, zones Nébuleuse Rose / Ceinture d'Astéroïdes / Aurore Émeraude
-- 🏝️ **Archipel Perdu** : deux îles (Plage Dorée, Jungle Sauvage) reliées par des ponts hantés
-- 🌋 **Volcan Maudit** : pentes déchiquetées + Caldera Interdite (2 étoiles à l'intérieur, 3 cases danger) — étoiles à 15 🪙
+- 🎪 **Île de la Fête** (53 cases, 5 carrefours) : boucle extérieure + grand-huit intérieur reliés par des échangeurs
+- 🌀 **Spirale Céleste** (50 cases, 4 carrefours) : spirale descendante, ponts stellaires entre les spires, Cœur du Vortex
+- 🏝️ **Archipel Perdu** (51 cases, 5 carrefours) : plusieurs îles tropicales, routes alternatives entre elles
+- 🌋 **Volcan Maudit** (48 cases, 4 carrefours) : pentes + rivière de lave traversante + Caldera Interdite — étoiles à 15 🪙
 
 ## Le plateau
 
@@ -29,17 +29,21 @@ chacun teinté par la **couleur d'aura** choisie — 48 combinaisons.
 - 🚨 **Derniers tours** : événement spécial au tour 6 (cases doublées, étoile soldée ou rattrapage)
 - 🌟 **2 étoiles bonus secrètes** révélées à la fin (Richissime, Champion, Voyageur, Aventurier)
 
-## Les 32 mini-jeux
+## Les 33 mini-jeux
 
 Réflexe, mémoire, calcul, tir, esquive, courses… dont des jeux à **déplacement tactile**
 (vaisseau à piloter, panier à déplacer, fusée flappy, alunissage) et un **mode équipes**
 🔵🔴 aléatoire à partir de 4 joueurs. Sons synthétisés (WebAudio), bouton 🔊/🔇 en haut à droite.
 
-### 3 arènes EN DIRECT (temps réel, en ligne)
+### 4 arènes EN DIRECT (temps réel, en ligne)
 
 - ⚔️ **Bataille Spatiale** : équipes 🔵🔴, pilote au doigt, tirs automatiques, respawn
 - 🏃 **Course Céleste LIVE** : sprint en alternant GAUCHE/DROITE, vous vous voyez courir en direct
 - ⭐ **Ruée aux Étoiles** : rafle les étoiles avant les autres, évite les 💣 (spawns synchronisés)
+- 🚩 **Capture d'Étoile** : équipes 🔵🔴, rapporte l'étoile dans ta base, tacle le porteur adverse
+
+En fin de partie : **duel de dés en mort subite** en cas d'égalité parfaite, et
+**📊 Mes exploits** sur l'accueil (stats persistantes et titres de rang).
 
 ## Installation (une seule fois)
 
