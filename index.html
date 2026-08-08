@@ -1411,11 +1411,22 @@ function shade(hex,f){
   const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
+/* fait défiler l'écran pour suivre le pion du joueur en cours */
+function scrollToPawn(smooth){
+  const el=document.querySelector('#boardWrap .tok.cur');
+  if(!el) return;
+  const r=el.getBoundingClientRect();
+  const target=r.top+window.scrollY-window.innerHeight*.38;
+  window.scrollTo({top:Math.max(0,target), behavior:smooth===false?'auto':'smooth'});
+}
 function renderBoard(){
   show('scr-board');
   const cur=room.players[room.turn];
   const tk=room.round+'-'+room.turn;
-  if(tk!==lastTurnKey){ lastTurnKey=tk; heroJingle(cur); }
+  if(tk!==lastTurnKey){
+    lastTurnKey=tk; heroJingle(cur);
+    setTimeout(()=>scrollToPawn(),120); // tout le monde suit le joueur dont c'est le tour
+  }
   const who=local?cur.name+' de jouer !':(myTurn()?'TOI de jouer !':cur.name+' de jouer');
   $('roundInfo').textContent='Tour '+room.round+' / '+room.maxRounds+' — à '+who+
     ((room.bank||0)>0?' · 🏦 '+room.bank+' 🪙':'');
@@ -1680,7 +1691,9 @@ async function moveBy(p,d){
       });
     }
     snd('step');
-    renderBoard(); await sleep(430);
+    renderBoard();
+    scrollToPawn();
+    await sleep(620);
     const t=room.board[p.pos].t;
     if(t==='starT'&&p.pos===room.starIdx) await passStar(p);
     else if(t==='shop') await passShop(p);
