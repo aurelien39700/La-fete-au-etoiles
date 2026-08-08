@@ -1901,7 +1901,16 @@ function renderBoard(){
       if(n) traps+=`<text class="deco" x="${n.x+16}" y="${n.y-8}" font-size="13">🧨</text>`;
     }
   }
-  $('boardWrap').innerHTML=`<svg viewBox="${(MM.view||[-26,-24,472,588]).join(' ')}" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
+  // fond d'ambiance illustré propre à la carte (voile assombrissant pour la lisibilité)
+  const bw=$('boardWrap');
+  const wantBg=`linear-gradient(rgba(16,10,42,.58),rgba(16,10,42,.74)), url('/art/bg-${room.mapId||'fete'}.jpg')`;
+  if(bw.dataset.bg!==room.mapId){
+    bw.dataset.bg=room.mapId;
+    bw.style.backgroundImage=wantBg;
+    bw.style.backgroundSize='cover';
+    bw.style.backgroundPosition='center';
+  }
+  bw.innerHTML=`<svg viewBox="${(MM.view||[-26,-24,472,588]).join(' ')}" style="width:100%;display:block;" role="img" aria-label="Plateau de jeu">
     <defs>${defs}</defs>
     ${island}
     ${deco}

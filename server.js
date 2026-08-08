@@ -25,6 +25,16 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/sante') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, salons: rooms.size }));
+  } else if (req.url.startsWith('/art/')) {
+    // sert les illustrations (fonds de carte, portraits…)
+    const name = req.url.slice(5).split('?')[0];
+    if (!/^[\w.-]+$/.test(name)) { res.writeHead(400); res.end(); return; }
+    fs.readFile(path.join(__dirname, 'art', name), (err, data) => {
+      if (err) { res.writeHead(404); res.end('404'); return; }
+      const ct = name.endsWith('.png') ? 'image/png' : name.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+      res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    });
   } else if (req.url === '/favicon.ico') {
     // petite étoile SVG pour éviter le 404
     res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
