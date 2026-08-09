@@ -216,7 +216,7 @@ function sizeToWrap(){
   cam.aspect=w/Math.max(1,h);
   cam.fov=(w/h)<0.85?50:42;          // portrait : on ouvre pour voir la route devant
   cam.updateProjectionMatrix();
-  vClose=TILE*10.5;                   // suivi rapproche : ~7 dalles devant soi
+  vClose=TILE*11.5;                   // suivi rapproche : ~7 dalles devant soi
   vFull=Math.max(SPAN*1.15,TILE*16); // vue d'ensemble
 }
 function applyCam(){}
@@ -358,10 +358,11 @@ function build(){
   // ----- ROUTES : ruban de pierre continu + flux lumineux qui s'écoule -----
   buildRoutes(gStatic,nodes,pal);
   // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(340,340),
-    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.14,roughness:.85}));
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),
+    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.22,roughness:.9,map:tex||null}));
   sea.rotation.x=-Math.PI/2;
-  sea.position.set(CENTER.x,-7.2,CENTER.z);
+  sea.position.set(CENTER.x,-3.2,CENTER.z); // au ras du socle : aucun trou entre l'ile et l'horizon
+  if(tex){ const t2=tex.clone(); t2.wrapS=t2.wrapT=THREE.RepeatWrapping; t2.repeat.set(60,60); t2.needsUpdate=true; sea.material.map=t2; }
   B3D.seaMat=sea.material;
   gStatic.add(sea);
   // ----- cascades voxel sur le bord de l'île (flux qui tombe en boucle) -----
@@ -1045,13 +1046,13 @@ function loop(){
   FOCUS.lerp(focusTarget,Math.min(1,dt*2.6));
   const vWant=B3D.overview?vFull:vClose;
   vCur+=(vWant-vCur)*Math.min(1,dt*2.6);
-  const elWant=B3D.overview?.92:.44;
+  const elWant=B3D.overview?.92:.52;
   elCur+=(elWant-elCur)*Math.min(1,dt*2.6);
   const az=(B3D.overview?azim:azimAuto+azim)+Math.sin(t*.00008)*.02;
   cam.position.set(FOCUS.x+Math.sin(az)*vCur*Math.cos(elCur),
                    Math.max(2.5,vCur*Math.sin(elCur)),
                    FOCUS.z+Math.cos(az)*vCur*Math.cos(elCur));
-  cam.lookAt(FOCUS.x,B3D.overview?2.5:TILE*3.1,FOCUS.z); // on regarde vers l'HORIZON, pas le sol
+  cam.lookAt(FOCUS.x,B3D.overview?2.5:TILE*1.7,FOCUS.z); // plateau devant, horizon dans le haut du cadre
   renderer.render(scene,cam);
 }
 
