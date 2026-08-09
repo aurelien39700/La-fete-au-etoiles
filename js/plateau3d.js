@@ -41,6 +41,17 @@ const AMBIANCE={
 const B3D={ready:false,ok:false,built:'',pions:{},focusId:null};
 window.B3D=B3D;
 
+/* panoramas 360° d'ambiance (fond de diorama, tourne avec la caméra) */
+const PANO={};
+['volcan','fete','spirale','archipel'].forEach(k=>{
+  new THREE.TextureLoader().load('/art/pano-'+k+'.jpg',t=>{
+    t.mapping=THREE.EquirectangularReflectionMapping;
+    t.colorSpace=THREE.SRGBColorSpace;
+    PANO[k]=t;
+    B3D.built='';
+    try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
+  });
+});
 /* textures Meshy plaquées sur les blocs du socle (une par thème de carte) */
 const VOXTEX={};
 ['volcan','fete','spirale','archipel'].forEach(k=>{
@@ -195,9 +206,9 @@ function build(){
   B3D.falls=[]; B3D.orbites=null; B3D.roue=null; B3D.starRay=null;
   gStatic=new THREE.Group();
   const pal=SOCLE[room.mapId]||SOCLE.fete;
-  // ambiance du thème : ciel, brume, teinte des lumières
+  // ambiance du thème : panorama 360° en fond de diorama (sinon couleur), brume, lumières
   const amb2=AMBIANCE[room.mapId]||AMBIANCE.fete;
-  scene.background=new THREE.Color(amb2.sky);
+  scene.background=PANO[room.mapId]||new THREE.Color(amb2.sky);
   scene.fog=new THREE.Fog(amb2.sky,80,190);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
@@ -341,6 +352,8 @@ function build(){
   }
   // ----- props emblématiques par carte (primitives low-poly à l'échelle) -----
   buildProps(gStatic,room.mapId,pal);
+  // ----- diorama de fond : îlots voxel flottants + nuages + faune du thème -----
+  buildDiorama(gStatic,room.mapId,pal);
   // ----- braises / particules d'ambiance -----
   const embN=70; embV=[];
   const pos=new Float32Array(embN*3);
@@ -489,6 +502,98 @@ function buildProps(g,mapId,pal){
   }
 }
 
+/* ---------- diorama de fond + faune d'ambiance (la VIE des cartes) ---------- */
+function buildDiorama(g,mapId,pal){
+  B3D.amb3d=[];
+  const R=SPAN*0.85;
+  // îlots voxel qui flottent au loin dans la brume (toutes cartes)
+  const mIle=new THREE.MeshStandardMaterial({color:pal.a,roughness:.95,flatShading:true});
+  const mIle2=new THREE.MeshStandardMaterial({color:pal.b,roughness:.95,flatShading:true});
+  const mGl=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,emissiveIntensity:1,roughness:.7});
+  for(let i=0;i<4;i++){
+    const ile=new THREE.Group();
+    const nb=4+(i%3);
+    for(let c=0;c<nb;c++){
+      const cube=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.2,1.6),(c===nb-1)?mGl:(c%2?mIle:mIle2));
+      cube.position.set((c%3-1)*1.5,(c%2)*.9,((c/3|0)-0.5)*1.5);
+      ile.add(cube);
+    }
+    const ang=i/4*Math.PI*2+.7;
+    ile.position.set(CENTER.x+Math.cos(ang)*R*1.15,2+(i%3)*4,CENTER.z+Math.sin(ang)*R*1.25);
+    ile.userData={type:'ile',ph:i*1.7,y0:ile.position.y};
+    B3D.amb3d.push(ile); g.add(ile);
+  }
+  // nuages plats qui dérivent lentement
+  const mNu=new THREE.MeshStandardMaterial({color:0x8A80B8,transparent:true,opacity:.32,flatShading:true});
+  for(let i=0;i<3;i++){
+    const nu=new THREE.Group();
+    for(let c=0;c<3;c++){
+      const s=new THREE.Mesh(new THREE.SphereGeometry(1.6-c*.35,7,5),mNu);
+      s.position.set(c*1.7-1.7,c*.2,0); s.scale.y=.45;
+      nu.add(s);
+    }
+    nu.position.set(CENTER.x-R+i*R*.9,9+i*3,CENTER.z+(i-1)*R*.7);
+    nu.userData={type:'nuage',v:.006+i*.003,x0:CENTER.x-R*1.3,x1:CENTER.x+R*1.3};
+    B3D.amb3d.push(nu); g.add(nu);
+  }
+  // faune du thème
+  if(mapId==='volcan'){
+    // chauves-souris qui tournent autour de la caldera en battant des ailes
+    const mBat=new THREE.MeshStandardMaterial({color:0x1A1230,roughness:1,flatShading:true});
+    for(let i=0;i<3;i++){
+      const bat=new THREE.Group();
+      const corps=new THREE.Mesh(new THREE.SphereGeometry(.28,6,5),mBat); bat.add(corps);
+      const a1=new THREE.Mesh(new THREE.ConeGeometry(.5,.9,3),mBat);
+      a1.rotation.z=Math.PI/2; a1.position.x=-.55; bat.add(a1);
+      const a2=a1.clone(); a2.rotation.z=-Math.PI/2; a2.position.x=.55; bat.add(a2);
+      bat.userData={type:'bat',ph:i*2.1,r:8+i*2.4,h:7+i*1.6,a1,a2};
+      B3D.amb3d.push(bat); g.add(bat);
+    }
+  } else if(mapId==='fete'){
+    // ballons qui montent + pluie de confettis
+    const cols=[0xFF5FA2,0x3EE6C1,0x5AC8FA,0xFFD644];
+    for(let i=0;i<4;i++){
+      const bal=new THREE.Group();
+      const b=new THREE.Mesh(new THREE.SphereGeometry(.55,7,6),
+        new THREE.MeshStandardMaterial({color:cols[i],roughness:.5,flatShading:true}));
+      bal.add(b);
+      const fil=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,1.2,3),
+        new THREE.MeshStandardMaterial({color:0xF3EFFF}));
+      fil.position.y=-.85; bal.add(fil);
+      bal.userData={type:'ballon',ph:i*2.3,x:CENTER.x+(i-1.5)*7,z:CENTER.z+((i%2)*2-1)*9};
+      B3D.amb3d.push(bal); g.add(bal);
+    }
+    const cfN=60, cfPos=new Float32Array(cfN*3);
+    for(let i=0;i<cfN;i++){ cfPos[i*3]=CENTER.x+(Math.random()-.5)*30; cfPos[i*3+1]=Math.random()*16; cfPos[i*3+2]=CENTER.z+(Math.random()-.5)*46; }
+    const cfGeo=new THREE.BufferGeometry();
+    cfGeo.setAttribute('position',new THREE.BufferAttribute(cfPos,3));
+    const cf=new THREE.Points(cfGeo,new THREE.PointsMaterial({color:0xFF9FF3,size:.32,transparent:true,opacity:.85}));
+    cf.userData={type:'confetti',geo:cfGeo};
+    B3D.amb3d.push(cf); g.add(cf);
+  } else if(mapId==='spirale'){
+    // étoiles filantes qui traversent le ciel
+    for(let i=0;i<3;i++){
+      const fil=new THREE.Mesh(new THREE.CylinderGeometry(.06,.02,3.2,4),
+        new THREE.MeshStandardMaterial({color:0xFFE9A8,emissive:0xFFD644,emissiveIntensity:1.6}));
+      fil.rotation.z=-.7;
+      fil.userData={type:'filante',ph:i*4.2,y:12+i*4,z:CENTER.z+(i-1)*16};
+      B3D.amb3d.push(fil); g.add(fil);
+    }
+  } else if(mapId==='archipel'){
+    // lucioles menthe qui errent + poisson qui saute du lagon
+    for(let i=0;i<5;i++){
+      const lu=new THREE.Mesh(new THREE.SphereGeometry(.14,5,4),
+        new THREE.MeshStandardMaterial({color:0x3EE6C1,emissive:0x18B89A,emissiveIntensity:2}));
+      lu.userData={type:'luciole',ph:i*1.9,x:CENTER.x+(i-2)*6,z:CENTER.z+((i%3)-1)*13};
+      B3D.amb3d.push(lu); g.add(lu);
+    }
+    const fish=new THREE.Mesh(new THREE.ConeGeometry(.35,1.1,5),
+      new THREE.MeshStandardMaterial({color:0x5AC8FA,roughness:.6,flatShading:true}));
+    fish.userData={type:'poisson',ph:0};
+    B3D.amb3d.push(fish); g.add(fish);
+  }
+}
+
 /* ---------- pions (héros 3D animé → sprite détouré, jamais déformé) ---------- */
 function ensurePion(p){
   let po=B3D.pions[p.id];
@@ -593,6 +698,46 @@ function loop(){
   }
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
+  // la faune et le diorama vivent
+  if(B3D.amb3d) B3D.amb3d.forEach(o=>{
+    const u=o.userData;
+    if(u.type==='ile'){ o.position.y=u.y0+Math.sin(t*.0006+u.ph)*1.4; o.rotation.y=t*.00008+u.ph; }
+    else if(u.type==='nuage'){ o.position.x+=u.v; if(o.position.x>u.x1) o.position.x=u.x0; }
+    else if(u.type==='bat'){
+      const a2=t*.0006+u.ph;
+      o.position.set(CENTER.x+Math.cos(a2)*u.r,u.h+Math.sin(t*.002+u.ph)*.8,CENTER.z-8+Math.sin(a2)*u.r*.7);
+      o.rotation.y=-a2;
+      const bat=Math.sin(t*.02+u.ph)*.55;
+      u.a1.rotation.x=bat; u.a2.rotation.x=-bat;
+    }
+    else if(u.type==='ballon'){
+      const cy=((t*.0012+u.ph)%9);
+      o.position.set(u.x+Math.sin(t*.001+u.ph)*1.2,1+cy*2.2,u.z);
+      o.children[0].material.opacity=1;
+      o.visible=cy<8;
+    }
+    else if(u.type==='confetti'){
+      const arr=u.geo.attributes.position.array;
+      for(let i=1;i<arr.length;i+=3){ arr[i]-=.016; if(arr[i]<0) arr[i]=16; }
+      u.geo.attributes.position.needsUpdate=true;
+    }
+    else if(u.type==='filante'){
+      const cy=((t*.0011+u.ph)%7);
+      o.visible=cy<1.6;
+      o.position.set(CENTER.x-24+cy*32,u.y-cy*6,u.z);
+    }
+    else if(u.type==='luciole'){
+      o.position.set(u.x+Math.sin(t*.0013+u.ph)*3.2,2.2+Math.sin(t*.0021+u.ph*2)*1.6,u.z+Math.cos(t*.0009+u.ph)*3.2);
+      o.material.emissiveIntensity=1.4+Math.sin(t*.006+u.ph)*.8;
+    }
+    else if(u.type==='poisson'){
+      const cy=((t*.0009)%6);
+      o.visible=cy<1.2;
+      const tt=cy/1.2;
+      o.position.set(CENTER.x+16,-6.8+Math.sin(tt*Math.PI)*4.5,CENTER.z+8);
+      o.rotation.z=Math.PI-tt*Math.PI*1.6;
+    }
+  });
   puffs.forEach(p2=>{
     p2.position.y=6.5+p2.userData.o+((t*.0011+p2.userData.o)%3.2);
     p2.material.opacity=.55-((p2.position.y-6.5)/3.2)*.4;
