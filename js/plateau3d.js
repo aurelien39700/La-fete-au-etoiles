@@ -594,6 +594,30 @@ function buildDiorama(g,mapId,pal){
   }
 }
 
+/* ---------- mise à l'échelle FIABLE d'un personnage ----------
+   La boîte englobante d'un modèle riggé est calculée sur sa pose de repos
+   (souvent recroquevillée) : elle ment. On mesure donc le SQUELETTE une fois
+   le personnage posé par l'animation, ce qui donne sa vraie stature. */
+function fitHero(m,targetH,skinned){
+  const v=new THREE.Vector3(), bb=new THREE.Box3();
+  let os=false;
+  if(skinned){
+    m.updateMatrixWorld(true);
+    m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton) o.skeleton.bones.forEach(b=>{ bb.expandByPoint(b.getWorldPosition(v)); os=true; }); });
+  }
+  if(!os) bb.setFromObject(m);
+  const size=bb.getSize(new THREE.Vector3());
+  const hReel=os?size.y*1.30:size.y; // le squelette s'arrête aux articulations
+  m.scale.setScalar(targetH/Math.max(.0001,hReel));
+  m.updateMatrixWorld(true);
+  const bb2=new THREE.Box3();
+  if(os) m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton) o.skeleton.bones.forEach(b=>{ bb2.expandByPoint(b.getWorldPosition(v)); }); });
+  else bb2.setFromObject(m);
+  m.position.y=-bb2.min.y+(os?-targetH*.06:0);
+  m.position.x=-(bb2.min.x+bb2.max.x)/2;
+  m.position.z=-(bb2.min.z+bb2.max.z)/2;
+}
+
 /* ---------- pions (héros 3D animé → sprite détouré, jamais déformé) ---------- */
 function ensurePion(p){
   let po=B3D.pions[p.id];
@@ -620,33 +644,20 @@ function ensurePion(p){
     } else {
       m=g.scene.clone(true); // statique : chaque joueur reçoit sa copie
     }
-    const bb=new THREE.Box3().setFromObject(m);
-    const size=bb.getSize(new THREE.Vector3());
-    // référence : Cosmo (riggé) — sa bbox en pose de marche est FIABLE.
-    // Les modèles statiques Meshy sont livrés en t-pose : la boîte inclut les
-    // bras écartés et du vide → le corps réel est plus petit que la boîte.
-    // On les grossit donc pour qu'ils aient la même présence que Cosmo.
-    // Cosmo (riggé) a une boîte FIDÈLE à son corps → petit facteur ;
-    // les statiques ont une boîte t-pose gonflée de vide → gros facteur.
-    // Résultat : même présence à l'écran pour tout le monde.
-    const s=skinned ? (HERO_H*1.15)/Math.max(.0001,size.y)
-                    : (HERO_H*2.2)/Math.max(.0001,size.y);
-    m.scale.setScalar(s);
-    bb.setFromObject(m);
-    m.position.y=-bb.min.y;
-    m.position.x=-(bb.min.x+bb.max.x)/2;
-    m.position.z=-(bb.min.z+bb.max.z)/2;
+    if(skinned){
+      po.mixer=new THREE.AnimationMixer(m);
+      const walk=g.animations.find(a=>/walk/i.test(a.name))||g.animations[0];
+      po.action=po.mixer.clipAction(walk);
+      po.action.play();
+      po.mixer.update(.35); // le personnage est POSÉ avant d'être mesuré
+    }
+    // mesure fiable : squelette animé pour les riggés, boîte pour les statiques
+    fitHero(m,HERO_H*(skinned?1.62:2.2),skinned);
     m.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
     group.remove(spr);
     group.add(m);
     po.mesh=m;
     po.baseY=m.position.y;
-    if(g.animations&&g.animations.length){
-      po.mixer=new THREE.AnimationMixer(m);
-      const walk=g.animations.find(a=>/walk/i.test(a.name))||g.animations[0];
-      po.action=po.mixer.clipAction(walk);
-      po.action.play();
-    }
   });
   gPions.add(group);
   return po;

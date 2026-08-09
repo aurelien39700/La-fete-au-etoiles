@@ -41,7 +41,10 @@ const MG_INFO=[
   {name:'Traversée Céleste',desc:'Saute de dalle en dalle entre les comètes (tape à gauche ou à droite de l\'écran) ! 25 s.'},
   {name:'Guerre de Peinture',desc:'EN DIRECT 🎨 : peins un max de dalles en marchant, repasse sur celles des autres ! Les dalles ✨ comptent quadruple. 30 s.',rt:true},
   {name:'La Lave Monte',desc:'EN DIRECT 🌋 : les piliers montent et descendent, la lave engloutit tout ! Grimpe haut pour marquer (1 étage max par saut). 30 s.',rt:true},
-  {name:'Château contre Château',desc:'ÉQUIPES EN DIRECT 🏰 : glisse en arrière et lâche (lance-pierre) pour bombarder le château adverse en cloche ! 35 s.',rt:true,team:true}
+  {name:'Château contre Château',desc:'ÉQUIPES EN DIRECT 🏰 : glisse en arrière et lâche (lance-pierre) pour bombarder le château adverse en cloche ! 35 s.',rt:true,team:true},
+  {name:'Ruée aux Pièces 3D',desc:'EN 3D 🪙 : ton héros descend dans l\'arène ! Glisse pour le piloter, ramasse les pièces, attrape l\'étoile ✨ et esquive les bombes. 22 s.',d3:true},
+  {name:'Sumo Cosmique 3D',desc:'EN 3D & EN DIRECT 🧊 : vos héros s\'affrontent sur la banquise qui rétrécit — prends de l\'élan et éjecte les autres ! 30 s.',rt:true,d3:true},
+  {name:'Sprint des Étoiles 3D',desc:'EN 3D & EN DIRECT 🏁 : vos héros courent côte à côte ! Tape GAUCHE-DROITE en alternance, premier aux 100 m.',rt:true,d3:true}
 ];
 const MG_COUNT=MG_INFO.length;
 let mgPlayed=false, mgTimerI=null, mgDone=false, mgRoundKey=null;
@@ -179,7 +182,8 @@ function startMiniGame(){
   const games=[mgStars,mgTapo,mgReflex,mgMemo,mgMath,mgStroop,mgMole,mgStopPile,mgArrows,mgCount,mgBubbles,mgGauge,
     mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle,
     mgRaceLive,mgStarRush,mgFlag,mgSlice,mgBalloon,mgPairs,mgMines,
-    mgTurret,mgGuard,mgTiles,mgSumo,mgHill,mgFrog,mgPaint,mgLava,mgSiege];
+    mgTurret,mgGuard,mgTiles,mgSumo,mgHill,mgFrog,mgPaint,mgLava,mgSiege,
+    mgCoins3D,mgSumo3D,mgRun3D];
   (games[type]||mgTapo)(area);
 }
 
@@ -2794,3 +2798,277 @@ function mgSiege(area){
   area.appendChild(btn);
 }
 
+
+/* =================== mini-jeux en 3D (personnages Meshy dans l'arène) =================== */
+function curP(){ // le joueur qui tient la manette (local : celui dont c'est le tour)
+  if(local&&window.localMg&&room.players[localMg.idx]) return room.players[localMg.idx];
+  return room.players.find(p=>p.id===me.id)||room.players[0];
+}
+function mg3dInfo(area,txt){
+  const d=document.createElement('div');
+  d.className='ammo';
+  d.style.cssText+='left:50%;transform:translateX(-50%);top:auto;bottom:8px;z-index:6;';
+  d.textContent=txt||'';
+  area.appendChild(d);
+  return d;
+}
+/* --- mini-jeu 42 : Ruée aux Pièces 3D (chacun son tour) --- */
+function mgCoins3D(area){
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap');
+    area.innerHTML='';
+    if(!MG3D.init(area,{theme:room.mapId,dist:26,el:.60})){ submitScore(0); return; }
+    const R=11.5;
+    MG3D.floor({size:26,theme:room.mapId});
+    const H=MG3D.hero(curP(),{x:0,z:0});
+    const stick=MG3D.joystick(area);
+    const info=mg3dInfo(area,'🪙 0');
+    const rng=mulberry32((room.mg&&room.mg.startedAt)||1);
+    const spot=()=>{ const a=rng()*7, r=2+rng()*(R-2.5); return {x:Math.cos(a)*r,z:Math.sin(a)*r}; };
+    const coins=[];
+    for(let i=0;i<12;i++){ const s=spot(); coins.push({m:MG3D.obj('coin',{x:s.x,z:s.z,y:1}),alive:true}); }
+    const bombs=[];
+    for(let i=0;i<3;i++){ bombs.push({m:MG3D.obj('bomb',{x:0,z:0,y:.9}),a:i*2.1,r:4+i*2.6,v:.55+i*.18}); }
+    let star=null, starT=4, score=0, nb=0, over=false, stun=0;
+    const startT=Date.now();
+    MG3D.frame((dt,t)=>{
+      if(over) return;
+      if(stun>0) stun-=dt;
+      const sp=stun>0?0:10.5;
+      const vx=stick.x*sp*dt, vz=stick.y*sp*dt;
+      if(vx||vz){
+        H.x+=vx; H.z+=vz;
+        const d=Math.hypot(H.x,H.z);
+        if(d>R){ H.x*=R/d; H.z*=R/d; }
+        H.dir=Math.atan2(vx,vz);
+        H.moving=true;
+      } else H.moving=false;
+      MG3D.look(H.x*.35,H.z*.35);
+      coins.forEach(c=>{
+        if(!c.alive) return;
+        c.m.rotation.z=t*.004;
+        c.m.position.y=1+Math.sin(t*.004+c.m.position.x)*.16;
+        if(Math.hypot(c.m.position.x-H.x,c.m.position.z-H.z)<1.5){
+          c.alive=false; c.m.visible=false;
+          score+=10; nb++; snd('coin'); vib(8);
+          MG3D.burst(c.m.position.x,1.2,c.m.position.z,0xFFD644,14);
+          setTimeout(()=>{ if(over) return; const s=spot(); c.m.position.set(s.x,1,s.z); c.m.visible=true; c.alive=true; },700);
+        }
+      });
+      bombs.forEach(b=>{
+        b.a+=b.v*dt;
+        b.m.position.set(Math.cos(b.a)*b.r,.9+Math.sin(t*.005+b.a)*.2,Math.sin(b.a)*b.r);
+        if(stun<=0&&Math.hypot(b.m.position.x-H.x,b.m.position.z-H.z)<1.4){
+          stun=1; score=Math.max(0,score-15); snd('boom'); vib(45);
+          MG3D.burst(H.x,1.4,H.z,0xFF6B6B,18);
+          document.body.classList.add('shake'); setTimeout(()=>document.body.classList.remove('shake'),300);
+        }
+      });
+      starT-=dt;
+      if(!star&&starT<=0){ const s=spot(); star=MG3D.obj('star',{x:s.x,z:s.z,y:1.5}); star.life=5; }
+      if(star){
+        star.rotation.y=t*.003; star.position.y=1.5+Math.sin(t*.005)*.3;
+        star.life-=dt;
+        if(Math.hypot(star.position.x-H.x,star.position.z-H.z)<1.7){
+          score+=30; snd('star'); vib(30);
+          MG3D.burst(star.position.x,1.8,star.position.z,0xFFE9A8,22);
+          MG3D.remove(star); star=null; starT=6;
+        } else if(star.life<=0){ MG3D.remove(star); star=null; starT=6; }
+      }
+      const el=(Date.now()-startT)/1000;
+      $('mgTimer').textContent=Math.max(0,22-el).toFixed(0)+' s';
+      info.textContent='🪙 '+nb+(score?' · '+score+' pts':'');
+      if(el>=22){
+        over=true;
+        $('mgTimer').textContent='';
+        snd('fanfare');
+        MG3D.stop();
+        submitScore(score);
+      }
+    });
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 43 : Sumo Cosmique 3D (temps réel) --- */
+function mgSumo3D(area){
+  const preActs=[];
+  window.mgAct=d=>{ preActs.push(d); if(preActs.length>300) preActs.shift(); };
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap');
+    area.innerHTML='';
+    if(!MG3D.init(area,{theme:room.mapId,dist:32,el:.66})){ submitScore(0); return; }
+    const floor=MG3D.floor({size:24,theme:room.mapId});
+    const stick=MG3D.joystick(area);
+    const info=mg3dInfo(area,'');
+    const hs={};
+    room.players.forEach((p,i)=>{
+      const a=i/room.players.length*Math.PI*2;
+      const h=MG3D.hero(p,{x:Math.cos(a)*7,z:Math.sin(a)*7});
+      h.vx=0; h.vz=0; h.pid=p.id;
+      hs[p.id]=h;
+    });
+    const mine=hs[curP().id];
+    let over=false, deadAt=0, lastSend=0;
+    const localStart=Date.now();
+    const start=(()=>{ const s=(room.mg&&room.mg.startedAt)||Date.now(); const off=Date.now()-s;
+      return (off>=0&&off<120000)?s:Date.now(); })();
+    const myAct=d=>{
+      if(d.k==='sp'&&hs[d.id]&&d.id!==mine.pid){ hs[d.id].x=d.x; hs[d.id].z=d.z; hs[d.id].moving=!!d.m; }
+      else if(d.k==='sd'&&hs[d.id]) hs[d.id].alive=false;
+    };
+    window.mgAct=myAct;
+    preActs.splice(0).forEach(d=>{ try{ myAct(d); }catch(e){} });
+    MG3D.frame((dt,t)=>{
+      if(over) return;
+      const el=(Date.now()-start)/1000;
+      const R=Math.max(5.5,12-el*.22); // la banquise rétrécit
+      floor.shrink(R);
+      if(mine.alive){
+        mine.vx+=stick.x*38*dt; mine.vz+=stick.y*38*dt;
+        mine.vx*=.90; mine.vz*=.90;
+        const sp=Math.hypot(mine.vx,mine.vz);
+        if(sp>11){ mine.vx*=11/sp; mine.vz*=11/sp; }
+        mine.x+=mine.vx*dt; mine.z+=mine.vz*dt;
+        mine.moving=sp>.7;
+        if(sp>.7) mine.dir=Math.atan2(mine.vx,mine.vz);
+        for(const id in hs){
+          const o=hs[id];
+          if(o===mine||!o.alive) continue;
+          const dx=mine.x-o.x, dz=mine.z-o.z, d=Math.hypot(dx,dz);
+          if(d<1.9&&d>.01){
+            const push=(1.9-d)*14;
+            mine.vx+=dx/d*push; mine.vz+=dz/d*push;
+            if(sp>4){ snd('tap'); vib(12); MG3D.burst((mine.x+o.x)/2,1.4,(mine.z+o.z)/2,0xFFFFFF,8); }
+          }
+        }
+        if(Math.hypot(mine.x,mine.z)>R){
+          mine.alive=false; deadAt=Date.now();
+          snd('bad'); vib(60);
+          actSend({k:'sd',id:mine.pid});
+        }
+      } else mine.y=(mine.y||0)-dt*11;
+      for(const id in hs){ const o=hs[id]; if(!o.alive&&o!==mine) o.y=(o.y||0)-dt*11; }
+      if(Date.now()-lastSend>110&&mine.alive){
+        lastSend=Date.now();
+        actSend({k:'sp',id:mine.pid,x:+mine.x.toFixed(2),z:+mine.z.toFixed(2),m:mine.moving});
+      }
+      MG3D.look(0,0);
+      const vivants=Object.values(hs).filter(h=>h.alive).length;
+      $('mgTimer').textContent=Math.max(0,30-el).toFixed(0)+' s';
+      info.textContent=mine.alive?('🧊 '+vivants+' en piste'):'💀 tombé !';
+      if((el>=30&&Date.now()-localStart>=8000)||Date.now()-localStart>=42000||(!mine.alive&&Date.now()-deadAt>2200)){
+        over=true;
+        if(window.mgAct===myAct) window.mgAct=null;
+        $('mgTimer').textContent='';
+        snd('fanfare');
+        const surv=Math.min(30,((mine.alive?Date.now():deadAt)-localStart)/1000);
+        MG3D.stop();
+        submitScore(Math.round(surv*8)+(mine.alive?60:0));
+      }
+    });
+  };
+  area.appendChild(btn);
+}
+/* --- mini-jeu 44 : Sprint des Étoiles 3D (temps réel) --- */
+function mgRun3D(area){
+  const preActs=[];
+  window.mgAct=d=>{ preActs.push(d); if(preActs.length>300) preActs.shift(); };
+  const btn=document.createElement('button'); btn.className='big-tap'; btn.textContent='GO !';
+  btn.onclick=()=>{
+    snd('tap');
+    area.innerHTML='';
+    if(!MG3D.init(area,{theme:room.mapId,dist:15,el:.42,az:Math.PI})){ submitScore(0); return; }
+    const T=MG3D.THREE;
+    const rail=MG3D.group();
+    const matA=new T.MeshStandardMaterial({color:0x4A3C78,roughness:.9});
+    const matB=new T.MeshStandardMaterial({color:0x5A4A8E,roughness:.9});
+    const geo=new T.BoxGeometry(13,1,3.6);
+    const tiles=[], bords=[];
+    const bordM=new T.MeshStandardMaterial({color:0xFFD644,emissive:0x6a4a00,emissiveIntensity:1});
+    for(let i=0;i<22;i++){
+      const m=new T.Mesh(geo,i%2?matA:matB);
+      m.position.set(0,-.6,i*3.6-8);
+      m.receiveShadow=true;
+      rail.add(m); tiles.push(m);
+      [-6.9,6.9].forEach(x=>{
+        const b=new T.Mesh(new T.BoxGeometry(.5,.5,.5),bordM);
+        b.position.set(x,0,i*3.6-8);
+        rail.add(b); bords.push(b);
+      });
+    }
+    const arche=MG3D.obj('cube',{x:0,y:3.4,z:400,color:0x3EE6C1});
+    arche.scale.set(14,.8,.8);
+    const players=room.players, hs={};
+    players.forEach((p,i)=>{
+      const lane=(i-(players.length-1)/2)*2.6;
+      const h=MG3D.hero(p,{x:lane,z:0});
+      h.lane=lane; h.pid=p.id; h.dist=0;
+      hs[p.id]=h;
+    });
+    const mine=hs[curP().id];
+    const info=mg3dInfo(area,'0 m');
+    const hint=document.createElement('div');
+    hint.style.cssText='position:absolute;bottom:44px;left:0;right:0;display:flex;justify-content:space-between;'+
+      'padding:0 12px;font-weight:800;font-size:15px;opacity:.8;pointer-events:none;z-index:6;';
+    hint.innerHTML='<span>◀️ GAUCHE</span><span>DROITE ▶️</span>';
+    area.appendChild(hint);
+    let sideNext=0, speed=0, over=false, lastSend=0, fini=0;
+    const localStart=Date.now();
+    const start=(()=>{ const s=(room.mg&&room.mg.startedAt)||Date.now(); const off=Date.now()-s;
+      return (off>=0&&off<120000)?s:Date.now(); })();
+    area.onpointerdown=e=>{
+      if(over) return;
+      const r=area.getBoundingClientRect();
+      const side=(e.clientX-r.left)<r.width/2?0:1;
+      if(side===sideNext){ // alternance gauche-droite = foulées
+        sideNext=1-sideNext;
+        speed=Math.min(15,speed+3.1);
+        snd('step'); vib(5);
+      }
+    };
+    const myAct=d=>{ if(d.k==='rd'&&hs[d.id]&&d.id!==mine.pid) hs[d.id].dist=d.d; };
+    window.mgAct=myAct;
+    preActs.splice(0).forEach(d=>{ try{ myAct(d); }catch(e){} });
+    MG3D.frame((dt,t)=>{
+      if(over) return;
+      const el=(Date.now()-start)/1000;
+      speed=Math.max(0,speed-5.4*dt); // il faut relancer sans cesse
+      if(!fini) mine.dist+=speed*dt;
+      mine.moving=speed>1.2;
+      const dz=speed*dt;
+      tiles.forEach(m=>{ m.position.z-=dz; if(m.position.z<-10) m.position.z+=22*3.6; });
+      bords.forEach(b=>{ b.position.z-=dz; if(b.position.z<-10) b.position.z+=22*3.6; });
+      arche.position.z=Math.max(-6,100-mine.dist);
+      for(const id in hs){
+        const o=hs[id];
+        if(o===mine) continue;
+        o.z=Math.max(-9,Math.min(17,o.dist-mine.dist));
+        o.x=o.lane;
+        o.moving=true;
+      }
+      mine.x=mine.lane; mine.z=0;
+      MG3D.look(0,2,true);
+      if(Date.now()-lastSend>150){
+        lastSend=Date.now();
+        actSend({k:'rd',id:mine.pid,d:+mine.dist.toFixed(1)});
+      }
+      if(!fini&&mine.dist>=100){ fini=Date.now(); snd('yay'); MG3D.burst(mine.lane,2,1,0x3EE6C1,26); }
+      const rang=1+Object.values(hs).filter(o=>o!==mine&&o.dist>mine.dist).length;
+      $('mgTimer').textContent=Math.max(0,32-el).toFixed(0)+' s';
+      info.textContent=fini?('🏁 ARRIVÉ ! '+rang+(rang===1?'er':'e')):(Math.floor(mine.dist)+' m · '+rang+(rang===1?'er':'e'));
+      if((el>=32&&Date.now()-localStart>=8000)||Date.now()-localStart>=44000||(fini&&Date.now()-fini>1800)){
+        over=true;
+        if(window.mgAct===myAct) window.mgAct=null;
+        area.onpointerdown=null;
+        $('mgTimer').textContent='';
+        snd('fanfare');
+        const temps=(fini-localStart)/1000;
+        MG3D.stop();
+        submitScore(fini?Math.max(90,Math.round(240-temps*5)):Math.round(mine.dist*1.6));
+      }
+    });
+  };
+  area.appendChild(btn);
+}

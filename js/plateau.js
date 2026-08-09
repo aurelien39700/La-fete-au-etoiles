@@ -1347,15 +1347,18 @@ async function endTurn(){
       room.status='minigame';
       // jamais deux fois le même mini-jeu tant que toute la ludothèque n'a pas tourné
       room.mgUsed=room.mgUsed||[];
+      // les jeux 3D ne sortent que si le moteur WebGL a bien démarré chez l'hôte
+      const no3D=!(window.MG3D&&MG3D.ok);
+      const jouable=i=>!(local&&MG_INFO[i].rt)&&!(no3D&&MG_INFO[i].d3);
       let pool=[];
       for(let i=0;i<MG_COUNT;i++){
-        if(local&&MG_INFO[i].rt) continue;
+        if(!jouable(i)) continue;
         if(room.mgUsed.indexOf(i)>=0) continue;
         pool.push(i);
       }
       if(!pool.length){
         room.mgUsed=[];
-        for(let i=0;i<MG_COUNT;i++) if(!(local&&MG_INFO[i].rt)) pool.push(i);
+        for(let i=0;i<MG_COUNT;i++) if(jouable(i)) pool.push(i);
       }
       const mgType=pool[rnd(pool.length)];
       room.mgUsed.push(mgType);
