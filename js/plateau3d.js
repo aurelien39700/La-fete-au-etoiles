@@ -246,7 +246,7 @@ function build(){
     const geoC=new THREE.SphereGeometry(420,40,26);
     geoC.scale(-1,1,1);
     const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false,color:0xFFFFFF,toneMapped:false}));
-    ciel.position.set(CENTER.x,-2,CENTER.z); // horizon du panorama cale au niveau du terrain
+    ciel.position.set(CENTER.x,-95,CENTER.z); // voute basse : le paysage descend jusque derriere le terrain
     B3D.ciel=ciel;
     scene.add(ciel);
   }
@@ -358,7 +358,7 @@ function build(){
   // ----- ROUTES : ruban de pierre continu + flux lumineux qui s'écoule -----
   buildRoutes(gStatic,nodes,pal);
   // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(300,300),
     new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.22,roughness:.9,map:tex||null}));
   sea.rotation.x=-Math.PI/2;
   sea.position.set(CENTER.x,-3.2,CENTER.z); // au ras du socle : aucun trou entre l'ile et l'horizon
@@ -939,7 +939,7 @@ function loop(){
   }
   if(B3D.soleil){ B3D.soleil.rotation.z=t*.0009; B3D.soleil.material.emissiveIntensity=.7+Math.sin(t*.0026)*.3; }
   if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
-  if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-2,cam.position.z);
+  if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-95,cam.position.z);
   if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
