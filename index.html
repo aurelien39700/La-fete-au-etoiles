@@ -300,6 +300,16 @@ input[type=text]:focus{border-color:var(--menthe);}
 .gauge .cur{position:absolute; top:0; bottom:0; width:6px; margin-left:-3px; background:#fff; border-radius:3px; box-shadow:0 0 10px #fff;}
 
 /* ---------- pop-ups & effets ---------- */
+.log{position:absolute; left:8px; right:8px; bottom:8px; z-index:4;
+  max-height:74px; overflow:hidden; pointer-events:none;
+  background:linear-gradient(transparent,rgba(12,7,32,.82) 42%);
+  border-radius:0 0 16px 16px; padding:16px 12px 8px;
+  font-size:13px; font-weight:700; line-height:1.35; text-shadow:0 1px 3px rgba(0,0,0,.8);}
+.log div{opacity:.85;}
+.log div:last-child{opacity:1; color:var(--etoile);}
+#diceZone{position:sticky; bottom:0; z-index:5; padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(transparent,rgba(20,12,50,.92) 30%); border-radius:20px 20px 0 0;}
+#diceZone .dice{margin:0;}
 .ovl{position:fixed; inset:0; background:rgba(14,8,40,.74); z-index:60;
   display:flex; align-items:center; justify-content:center; padding:18px; transition:opacity .3s;}
 .ovl.fx{pointer-events:none; background:rgba(14,8,40,.55);}
@@ -488,19 +498,27 @@ body.shake{animation:shake2 .32s;}
   <div class="hud" id="hud"></div>
   <div class="center hint" id="roundInfo"></div>
   <div class="rdots" id="roundDots"></div>
-  <div class="board-wrap" id="boardWrap"></div>
-  <div class="legend center">🪙 pièces · 💥 piège · 🍀 chance · 🎁 événement · ⭐ étoile · 🛍️ boutique · 👻 voleur · ⚔️ duel · 🏦 banque · 🎰 chance time · 👹 danger · 🧭 carrefour · 🏁 +8/tour</div>
-  <div class="dice-zone center">
-    <div class="dice" id="diceFace">🎲</div>
-    <div class="rollres" id="rollRes"></div>
-    <div id="itemRow" style="display:flex; gap:8px; justify-content:center; margin:8px 0 2px; min-height:10px;"></div>
-    <div id="rollBtns" style="display:none; gap:10px; max-width:360px; margin:0 auto;">
-      <button class="btn" id="btnRoll" style="margin:0; flex:1;">🎲 Dé 1–6</button>
-      <button class="btn rose" id="btnRisk" style="margin:0; flex:1;">🔥 0 ou 8–10</button>
-    </div>
-    <p class="hint" id="turnHint"></p>
+  <!-- plateau + journal superposé : tout se suit d'un seul coup d'œil -->
+  <div style="position:relative;">
+    <div class="board-wrap" id="boardWrap"></div>
+    <div class="log" id="gameLog"></div>
   </div>
-  <div class="log" id="gameLog"></div>
+  <div class="legend center">🪙 pièces · 💥 piège · 🍀 chance · 🎁 événement · ⭐ étoile · 🛍️ boutique · 👻 voleur · ⚔️ duel · 🏦 banque · 🎰 chance time · 👹 danger · 🧭 carrefour · 🏁 +8/tour</div>
+  <!-- barre d'action collée en bas : le dé tombe sous le pouce -->
+  <div class="dice-zone center" id="diceZone">
+    <div style="display:flex;align-items:center;gap:12px;justify-content:center;">
+      <div class="dice" id="diceFace">🎲</div>
+      <div style="flex:1;max-width:360px;">
+        <div id="itemRow" style="display:flex; gap:8px; justify-content:center; margin:0 0 6px; min-height:10px;"></div>
+        <div id="rollBtns" style="display:none; gap:10px; margin:0;">
+          <button class="btn" id="btnRoll" style="margin:0; flex:1;">🎲 Dé 1–6</button>
+          <button class="btn rose" id="btnRisk" style="margin:0; flex:1;">🔥 0 ou 8–10</button>
+        </div>
+        <p class="hint" id="turnHint" style="margin:4px 0 0;"></p>
+      </div>
+    </div>
+    <div class="rollres" id="rollRes"></div>
+  </div>
 </div>
 
 <!-- ============ MINI-JEU ============ -->
