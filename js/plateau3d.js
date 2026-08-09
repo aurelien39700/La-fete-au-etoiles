@@ -180,7 +180,7 @@ function init(){
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x171030);
   scene.fog=new THREE.Fog(0x171030,80,190);
-  cam=new THREE.PerspectiveCamera(42,1,.5,500);
+  cam=new THREE.PerspectiveCamera(42,1,.5,1200);
   renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.shadowMap.enabled=true;
@@ -242,14 +242,14 @@ function build(){
   const pano=PANO[room.mapId];
   if(pano){
     pano.mapping=THREE.EquirectangularReflectionMapping;
-    const geoC=new THREE.SphereGeometry(230,32,20);
+    const geoC=new THREE.SphereGeometry(420,40,26);
     geoC.scale(-1,1,1);
     const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false}));
-    ciel.position.set(CENTER.x,0,CENTER.z);
+    ciel.position.set(CENTER.x,26,CENTER.z); // l'horizon du panorama arrive a hauteur du regard
     B3D.ciel=ciel;
     scene.add(ciel);
   }
-  scene.fog=new THREE.Fog(amb2.sky,80,190);
+  scene.fog=new THREE.Fog(amb2.sky,120,330);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
   // emprise de la carte → centre caméra + cadrage
@@ -260,7 +260,8 @@ function build(){
   BOUNDS={minX,maxX,minZ,maxZ};
   // ----- socle voxel (damier, bord grignoté, cubes lumineux du thème) -----
   const CELL=2.05;
-  const NX=Math.ceil((maxX-minX+10)/CELL), NZ=Math.ceil((maxZ-minZ+10)/CELL);
+  const MARGE=26; // large plateforme autour du parcours : fini l'ilot etriqué
+  const NX=Math.ceil((maxX-minX+MARGE)/CELL), NZ=Math.ceil((maxZ-minZ+MARGE)/CELL);
   const g1=new THREE.BoxGeometry(CELL,1,CELL);
   const tex=VOXTEX[room.mapId];
   // texture du thème plaquée sur les blocs, teintes claires pour qu'elle RESSORTE
@@ -271,7 +272,7 @@ function build(){
   B3D.mGlow=mGlow;
   const rng=(s=>()=>{s=(s*16807)%2147483647;return s/2147483647;})(42);
   for(let i=0;i<NX;i++)for(let j=0;j<NZ;j++){
-    const x=minX-5+(i+.5)*CELL, z=minZ-5+(j+.5)*CELL;
+    const x=minX-MARGE/2+(i+.5)*CELL, z=minZ-MARGE/2+(j+.5)*CELL;
     const edge=Math.min(i,NX-1-i,j,NZ-1-j);
     if(edge===0&&rng()<.34) continue;
     const isGlow=edge===0&&rng()<.16;
@@ -409,7 +410,7 @@ function build(){
     const marge=couche*1.15;                   // chaque couche rentre vers l'interieur
     const yy=-1.1-couche*1.25;
     for(let i=0;i<NX;i++) for(let j=0;j<NZ;j++){
-      const x=minX-5+(i+.5)*CELL, z=minZ-5+(j+.5)*CELL;
+      const x=minX-MARGE/2+(i+.5)*CELL, z=minZ-MARGE/2+(j+.5)*CELL;
       const edge=Math.min(i,NX-1-i,j,NZ-1-j);
       if(edge<marge) continue;                 // le dessous se retrecit : forme de rocher
       if(couche>2&&rng()<.3) continue;
