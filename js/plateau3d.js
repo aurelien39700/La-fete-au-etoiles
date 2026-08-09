@@ -315,45 +315,8 @@ function build(){
       gStatic.add(s);
     }
   });
-  // ----- routes : un vrai CHEMIN PAVÉ continu, bordé de lumière, fléché -----
-  const voieM=new THREE.MeshStandardMaterial({color:0x6A5AA0,roughness:.85,
-    map:VOXTEX[room.mapId]||null});
-  const bordM=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,
-    emissiveIntensity:.38,roughness:.5});
-  const flecheM=new THREE.MeshStandardMaterial({color:0xFFF3D0,emissive:0xFFD644,
-    emissiveIntensity:.85,roughness:.4});
-  const flecheG=new THREE.ConeGeometry(.24,.5,4);
-  nodes.forEach(n=>n.next.forEach(j=>{
-    const a=toW(n), b=toW(nodes[j]);
-    const d=a.distanceTo(b);
-    if(d<.2) return;
-    const mid=new THREE.Vector3().lerpVectors(a,b,.5);
-    const ang=Math.atan2(b.x-a.x,b.z-a.z);
-    const pente=Math.atan2(b.y-a.y,Math.hypot(b.x-a.x,b.z-a.z));
-    // le tablier (une seule dalle allongée qui relie les deux cases)
-    const voie=new THREE.Mesh(new THREE.BoxGeometry(TILE*.52,.16,d),voieM);
-    voie.position.copy(mid); voie.position.y+=.26;
-    voie.rotation.y=ang; voie.rotation.x=-pente;
-    voie.receiveShadow=true;
-    gStatic.add(voie);
-    // deux liserés lumineux qui courent le long du chemin
-    [-1,1].forEach(c=>{
-      const b2=new THREE.Mesh(new THREE.BoxGeometry(.09,.12,d),bordM);
-      b2.position.copy(mid); b2.position.y+=.31;
-      b2.rotation.y=ang; b2.rotation.x=-pente;
-      b2.translateX(c*TILE*.27);
-      gStatic.add(b2);
-    });
-    // chevrons : le sens de circulation se lit d'un coup d'œil
-    const nb=Math.max(1,Math.round(d/4.2));
-    for(let s=0;s<nb;s++){
-      const t=(s+.5)/nb;
-      const f=new THREE.Mesh(flecheG,flecheM);
-      f.position.lerpVectors(a,b,t); f.position.y+=.44;
-      f.rotation.y=ang; f.rotation.x=Math.PI/2;
-      gStatic.add(f);
-    }
-  }));
+  // ----- ROUTES : ruban de pierre continu + flux lumineux qui s'écoule -----
+  buildRoutes(gStatic,nodes,pal);
   // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
   const sea=new THREE.Mesh(new THREE.PlaneGeometry(340,340),
     new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.14,roughness:.85}));
@@ -404,6 +367,75 @@ function build(){
   lavaLight.intensity=room.mapId==='volcan'?46:14;
   sizeToWrap();
 }
+/* ---------- ROUTES : un ruban de pierre qui relie les cases ----------
+   Toutes les liaisons sont fusionnées en UNE géométrie (léger), posées au ras
+   des dalles, et recouvertes d'un second ruban translucide dont les chevrons
+   S'ÉCOULENT vers la case suivante : le sens de marche se lit sans surcharge. */
+function chevronTex(){
+  if(texCache.__flux) return texCache.__flux;
+  const c=document.createElement('canvas'); c.width=64; c.height=128;
+  const g=c.getContext('2d');
+  g.clearRect(0,0,64,128);
+  g.strokeStyle='rgba(255,255,255,.92)';
+  g.lineWidth=9; g.lineCap='round'; g.lineJoin='round';
+  for(const y of [30,86]){          // deux chevrons par motif : flux continu
+    g.beginPath();
+    g.moveTo(14,y+16); g.lineTo(32,y-12); g.lineTo(50,y+16);
+    g.stroke();
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.colorSpace=THREE.SRGBColorSpace;
+  texCache.__flux=t;
+  return t;
+}
+function buildRoutes(g,nodes,pal){
+  const W=TILE*.58, INSET=TILE*.40, MOTIF=2.6;
+  const posA=[], uvA=[], idxA=[];
+  const vus={};
+  const up=new THREE.Vector3(0,1,0), dir=new THREE.Vector3(), per=new THREE.Vector3();
+  nodes.forEach((n,i)=>n.next.forEach(j=>{
+    const k=Math.min(i,j)+'-'+Math.max(i,j);
+    if(vus[k]) return;              // pas deux rubans superposés pour un aller-retour
+    vus[k]=1;
+    const a=toW(n), b=toW(nodes[j]);
+    dir.subVectors(b,a);
+    const len=dir.length();
+    if(len<.3) return;
+    dir.divideScalar(len);
+    per.crossVectors(dir,up).normalize().multiplyScalar(W/2);
+    // le ruban part du bord de la case et s'arrête au bord de la suivante
+    const inset=Math.min(INSET,len*.34);
+    const A=a.clone().addScaledVector(dir,inset), B=b.clone().addScaledVector(dir,-inset);
+    A.y+=.30; B.y+=.30;
+    const o=posA.length/3;
+    posA.push(A.x-per.x,A.y,A.z-per.z, A.x+per.x,A.y,A.z+per.z,
+              B.x-per.x,B.y,B.z-per.z, B.x+per.x,B.y,B.z+per.z);
+    const v=(len-2*inset)/MOTIF;    // le motif se répète selon la LONGUEUR réelle
+    uvA.push(0,0, 1,0, 0,v, 1,v);
+    idxA.push(o,o+2,o+1, o+1,o+2,o+3);
+  }));
+  if(!posA.length) return;
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(posA,3));
+  geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvA,2));
+  geo.setIndex(idxA);
+  geo.computeVertexNormals();
+  // 1) le pavage : la matière de la carte, un ton plus clair que le socle
+  const solM=new THREE.MeshStandardMaterial({color:0x8B7FC0,map:VOXTEX[room.mapId]||null,
+    roughness:.9,side:THREE.DoubleSide});
+  const sol=new THREE.Mesh(geo,solM);
+  sol.receiveShadow=true;
+  g.add(sol);
+  // 2) le flux de chevrons qui glisse vers la case suivante
+  const fluxM=new THREE.MeshBasicMaterial({map:chevronTex(),transparent:true,
+    opacity:.62,depthWrite:false,side:THREE.DoubleSide,color:pal.glowC});
+  const flux=new THREE.Mesh(geo,fluxM);
+  flux.position.y=.012;
+  B3D.fluxMat=fluxM;
+  g.add(flux);
+}
+
 /* ---------- ancrage du décor : aucun prop ne doit chevaucher une case ----------
    On cherche la position libre la plus proche de l'emplacement souhaité, et on
    pose l'objet AU SOL (y=0) : le décor s'intègre au lieu de flotter dedans. */
@@ -841,6 +873,7 @@ function loop(){
   }
   if(B3D.soleil){ B3D.soleil.rotation.z=t*.0009; B3D.soleil.material.emissiveIntensity=.7+Math.sin(t*.0026)*.3; }
   if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
+  if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
   // la faune et le diorama vivent
