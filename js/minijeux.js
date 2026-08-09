@@ -2917,7 +2917,8 @@ function mgCoins3D(area){
       if(over) return;
       if(stun>0) stun-=dt;
       const sp=stun>0?0:10.5;
-      const vx=stick.x*sp*dt, vz=stick.y*sp*dt;
+      const dj=MG3D.dir(stick.x,stick.y);
+      const vx=dj.x*sp*dt, vz=dj.z*sp*dt;
       if(vx||vz){
         H.x+=vx; H.z+=vz;
         const d=Math.hypot(H.x,H.z);
@@ -3007,7 +3008,8 @@ function mgSumo3D(area){
       const R=Math.max(5.5,12-el*.22); // la banquise rétrécit
       floor.shrink(R);
       if(mine.alive){
-        mine.vx+=stick.x*38*dt; mine.vz+=stick.y*38*dt;
+        const dj=MG3D.dir(stick.x,stick.y);
+        mine.vx+=dj.x*38*dt; mine.vz+=dj.z*38*dt;
         mine.vx*=.90; mine.vz*=.90;
         const sp=Math.hypot(mine.vx,mine.vz);
         if(sp>11){ mine.vx*=11/sp; mine.vz*=11/sp; }
@@ -3190,7 +3192,8 @@ function mgHill3D(area){
     MG3D.frame((dt,t)=>{
       if(over) return;
       const el=(Date.now()-start)/1000;
-      mine.vx+=stick.x*36*dt; mine.vz+=stick.y*36*dt;
+      const dj=MG3D.dir(stick.x,stick.y);
+      mine.vx+=dj.x*36*dt; mine.vz+=dj.z*36*dt;
       mine.vx*=.89; mine.vz*=.89;
       const sp=Math.hypot(mine.vx,mine.vz);
       if(sp>10.5){ mine.vx*=10.5/sp; mine.vz*=10.5/sp; }
@@ -3302,12 +3305,12 @@ function mgTiles3D(area){
       });
       if(mine.alive){
         const sp=11;
-        mine.x+=stick.x*sp*dt; mine.z+=stick.y*sp*dt;
+        const dj=MG3D.dir(stick.x,stick.y); mine.x+=dj.x*sp*dt; mine.z+=dj.z*sp*dt;
         const lim=(N-1)/2*CELL+1.2;
         mine.x=Math.max(-lim,Math.min(lim,mine.x));
         mine.z=Math.max(-lim,Math.min(lim,mine.z));
         mine.moving=Math.abs(stick.x)+Math.abs(stick.y)>.1;
-        if(mine.moving) mine.dir=Math.atan2(stick.x,stick.y);
+        if(mine.moving) mine.dir=Math.atan2(dj.x,dj.z);
         // sous mes pieds : la dalle est-elle encore là ?
         const gi=Math.round((mine.x-ORI)/CELL), gj=Math.round((mine.z-ORI)/CELL);
         const sous=dalles.find(d2=>d2.i===gi&&d2.j===gj);
@@ -3395,11 +3398,11 @@ function mgStars3D(area){
       if(over) return;
       const el=(Date.now()-start)/1000;
       const sp=11;
-      mine.x+=stick.x*sp*dt; mine.z+=stick.y*sp*dt;
+      const dj=MG3D.dir(stick.x,stick.y); mine.x+=dj.x*sp*dt; mine.z+=dj.z*sp*dt;
       const d0=Math.hypot(mine.x,mine.z);
       if(d0>R){ mine.x*=R/d0; mine.z*=R/d0; }
       mine.moving=Math.abs(stick.x)+Math.abs(stick.y)>.1;
-      if(mine.moving) mine.dir=Math.atan2(stick.x,stick.y);
+      if(mine.moving) mine.dir=Math.atan2(dj.x,dj.z);
       etoiles.forEach((e,k)=>{
         if(e.prise) return;
         e.m.rotation.y=t*.003; e.m.position.y=1.4+Math.sin(t*.004+k)*.22;

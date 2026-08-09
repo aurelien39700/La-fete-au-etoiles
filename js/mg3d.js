@@ -10,6 +10,7 @@ window.MG3D=M;
 
 let ren=null,scene=null,cam=null,areaEl=null,raf=null,frameCb=null,lastT=0;
 let camFocus=new THREE.Vector3(), camWant=new THREE.Vector3(), camDist=30, camEl=.86, camAz=Math.PI/4;
+let camVise=1, camLerp=3.2, fovBase=42;   // point visé au-dessus/au-dessous du joueur, et vivacité du suivi
 const loader=new GLTFLoader(), texL=new THREE.TextureLoader();
 const TEX={};
 const heroes=[]; // handles vivants (pour l'animation procédurale)
@@ -40,8 +41,10 @@ M.init=function(el,opt){
   scene=new THREE.Scene();
   const sky=opt.sky!==undefined?opt.sky:0x171030;
   scene.background=new THREE.Color(sky);
-  scene.fog=new THREE.Fog(sky,42,110);
-  cam=new THREE.PerspectiveCamera(42,W/H,.5,300);
+  const fg=opt.fog||[42,110];
+  scene.fog=new THREE.Fog(sky,fg[0],fg[1]);
+  fovBase=opt.fov||42;
+  cam=new THREE.PerspectiveCamera(fovBase,W/H,.5,opt.far||300);
   ren=new THREE.WebGLRenderer({antialias:true});
   ren.setPixelRatio(Math.min(2,devicePixelRatio));
   ren.setSize(W,H,false);
@@ -56,6 +59,8 @@ M.init=function(el,opt){
   const sc=sun.shadow.camera; sc.left=-30; sc.right=30; sc.top=30; sc.bottom=-30;
   scene.add(sun);
   camDist=opt.dist||30; camEl=opt.el||.86; camAz=opt.az||Math.PI/4;
+  camVise=opt.vise!==undefined?opt.vise:1;   // hauteur visee par rapport au joueur
+  camLerp=opt.lerp||3.2;                     // vivacite du suivi
   camFocus.set(0,0,0); camWant.set(0,0,0);
   heroes.length=0;
   M.on=true; lastT=performance.now();
@@ -73,7 +78,23 @@ M.stop=function(){
   M.stick=null;
 };
 M.frame=function(cb){ frameCb=cb; };
+/* convertit le joystick en direction MONDE relative a la camera :
+   pousser vers le haut envoie toujours le heros vers le fond de l'ecran,
+   quel que soit l'angle de vue. */
+M.dir=function(sx,sy){
+  const c=Math.cos(camAz), s2=Math.sin(camAz);
+  return {x:sx*c+sy*s2, z:-sx*s2+sy*c};
+};
 M.look=function(x,z,snap,y){ camWant.set(x,y||0,z); if(snap) camFocus.copy(camWant); };
+/* recadrage en cours de jeu : distance, hauteur d'oeil, point vise, vivacite */
+M.cadre=function(o){
+  if(!o) return;
+  if(o.dist!==undefined) camDist=o.dist;
+  if(o.el!==undefined) camEl=o.el;
+  if(o.az!==undefined) camAz=o.az;
+  if(o.vise!==undefined) camVise=o.vise;
+  if(o.lerp!==undefined) camLerp=o.lerp;
+};
 M.setAz=function(a){ camAz=a; };
 
 /* ---------- sol : plateforme circulaire du thème + liseré lumineux + bord voxel ---------- */
@@ -285,12 +306,77 @@ function loop(){
   });
   if(frameCb){ try{ frameCb(dt,t); }catch(e){} }
   if(!M.on||!ren||!cam) return; // le mini-jeu vient de se terminer (MG3D.stop dans la frame)
-  camFocus.lerp(camWant,Math.min(1,dt*3.2));
+  camFocus.lerp(camWant,Math.min(1,dt*camLerp));
   cam.position.set(camFocus.x+Math.sin(camAz)*camDist*Math.cos(camEl),
                    camFocus.y+camDist*Math.sin(camEl),
                    camFocus.z+Math.cos(camAz)*camDist*Math.cos(camEl));
-  cam.lookAt(camFocus.x,camFocus.y+1,camFocus.z);
+  cam.lookAt(camFocus.x,camFocus.y+camVise,camFocus.z);
   const W=areaEl.clientWidth,H2=areaEl.clientHeight;
-  if(W&&H2&&(cam.aspect!==W/H2)){ cam.aspect=W/H2; cam.updateProjectionMatrix(); ren.setSize(W,H2,false); }
+  if(W&&H2&&(cam.aspect!==W/H2)){
+    cam.aspect=W/H2;
+    const r=W/H2;
+    cam.fov=fovBase*(r>1.9?1.16:r>1.4?1.06:r<.9?1.22:1);  // arene large : on ouvre pour ne pas rogner
+    cam.updateProjectionMatrix();
+    ren.setSize(W,H2,false);
+  }
   ren.render(scene,cam);
 }
+
+/* ---------- portrait 3D tournant (écran de création : héros ET costumes) ----------
+   Les héros de base ont une photo de studio ; les costumes n'en ont pas.
+   On rend donc leur modèle en direct, dans une petite vignette qui tourne. */
+let pRen=null,pScn=null,pCam=null,pRaf=null,pMix=null,pGrp=null,pLast=0,pId=null;
+M.portraitOff=function(){
+  if(pRaf) cancelAnimationFrame(pRaf);
+  pRaf=null; pMix=null; pGrp=null; pId=null;
+  if(pRen){
+    try{ if(pRen.domElement.parentNode) pRen.domElement.parentNode.removeChild(pRen.domElement); }catch(e){}
+    try{ pRen.dispose(); }catch(e){}
+  }
+  pRen=null; pScn=null; pCam=null;
+};
+M.portrait=function(el,id,taille){
+  if(!M.ok||!el||!id) return false;
+  if(pId===id&&pRen&&pRen.domElement.parentNode===el) return true;
+  M.portraitOff();
+  const S=taille||116;
+  pId=id;
+  pScn=new THREE.Scene();
+  pCam=new THREE.PerspectiveCamera(32,1,.1,60);
+  pRen=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  pRen.setPixelRatio(Math.min(2,devicePixelRatio));
+  pRen.setSize(S,S,false);
+  pRen.domElement.style.cssText='width:'+S+'px;height:'+S+'px;display:block;'+
+    'filter:drop-shadow(0 8px 14px rgba(0,0,0,.5));';
+  el.appendChild(pRen.domElement);
+  pScn.add(new THREE.AmbientLight(0xBBAAE8,1.7));
+  const key=new THREE.DirectionalLight(0xFFF0DC,2.2); key.position.set(2.4,4,3); pScn.add(key);
+  const rim=new THREE.DirectionalLight(0xC9B8FF,1.1); rim.position.set(-3,2,-2); pScn.add(rim);
+  const grp=new THREE.Group(); pScn.add(grp); pGrp=grp;
+  loader.load('/art/hero3d-'+id+'-anim.glb',g=>{
+    if(pId!==id) return;                       // l'utilisateur a déjà changé de costume
+    const m=g.scene;
+    if(g.animations&&g.animations.length){
+      pMix=new THREE.AnimationMixer(m);
+      const idle=g.animations.find(a=>/idle|stand/i.test(a.name))||g.animations[0];
+      pMix.clipAction(idle).play();
+      pMix.update(.35);                        // on pose le modèle avant de le mesurer
+    }
+    M.fit(m,2);                                // même règle d'échelle que partout
+    grp.add(m);
+    const bb=new THREE.Box3().setFromObject(grp);
+    const c=bb.getCenter(new THREE.Vector3());
+    pCam.position.set(0,c.y+.15,3.9);   // recul : le personnage tient entier dans la vignette
+    pCam.lookAt(0,c.y-.05,0);
+  },undefined,()=>{ M.portraitOff(); });
+  pLast=performance.now();
+  (function tour(){
+    pRaf=requestAnimationFrame(tour);
+    if(!pRen||!pRen.domElement.isConnected){ M.portraitOff(); return; }
+    const t=performance.now(), dt=Math.min(.05,(t-pLast)/1000); pLast=t;
+    if(pMix) pMix.update(dt);
+    if(pGrp) pGrp.rotation.y+=dt*.75;
+    pRen.render(pScn,pCam);
+  })();
+  return true;
+};

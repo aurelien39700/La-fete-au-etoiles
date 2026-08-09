@@ -5,7 +5,13 @@ const rnd=n=>Math.floor(Math.random()*n);
 let toastT;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
-function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); }
+function show(id){
+  // on libère le portrait 3D dès qu'on quitte l'écran de création
+  if(id!=='scr-home'&&window.MG3D&&MG3D.portraitOff) MG3D.portraitOff();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  $(id).classList.add('on');
+  window.scrollTo(0,0);
+}
 
 const S={
   async get(k,sh=false){
