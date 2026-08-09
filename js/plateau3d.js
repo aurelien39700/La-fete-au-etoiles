@@ -1066,6 +1066,11 @@ B3D.render=function(){
       const key=p.name+'|'+p.color;
       if(po.labKey!==key){ po.labKey=key; po.label.material.map=nomTex(p.name,p.color); po.label.material.needsUpdate=true; }
       po.label.material.opacity=p.gone?.35:1;
+      // plusieurs joueurs sur la même case : les étiquettes s'empilent au lieu
+      // de se recouvrir (la plus haute au joueur dont c'est le tour)
+      const rang=here.findIndex(q=>q.id===p.id);
+      po.label.position.y=HERO_H*2.2+1.55+(here.length-1-rang)*1.35;
+      po.label.renderOrder=6+(here.length-1-rang);
     }
   });
   for(const id in B3D.pions) if(!seen[id]){ gPions.remove(B3D.pions[id].group); delete B3D.pions[id]; }
