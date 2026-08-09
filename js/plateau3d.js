@@ -47,10 +47,26 @@ window.B3D=B3D;
 
 /* panoramas 360° d'ambiance (fond de diorama, tourne avec la caméra) */
 const PANO={};
+const PANO_HZ={};   // couleur moyenne de la ligne d'horizon : le sol se fond dedans
+
+/* lit la bande centrale du panorama = ce que l'oeil voit pile a l'horizon */
+function teinteHorizon(img){
+  try{
+    const c=document.createElement('canvas'); c.width=64; c.height=32;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.drawImage(img,0,0,64,32);
+    const d=x.getImageData(0,15,64,3).data;
+    let r=0,v=0,b=0,n=0;
+    for(let i=0;i<d.length;i+=4){ r+=d[i]; v+=d[i+1]; b+=d[i+2]; n++; }
+    return (Math.round(r/n)<<16)|(Math.round(v/n)<<8)|Math.round(b/n);
+  }catch(e){ return null; }
+}
+
 ['volcan','fete','spirale','archipel','temple'].forEach(k=>{
   new THREE.TextureLoader().load('/art/pano-'+k+'.jpg'+ART_V,t=>{
     t.mapping=THREE.EquirectangularReflectionMapping;
     t.colorSpace=THREE.SRGBColorSpace;
+    const hz=teinteHorizon(t.image); if(hz!=null) PANO_HZ[k]=hz;
     PANO[k]=t;
     B3D.built='';
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
@@ -209,8 +225,20 @@ function init(){
   loop();
   return true;
 }
+/* le cadre remplit tout l'espace entre les cartes joueurs et la barre de dé,
+   pour qu'on suive la partie sans jamais scroller */
+function hauteurCadre(){
+  const l=Math.max(320,wrap.clientWidth);
+  const hud=document.getElementById('hud');
+  const dz=document.getElementById('diceZone');
+  const haut=hud?hud.getBoundingClientRect().height+20:130;
+  const bas=dz?Math.max(86,dz.getBoundingClientRect().height+8):104;
+  const ratio=l<720?1.25:.82;   // tel : cadre plus haut que large / desktop : cinemascope
+  return Math.round(Math.max(340,Math.min(innerHeight-haut-bas,l*ratio)));
+}
 function sizeToWrap(){
   if(!wrap||!canvas.parentNode) return;
+  wrap.style.height=hauteurCadre()+'px';
   const w=wrap.clientWidth, h=wrap.clientHeight||1;
   renderer.setSize(w,h,false);
   cam.aspect=w/Math.max(1,h);
@@ -246,11 +274,13 @@ function build(){
     const geoC=new THREE.SphereGeometry(420,40,26);
     geoC.scale(-1,1,1);
     const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false,color:0xFFFFFF,toneMapped:false}));
-    ciel.position.set(CENTER.x,-95,CENTER.z); // voute basse : le paysage descend jusque derriere le terrain
+    ciel.position.set(CENTER.x,-3.2,CENTER.z); // horizon de la voute pile sur le sol
     B3D.ciel=ciel;
     scene.add(ciel);
   }
-  scene.fog=new THREE.Fog(amb2.sky,150,420);
+  // la brume prend la teinte exacte de l'horizon du panorama : le sol s'y fond
+  // sans bande sombre ni bord visible
+  scene.fog=new THREE.Fog(PANO_HZ[room.mapId]!=null?PANO_HZ[room.mapId]:amb2.sky,95,255);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
   // emprise de la carte → centre caméra + cadrage
@@ -358,11 +388,22 @@ function build(){
   // ----- ROUTES : ruban de pierre continu + flux lumineux qui s'écoule -----
   buildRoutes(gStatic,nodes,pal);
   // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(300,300),
-    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.22,roughness:.9,map:tex||null}));
+  // reste EN DECA du rayon de la voute (420) : sinon le plan la traverse et
+  // les deux surfaces se disputent la profondeur → scintillement a l'horizon
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(700,700),
+    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.16,roughness:.9,map:tex||null}));
   sea.rotation.x=-Math.PI/2;
   sea.position.set(CENTER.x,-3.2,CENTER.z); // au ras du socle : aucun trou entre l'ile et l'horizon
-  if(tex){ const t2=tex.clone(); t2.wrapS=t2.wrapT=THREE.RepeatWrapping; t2.repeat.set(60,60); t2.needsUpdate=true; sea.material.map=t2; }
+  if(tex){
+    const t2=tex.clone();
+    t2.wrapS=t2.wrapT=THREE.RepeatWrapping;
+    t2.repeat.set(34,34);                       // dalles plus larges : moins de moire au loin
+    t2.anisotropy=renderer?renderer.capabilities.getMaxAnisotropy():8;
+    t2.minFilter=THREE.LinearMipmapLinearFilter;
+    t2.generateMipmaps=true;
+    t2.needsUpdate=true;
+    sea.material.map=t2;
+  }
   B3D.seaMat=sea.material;
   gStatic.add(sea);
   // ----- cascades voxel sur le bord de l'île (flux qui tombe en boucle) -----
@@ -939,7 +980,7 @@ function loop(){
   }
   if(B3D.soleil){ B3D.soleil.rotation.z=t*.0009; B3D.soleil.material.emissiveIntensity=.7+Math.sin(t*.0026)*.3; }
   if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
-  if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-95,cam.position.z);
+  if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-3.2,cam.position.z);
   if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
@@ -1062,7 +1103,7 @@ B3D.render=function(){
   if(!room||!room.board) return false;
   if(!canvas.parentNode||wrap.firstChild!==canvas){
     wrap.innerHTML='';
-    wrap.style.height=Math.max(340,Math.min(innerHeight*.72,wrap.clientWidth*1.05))+'px';
+    wrap.style.height=hauteurCadre()+'px';
     wrap.style.position='relative';
     wrap.appendChild(canvas);
     // bascule suivi 🎯 / vue d'ensemble 🗺️
