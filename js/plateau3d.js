@@ -147,18 +147,18 @@ function badgeTex(txt,bg,fg){
 function nomTex(nom,couleur){
   const k='n'+nom+couleur;
   if(texCache[k]) return texCache[k];
-  const c=document.createElement('canvas'); c.width=256; c.height=72;
+  const c=document.createElement('canvas'); c.width=384; c.height=108;
   const g=c.getContext('2d');
   const txt=(nom||'?').slice(0,12);
-  g.font='800 34px "Baloo 2", sans-serif';
-  const w=Math.min(248,g.measureText(txt).width+34), x=(256-w)/2;
+  g.font='800 52px "Baloo 2", sans-serif';
+  const w=Math.min(372,g.measureText(txt).width+48), x=(384-w)/2;
   // pastille sombre + liseré à la couleur du joueur : lisible sur n'importe quel décor
   g.fillStyle='rgba(16,10,38,.82)';
-  g.beginPath(); g.roundRect(x,10,w,44,22); g.fill();
-  g.lineWidth=4; g.strokeStyle=couleur||'#FFD644'; g.stroke();
-  g.font='800 34px "Baloo 2", sans-serif';
+  g.beginPath(); g.roundRect(x,14,w,68,34); g.fill();
+  g.lineWidth=6; g.strokeStyle=couleur||'#FFD644'; g.stroke();
+  g.font='800 52px "Baloo 2", sans-serif';
   g.textAlign='center'; g.textBaseline='middle';
-  g.fillStyle='#FFF7FF'; g.fillText(txt,128,33);
+  g.fillStyle='#FFF7FF'; g.fillText(txt,192,50);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
   texCache[k]=t;
   return t;
@@ -819,8 +819,8 @@ function ensurePion(p){
   // étiquette flottante : on sait toujours QUI est QUI
   const lab=new THREE.Sprite(new THREE.SpriteMaterial({map:nomTex(p.name,p.color),
     transparent:true,depthWrite:false,depthTest:false}));
-  lab.scale.set(3.5,.98,1);
-  lab.position.y=HERO_H*2.2+1.15;
+  lab.scale.set(5.4,1.5,1);
+  lab.position.y=HERO_H*2.2+1.55;
   lab.renderOrder=6;
   group.add(lab);
   po.label=lab; po.labKey=p.name+'|'+p.color;
