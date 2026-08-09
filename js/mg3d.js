@@ -22,7 +22,7 @@ try{
 function tex(theme){
   const k=theme||'fete';
   if(!TEX[k]){
-    TEX[k]=texL.load('/art/voxtex-'+k+'.jpg');
+    TEX[k]=texL.load('/art/voxtex-'+k+'.jpg?v=3');
     TEX[k].wrapS=TEX[k].wrapT=THREE.RepeatWrapping;
     TEX[k].colorSpace=THREE.SRGBColorSpace;
     TEX[k].repeat.set(.5,.5);

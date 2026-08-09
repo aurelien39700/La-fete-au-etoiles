@@ -41,13 +41,14 @@ const AMBIANCE={
   temple:  {sky:0x0C1A14,sun:0xE8F0C0,amb:0x6A8A70,sea:0x123020,seaGlow:0x4FB07A}
 };
 
+const ART_V='?v=3';  // version des images : force le navigateur a reprendre les neuves
 const B3D={ready:false,ok:false,built:'',pions:{},focusId:null};
 window.B3D=B3D;
 
 /* panoramas 360° d'ambiance (fond de diorama, tourne avec la caméra) */
 const PANO={};
 ['volcan','fete','spirale','archipel','temple'].forEach(k=>{
-  new THREE.TextureLoader().load('/art/pano-'+k+'.jpg',t=>{
+  new THREE.TextureLoader().load('/art/pano-'+k+'.jpg'+ART_V,t=>{
     t.mapping=THREE.EquirectangularReflectionMapping;
     t.colorSpace=THREE.SRGBColorSpace;
     PANO[k]=t;
@@ -58,7 +59,7 @@ const PANO={};
 /* textures Meshy plaquées sur les blocs du socle (une par thème de carte) */
 const VOXTEX={};
 ['volcan','fete','spirale','archipel','temple'].forEach(k=>{
-  new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg',t=>{
+  new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg'+ART_V,t=>{
     t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
     t.repeat.set(1,1); // un bloc = un motif COMPLET : la matiere se lit
@@ -244,12 +245,12 @@ function build(){
     pano.mapping=THREE.EquirectangularReflectionMapping;
     const geoC=new THREE.SphereGeometry(420,40,26);
     geoC.scale(-1,1,1);
-    const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false}));
+    const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false,color:0xFFFFFF,toneMapped:false}));
     ciel.position.set(CENTER.x,26,CENTER.z); // l'horizon du panorama arrive a hauteur du regard
     B3D.ciel=ciel;
     scene.add(ciel);
   }
-  scene.fog=new THREE.Fog(amb2.sky,120,330);
+  scene.fog=new THREE.Fog(amb2.sky,150,420);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
   // emprise de la carte → centre caméra + cadrage
@@ -260,7 +261,7 @@ function build(){
   BOUNDS={minX,maxX,minZ,maxZ};
   // ----- socle voxel (damier, bord grignoté, cubes lumineux du thème) -----
   const CELL=2.05;
-  const MARGE=26; // large plateforme autour du parcours : fini l'ilot etriqué
+  const MARGE=54; // tres large plateforme : le parcours vit sur un vrai continent
   const NX=Math.ceil((maxX-minX+MARGE)/CELL), NZ=Math.ceil((maxZ-minZ+MARGE)/CELL);
   const g1=new THREE.BoxGeometry(CELL,1,CELL);
   const tex=VOXTEX[room.mapId];
@@ -521,13 +522,15 @@ function buildProps(g,mapId,pal){
     const volc=new THREE.Group();
     const cone=new THREE.Mesh(new THREE.ConeGeometry(4.4,5,9),dark);
     cone.position.y=2.5; cone.castShadow=true; volc.add(cone);
+    const socleV=new THREE.Mesh(new THREE.CylinderGeometry(5.6,7.4,2.4,9),dark);
+    socleV.position.y=-1; socleV.receiveShadow=true; volc.add(socleV); // il repose sur la roche
     const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.9,1,9),
       new THREE.MeshStandardMaterial({color:0xFF7A22,emissive:0xFF5A10,emissiveIntensity:2,flatShading:true}));
     crater.position.y=4.8; volc.add(crater);
     B3D.crater=crater;
     const p0=toW({x:205,y:280,h:0});
     const p=ancre(p0.x,p0.z,6.2);   // le volcan ne mord sur aucune case
-    volc.position.set(p.x,3.9,p.z);
+    volc.position.set(p.x,0,p.z); // pose au sol : plus de levitation
     g.add(volc);
     for(let i=0;i<3;i++){
       const puff=new THREE.Mesh(new THREE.SphereGeometry(1+i*.26,7,6),
@@ -935,6 +938,7 @@ function loop(){
   }
   if(B3D.soleil){ B3D.soleil.rotation.z=t*.0009; B3D.soleil.material.emissiveIntensity=.7+Math.sin(t*.0026)*.3; }
   if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
+  if(B3D.ciel) B3D.ciel.position.set(cam.position.x,26,cam.position.z);
   if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
@@ -1041,13 +1045,13 @@ function loop(){
   FOCUS.lerp(focusTarget,Math.min(1,dt*2.6));
   const vWant=B3D.overview?vFull:vClose;
   vCur+=(vWant-vCur)*Math.min(1,dt*2.6);
-  const elWant=B3D.overview?1.02:.64;
+  const elWant=B3D.overview?.92:.44;
   elCur+=(elWant-elCur)*Math.min(1,dt*2.6);
   const az=(B3D.overview?azim:azimAuto+azim)+Math.sin(t*.00008)*.02;
   cam.position.set(FOCUS.x+Math.sin(az)*vCur*Math.cos(elCur),
                    Math.max(2.5,vCur*Math.sin(elCur)),
                    FOCUS.z+Math.cos(az)*vCur*Math.cos(elCur));
-  cam.lookAt(FOCUS.x,B3D.overview?1.2:TILE*.9,FOCUS.z);
+  cam.lookAt(FOCUS.x,B3D.overview?2.5:TILE*3.1,FOCUS.z); // on regarde vers l'HORIZON, pas le sol
   renderer.render(scene,cam);
 }
 
@@ -1057,7 +1061,7 @@ B3D.render=function(){
   if(!room||!room.board) return false;
   if(!canvas.parentNode||wrap.firstChild!==canvas){
     wrap.innerHTML='';
-    wrap.style.height=Math.min(innerHeight*.86,wrap.clientWidth*1.72)+'px';
+    wrap.style.height=Math.max(340,Math.min(innerHeight*.72,wrap.clientWidth*1.05))+'px';
     wrap.style.position='relative';
     wrap.appendChild(canvas);
     // bascule suivi 🎯 / vue d'ensemble 🗺️
@@ -1154,6 +1158,37 @@ B3D.render=function(){
   amb.intensity=1.85-prog*.25;
   return true;
 };
+
+/* ---------- carrefours : balises 3D geantes au-dessus des routes possibles ---------- */
+B3D.routes=function(list){
+  B3D.routesOff();
+  if(!scene) return;
+  const g=new THREE.Group();
+  list.forEach(o=>{
+    const w=toW(o.node);
+    const col=new THREE.Color(o.col);
+    // colonne de lumiere coloree : on voit la route depuis n'importe ou
+    const ray=new THREE.Mesh(new THREE.CylinderGeometry(TILE*.62,TILE*.62,9,12,1,true),
+      new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.30,side:THREE.DoubleSide,depthWrite:false}));
+    ray.position.set(w.x,w.y+4.6,w.z);
+    g.add(ray);
+    // anneau au sol
+    const an=new THREE.Mesh(new THREE.TorusGeometry(TILE*.72,.16,6,26),
+      new THREE.MeshBasicMaterial({color:col}));
+    an.rotation.x=Math.PI/2; an.position.set(w.x,w.y+.82,w.z);
+    g.add(an);
+    // gros numero flottant
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:badgeTex(String(o.num),'#'+col.getHexString(),'#1a1030'),
+      transparent:true,depthWrite:false,depthTest:false}));
+    sp.scale.set(3.4,3.4,1);
+    sp.position.set(w.x,w.y+7.2,w.z);
+    sp.renderOrder=9;
+    g.add(sp);
+  });
+  B3D.gJonc=g;
+  scene.add(g);
+};
+B3D.routesOff=function(){ if(B3D.gJonc&&scene){ scene.remove(B3D.gJonc); B3D.gJonc=null; } };
 B3D.detach=function(){
   if(canvas&&canvas.parentNode) canvas.parentNode.removeChild(canvas);
 };

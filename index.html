@@ -29,6 +29,8 @@ body{
 }
 h1,h2,.titan{font-family:'Titan One',cursive; letter-spacing:.5px; font-weight:400;}
 .screen{display:none; min-height:100vh; padding:20px 16px 40px; max-width:480px; margin:0 auto;}
+/* le plateau a droit a toute la place disponible */
+#scr-board{max-width:980px; padding-left:10px; padding-right:10px;}
 .screen.on{display:block; animation:scrIn .28s ease-out;}
 @keyframes scrIn{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
 .center{text-align:center;}
@@ -307,7 +309,7 @@ input[type=text]:focus{border-color:var(--menthe);}
   font-size:13px; font-weight:700; line-height:1.35; text-shadow:0 1px 3px rgba(0,0,0,.8);}
 .log div{opacity:.85;}
 .log div:last-child{opacity:1; color:var(--etoile);}
-#diceZone{position:sticky; bottom:0; z-index:5; padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
+#diceZone{position:relative; z-index:5; padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px));
   background:linear-gradient(transparent,rgba(20,12,50,.92) 30%); border-radius:20px 20px 0 0;}
 #diceZone .dice{margin:0;}
 .ovl{position:fixed; inset:0; background:rgba(14,8,40,.74); z-index:60;

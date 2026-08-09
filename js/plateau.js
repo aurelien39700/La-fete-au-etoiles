@@ -898,12 +898,19 @@ async function nextPos(p){
       `<ellipse class="ringA jring" cx="${t.x}" cy="${t.y}" rx="34" ry="22" fill="none" stroke="${cols[k%3]}" stroke-width="4"/>`+
       `<text class="jring" x="${t.x}" y="${t.y-26}" text-anchor="middle" font-size="16" font-weight="800" fill="${cols[k%3]}" style="text-shadow:0 1px 2px #000;">${k+1}</text>`);
   });
-  const v=await ask({title:'🧭 CARREFOUR !',text:p.name+', choisis ta route (regarde le plateau ☝️)',sheet:true,
+  // en 3D : balises geantes numerotees et colorees au-dessus des routes
+  const puces=['🟢','🔴','🟡'];
+  if(window.B3D&&B3D.ok&&B3D.routes)
+    B3D.routes(nxt.map((j,k)=>({node:room.board[j],col:cols[k%3],num:k+1})));
+  const v=await ask({title:'🧭 QUELLE ROUTE ?',
+    text:p.name+' — regarde les colonnes de lumière sur le plateau ☝️',sheet:true,
     options:nxt.map((j,k)=>({
-      label:(k+1)+' — '+(labels[k]||('Chemin '+(k+1))),
+      label:'<span style="font-size:22px;">'+puces[k%3]+'</span> <b style="font-size:19px;">ROUTE '+(k+1)+'</b>'+
+        '<br><span style="font-size:14px;font-weight:700;">'+(labels[k]||('Chemin '+(k+1)))+'</span>',
       value:j, cls:k===0?'menthe':'rose'
     }))});
   document.querySelectorAll('.jring').forEach(e=>e.remove());
+  if(window.B3D&&B3D.routesOff) B3D.routesOff();
   return v??nxt[0];
 }
 
