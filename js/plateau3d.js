@@ -267,7 +267,7 @@ function build(){
       }
       el.position.set(p.x,p.y+.72,p.z);
       // tout tourne : vite pour pièces/étoiles, doucement pour le reste
-      el.userData={ph:i*.9,y0:p.y+.72,spin:true,
+      el.userData={ph:i*.9,y0:p.y+.72,spin:true,s0:el.scale.x,
         sv:(active||n.t==='blue'||n.t==='starT')?.0024:.0008};
       bobs.push(el);
       gStatic.add(el);
@@ -278,7 +278,7 @@ function build(){
         const s=new THREE.Sprite(new THREE.SpriteMaterial({map:emojiTex(ICO[elKey]),transparent:true,depthWrite:false}));
         s.scale.set(1.4,1.4,1);
         s.position.set(p.x,p.y+1.35,p.z);
-        s.userData={ph:i*.9,y0:p.y+1.35};
+        s.userData={ph:i*.9,y0:p.y+1.35,s0:1.4};
         bobs.push(s);
         gStatic.add(s);
       }
@@ -557,9 +557,21 @@ function loop(){
   const t=performance.now(), dt=Math.min(.06,(t-lastT)/1000); lastT=t;
   // vie des dalles
   rims.forEach(r=>{ r.material.emissiveIntensity=r.userData.base+Math.sin(t*.0026+r.userData.ph)*.2; });
+  // les éléments de cases s'effacent SOUS les pions (et à leur passage), reviennent après
+  const pionsSur=[];
+  for(const id in B3D.pions){ const po=B3D.pions[id]; if(po.group.visible) pionsSur.push(po.cur); }
   bobs.forEach(b=>{
     b.position.y=b.userData.y0+Math.sin(t*.0021+b.userData.ph)*.15;
     if(b.userData.spin) b.rotation.y=t*(b.userData.sv||.0018)+b.userData.ph; // tout TOURNE
+    const s0=b.userData.s0||1;
+    let occ=false;
+    for(const pp of pionsSur){
+      const dx=pp.x-b.position.x, dz=pp.z-b.position.z;
+      if(dx*dx+dz*dz<2.1){ occ=true; break; } // un pion est sur cette dalle
+    }
+    const cible=occ?0.001:s0;
+    const k=occ?Math.min(1,dt*11):Math.min(1,dt*5); // se rétracte vite, repope en douceur
+    b.scale.setScalar(b.scale.x+(cible-b.scale.x)*k);
   });
   if(B3D.crater) B3D.crater.material.emissiveIntensity=1.6+Math.sin(t*.004)*.5;
   if(B3D.vortex) B3D.vortex.rotation.z=t*.0011;
