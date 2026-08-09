@@ -73,7 +73,7 @@ M.stop=function(){
   M.stick=null;
 };
 M.frame=function(cb){ frameCb=cb; };
-M.look=function(x,z,snap){ camWant.set(x,0,z); if(snap) camFocus.copy(camWant); };
+M.look=function(x,z,snap,y){ camWant.set(x,y||0,z); if(snap) camFocus.copy(camWant); };
 M.setAz=function(a){ camAz=a; };
 
 /* ---------- sol : plateforme circulaire du thème + liseré lumineux + bord voxel ---------- */
@@ -287,9 +287,9 @@ function loop(){
   if(!M.on||!ren||!cam) return; // le mini-jeu vient de se terminer (MG3D.stop dans la frame)
   camFocus.lerp(camWant,Math.min(1,dt*3.2));
   cam.position.set(camFocus.x+Math.sin(camAz)*camDist*Math.cos(camEl),
-                   camDist*Math.sin(camEl),
+                   camFocus.y+camDist*Math.sin(camEl),
                    camFocus.z+Math.cos(camAz)*camDist*Math.cos(camEl));
-  cam.lookAt(camFocus.x,1,camFocus.z);
+  cam.lookAt(camFocus.x,camFocus.y+1,camFocus.z);
   const W=areaEl.clientWidth,H2=areaEl.clientHeight;
   if(W&&H2&&(cam.aspect!==W/H2)){ cam.aspect=W/H2; cam.updateProjectionMatrix(); ren.setSize(W,H2,false); }
   ren.render(scene,cam);

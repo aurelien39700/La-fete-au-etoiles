@@ -47,7 +47,17 @@ const MG_INFO=[
   {name:'Sprint des Étoiles 3D',desc:'EN 3D & EN DIRECT 🏁 : vos héros courent côte à côte ! Tape GAUCHE-DROITE en alternance, premier aux 100 m.',rt:true,d3:true},
   {name:'Roi de la Colline 3D',desc:'EN 3D & EN DIRECT 👑 : tiens la colline dorée TOUT SEUL pour marquer — et pousse les autres en bas ! 30 s.',rt:true,d3:true},
   {name:'Dalles Fantômes 3D',desc:'EN 3D & EN DIRECT 👻 : les dalles rougissent puis s\'effondrent sous tes pieds — reste debout le plus longtemps ! 35 s.',rt:true,d3:true},
-  {name:'Chasse aux Étoiles 3D',desc:'EN 3D & EN DIRECT ⭐ : les étoiles apparaissent dans l\'arène, fonce les rafler avant les autres ! 28 s.',rt:true,d3:true}
+  {name:'Chasse aux Étoiles 3D',desc:'EN 3D & EN DIRECT ⭐ : les étoiles apparaissent dans l\'arène, fonce les rafler avant les autres ! 28 s.',rt:true,d3:true},
+  {name:'La Tour Infinie',desc:'PLATEFORME 3D 🗼 : grimpe la spirale de plateformes le plus haut possible ! Glisse pour bouger, bouton ⤒ pour sauter. 42 s.',rt:true,d3:true},
+  {name:'Course d\'Obstacles',desc:'PLATEFORME 3D 🪵 : fonce jusqu\'au bout de la piste en sautant les rondins qui roulent. Le plus rapide gagne !',rt:true,d3:true},
+  {name:'Plateformes Fuyantes',desc:'PLATEFORME 3D 💨 : chaque dalle que tu touches s\'effrite et tombe. Ne t\'arrête jamais ! 40 s.',rt:true,d3:true},
+  {name:'Saut à la Corde',desc:'PLATEFORME 3D 🪢 : la poutre balaie l\'arène de plus en plus vite — saute par-dessus à chaque passage !',rt:true,d3:true},
+  {name:'Le Pont Cassé',desc:'PLATEFORME 3D 🌉 : traverse le pont ! Les planches fragiles lâchent sous tes pieds et il y a des trous à sauter.',rt:true,d3:true},
+  {name:'Trampolines',desc:'PLATEFORME 3D 🤸 : rebondis sur les coussins et gobe un maximum d\'étoiles en plein vol. 35 s.',rt:true,d3:true},
+  {name:'La Lave Monte',desc:'PLATEFORME 3D 🌋 : la lave monte sans arrêt, grimpe de plateforme en plateforme pour rester au-dessus !',rt:true,d3:true},
+  {name:'Chute Libre',desc:'PLATEFORME 3D 🪂 : tu plonges dans le puits ! Dirige-toi pour passer par les trous des anneaux. 32 s.',rt:true,d3:true},
+  {name:'Escalier Roulant',desc:'PLATEFORME 3D 🪜 : l\'escalier descend sous tes pieds, monte sans arrêt pour ne pas tomber !',rt:true,d3:true},
+  {name:'Attrape-Drapeau',desc:'PLATEFORME 3D 🚩 : escalade la tour de plateformes tournantes et attrape le drapeau au sommet !',rt:true,d3:true}
 ];
 const MG_COUNT=MG_INFO.length;
 /* ---------- choix des mini-jeux : on coche ce qu'on veut voir sortir ---------- */
@@ -253,7 +263,8 @@ function startMiniGame(){
     mgComets,mgInvasion,mgSniper,mgSprint,mgCatch,mgCannon,mgFuse,mgChimp,mgOdd,mgShell,mgFlappy,mgRhythm,mgLander,mgBattle,
     mgRaceLive,mgStarRush,mgFlag,mgSlice,mgBalloon,mgPairs,mgMines,
     mgTurret,mgGuard,mgTiles,mgSumo,mgHill,mgFrog,mgPaint,mgLava,mgSiege,
-    mgCoins3D,mgSumo3D,mgRun3D,mgHill3D,mgTiles3D,mgStars3D];
+    mgCoins3D,mgSumo3D,mgRun3D,mgHill3D,mgTiles3D,mgStars3D,
+    mgTour3D,mgObst3D,mgFuite3D,mgCorde3D,mgPont3D,mgTrampo3D,mgMontee3D,mgChute3D,mgEscalier3D,mgDrapeau3D];
   (games[type]||mgTapo)(area);
 }
 

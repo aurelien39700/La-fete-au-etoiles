@@ -31,6 +31,7 @@ h1,h2,.titan{font-family:'Titan One',cursive; letter-spacing:.5px; font-weight:4
 .screen{display:none; min-height:100vh; padding:20px 16px 40px; max-width:480px; margin:0 auto;}
 /* le plateau a droit a toute la place disponible */
 #scr-board{max-width:1340px; padding:12px 10px 0;}
+#scr-mg{max-width:1180px; padding:10px 10px 24px;}
 .screen.on{display:block; animation:scrIn .28s ease-out;}
 @keyframes scrIn{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
 .center{text-align:center;}
@@ -237,7 +238,7 @@ input[type=text]:focus{border-color:var(--menthe);}
 /* ---------- mini-jeux ---------- */
 .mg-title{font-size:26px; margin:16px 0 4px; color:var(--etoile);}
 .mg-area{
-  position:relative; height:320px; margin:16px 0; border-radius:24px;
+  position:relative; height:min(62vh,560px); min-height:320px; margin:14px 0; border-radius:24px;
   background:
     radial-gradient(280px 190px at 82% 8%, rgba(142,124,255,.22), transparent 70%),
     radial-gradient(240px 170px at 8% 92%, rgba(255,95,162,.14), transparent 70%),
@@ -586,6 +587,7 @@ body.shake{animation:shake2 .32s;}
 <script src="/js/etat.js"></script>
 <script src="/js/plateau.js"></script>
 <script src="/js/minijeux.js"></script>
+<script src="/js/mg3d_platform.js"></script>
 <script src="/js/app.js"></script>
 <script type="importmap">{"imports":{"three":"/js/three.module.js"}}</script>
 <script type="module" src="/js/plateau3d.js"></script>
