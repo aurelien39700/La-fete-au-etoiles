@@ -197,7 +197,7 @@ wss.on('connection', (ws, req) => {
         return;
       }
       if (room.state.status !== 'lobby') { sendTo(ws, { t: 'error', msg: 'Cette partie a déjà commencé.' }); return; }
-      if (room.state.players.length >= 6) { sendTo(ws, { t: 'error', msg: 'Le salon est plein (6 max).' }); return; }
+      if (room.state.players.length >= 8) { sendTo(ws, { t: 'error', msg: 'Le salon est plein (8 max).' }); return; }
       room.clients.add(ws); ws.roomCode = code; ws.pid = m.player.id;
       room.state.players.push(m.player);
       room.state.log.push(m.player.name + ' rejoint la fête !');

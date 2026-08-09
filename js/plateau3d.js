@@ -28,14 +28,16 @@ const SOCLE={
   volcan:  {a:0x241B44,b:0x2B2152,glow:0xFF5A18,glowC:0xFF6A22},
   fete:    {a:0x2A1C50,b:0x33235E,glow:0xFFB400,glowC:0xFFD644},
   spirale: {a:0x201847,b:0x281E54,glow:0xC96BB8,glowC:0xF09BD8},
-  archipel:{a:0x232045,b:0x2A2650,glow:0x18B89A,glowC:0x3EE6C1}
+  archipel:{a:0x232045,b:0x2A2650,glow:0x18B89A,glowC:0x3EE6C1},
+  temple:  {a:0x1E2E24,b:0x25382C,glow:0xE0B24E,glowC:0xF2D98C}
 };
 /* ambiance complète par carte : ciel, brume, lumières, océan sous l'île */
 const AMBIANCE={
   volcan:  {sky:0x190F28,sun:0xFFC9A0,amb:0x8A6A90,sea:0x3A1006,seaGlow:0xFF5A18},
   fete:    {sky:0x171030,sun:0xFFE2C4,amb:0x8A78C8,sea:0x1E1442,seaGlow:0xFFD644},
   spirale: {sky:0x120C2C,sun:0xEDC6FF,amb:0x7A68B8,sea:0x160F3C,seaGlow:0xC96BB8},
-  archipel:{sky:0x0E1A32,sun:0xCFE6FF,amb:0x5C7AAA,sea:0x0A3448,seaGlow:0x3EE6C1}
+  archipel:{sky:0x0E1A32,sun:0xCFE6FF,amb:0x5C7AAA,sea:0x0A3448,seaGlow:0x3EE6C1},
+  temple:  {sky:0x0C1A14,sun:0xE8F0C0,amb:0x6A8A70,sea:0x123020,seaGlow:0x4FB07A}
 };
 
 const B3D={ready:false,ok:false,built:'',pions:{},focusId:null};
@@ -43,7 +45,7 @@ window.B3D=B3D;
 
 /* panoramas 360° d'ambiance (fond de diorama, tourne avec la caméra) */
 const PANO={};
-['volcan','fete','spirale','archipel'].forEach(k=>{
+['volcan','fete','spirale','archipel','temple'].forEach(k=>{
   new THREE.TextureLoader().load('/art/pano-'+k+'.jpg',t=>{
     t.mapping=THREE.EquirectangularReflectionMapping;
     t.colorSpace=THREE.SRGBColorSpace;
@@ -54,11 +56,11 @@ const PANO={};
 });
 /* textures Meshy plaquées sur les blocs du socle (une par thème de carte) */
 const VOXTEX={};
-['volcan','fete','spirale','archipel'].forEach(k=>{
+['volcan','fete','spirale','archipel','temple'].forEach(k=>{
   new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg',t=>{
     t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
-    t.repeat.set(.34,.34); // motif très zoomé : chaque bloc montre un GROS détail lisible
+    t.repeat.set(.5,.5); // un bloc = un fragment lisible de la matière
     VOXTEX[k]=t;
     B3D.built=''; // reconstruire avec la matière dès qu'elle arrive
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
@@ -157,8 +159,8 @@ function init(){
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   canvas=renderer.domElement;
   canvas.style.cssText='display:block;width:100%;height:100%;border-radius:18px;touch-action:pan-y;';
-  amb=new THREE.AmbientLight(0x8A78C8,1.15);
-  sun=new THREE.DirectionalLight(0xFFE2C4,1.55);
+  amb=new THREE.AmbientLight(0xB8A8E8,1.85);
+  sun=new THREE.DirectionalLight(0xFFF0DC,2.15);
   sun.position.set(26,42,14);
   sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
@@ -313,19 +315,43 @@ function build(){
       gStatic.add(s);
     }
   });
-  // ----- routes : pas japonais -----
-  const stepG=new THREE.BoxGeometry(STEP_W,.2,STEP_W);
-  const stepM=new THREE.MeshStandardMaterial({color:0x4A3C78,emissive:0x241A4E,emissiveIntensity:.7,roughness:.8});
+  // ----- routes : un vrai CHEMIN PAVÉ continu, bordé de lumière, fléché -----
+  const voieM=new THREE.MeshStandardMaterial({color:0x6A5AA0,roughness:.85,
+    map:VOXTEX[room.mapId]||null});
+  const bordM=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,
+    emissiveIntensity:.38,roughness:.5});
+  const flecheM=new THREE.MeshStandardMaterial({color:0xFFF3D0,emissive:0xFFD644,
+    emissiveIntensity:.85,roughness:.4});
+  const flecheG=new THREE.ConeGeometry(.24,.5,4);
   nodes.forEach(n=>n.next.forEach(j=>{
     const a=toW(n), b=toW(nodes[j]);
-    const d=a.distanceTo(b), steps=Math.max(2,Math.round(d/1.5));
-    for(let s=1;s<steps;s++){
-      const m=new THREE.Mesh(stepG,stepM);
-      m.position.lerpVectors(a,b,s/steps);
-      m.position.y+=.32;
-      m.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
-      m.receiveShadow=true; m.userData.shared=1;
-      gStatic.add(m);
+    const d=a.distanceTo(b);
+    if(d<.2) return;
+    const mid=new THREE.Vector3().lerpVectors(a,b,.5);
+    const ang=Math.atan2(b.x-a.x,b.z-a.z);
+    const pente=Math.atan2(b.y-a.y,Math.hypot(b.x-a.x,b.z-a.z));
+    // le tablier (une seule dalle allongée qui relie les deux cases)
+    const voie=new THREE.Mesh(new THREE.BoxGeometry(TILE*.52,.16,d),voieM);
+    voie.position.copy(mid); voie.position.y+=.26;
+    voie.rotation.y=ang; voie.rotation.x=-pente;
+    voie.receiveShadow=true;
+    gStatic.add(voie);
+    // deux liserés lumineux qui courent le long du chemin
+    [-1,1].forEach(c=>{
+      const b2=new THREE.Mesh(new THREE.BoxGeometry(.09,.12,d),bordM);
+      b2.position.copy(mid); b2.position.y+=.31;
+      b2.rotation.y=ang; b2.rotation.x=-pente;
+      b2.translateX(c*TILE*.27);
+      gStatic.add(b2);
+    });
+    // chevrons : le sens de circulation se lit d'un coup d'œil
+    const nb=Math.max(1,Math.round(d/4.2));
+    for(let s=0;s<nb;s++){
+      const t=(s+.5)/nb;
+      const f=new THREE.Mesh(flecheG,flecheM);
+      f.position.lerpVectors(a,b,t); f.position.y+=.44;
+      f.rotation.y=ang; f.rotation.x=Math.PI/2;
+      gStatic.add(f);
     }
   }));
   // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
@@ -378,7 +404,27 @@ function build(){
   lavaLight.intensity=room.mapId==='volcan'?46:14;
   sizeToWrap();
 }
+/* ---------- ancrage du décor : aucun prop ne doit chevaucher une case ----------
+   On cherche la position libre la plus proche de l'emplacement souhaité, et on
+   pose l'objet AU SOL (y=0) : le décor s'intègre au lieu de flotter dedans. */
+let NW=[]; // positions monde des cases (recalculées à chaque construction)
+function libre(x,z,r){
+  for(const p of NW){ const dx=p.x-x, dz=p.z-z; if(dx*dx+dz*dz<r*r) return false; }
+  return true;
+}
+function ancre(x,z,r){
+  if(libre(x,z,r)) return {x,z};
+  for(let ray=1;ray<=10;ray++){
+    for(let a=0;a<14;a++){
+      const ang=a/14*Math.PI*2+ray*.3;
+      const nx=x+Math.cos(ang)*ray*1.7, nz=z+Math.sin(ang)*ray*1.7;
+      if(libre(nx,nz,r)) return {x:nx,z:nz};
+    }
+  }
+  return {x,z};
+}
 function buildProps(g,mapId,pal){
+  NW=room.board.map(n=>toW(n));
   const dark=new THREE.MeshStandardMaterial({color:0x241B38,roughness:.95,flatShading:true});
   if(mapId==='volcan'){
     const volc=new THREE.Group();
@@ -388,7 +434,8 @@ function buildProps(g,mapId,pal){
       new THREE.MeshStandardMaterial({color:0xFF7A22,emissive:0xFF5A10,emissiveIntensity:2,flatShading:true}));
     crater.position.y=4.8; volc.add(crater);
     B3D.crater=crater;
-    const p=toW({x:205,y:280,h:0});
+    const p0=toW({x:205,y:280,h:0});
+    const p=ancre(p0.x,p0.z,6.2);   // le volcan ne mord sur aucune case
     volc.position.set(p.x,3.9,p.z);
     g.add(volc);
     for(let i=0;i<3;i++){
@@ -401,13 +448,15 @@ function buildProps(g,mapId,pal){
     // pics de basalte fumants autour de la caldera
     const rockM2=new THREE.MeshStandardMaterial({color:0x2E2248,roughness:1,flatShading:true});
     [[-7,-4],[7.5,-6],[-8,4],[8,6],[0,12]].forEach(([ox,oz],i)=>{
+      const q=ancre(p.x+ox,p.z+oz,2.4);
       const pic=new THREE.Mesh(new THREE.ConeGeometry(.9+(i%2)*.4,2.4+(i%3),5),rockM2);
-      pic.position.set(p.x+ox,1.1,p.z+oz);
+      pic.position.set(q.x,1.1,q.z);
       pic.castShadow=true;
       g.add(pic);
     });
   } else if(mapId==='fete'){
-    const p=toW({x:210,y:90,h:0});
+    const p0=toW({x:210,y:90,h:0});
+    const p=ancre(p0.x,p0.z,4.6);
     const tent=new THREE.Group();
     const base=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.9,1.9,10),
       new THREE.MeshStandardMaterial({color:0xE8455A,roughness:.8,flatShading:true}));
@@ -443,7 +492,8 @@ function buildProps(g,mapId,pal){
     const pied=new THREE.Mesh(new THREE.CylinderGeometry(.16,.3,4,5),dark);
     pied.position.y=-2;
     roue.add(pied);
-    const pr=toW({x:355,y:120,h:0});
+    const pr0=toW({x:355,y:120,h:0});
+    const pr=ancre(pr0.x,pr0.z,4.4);
     roue.position.set(pr.x,4.6,pr.z);
     roue.rotation.y=.6;
     roue.children.forEach(m=>m.castShadow=true);
@@ -488,7 +538,8 @@ function buildProps(g,mapId,pal){
         palm.add(leaf);
       }
       palm.children.forEach(m=>m.castShadow=true);
-      palm.position.set(pw.x+2.6,0,pw.z-1.2);
+      const q=ancre(pw.x+2.6,pw.z-1.2,2.2);
+      palm.position.set(q.x,0,q.z);
       g.add(palm);
     });
     // rochers du lagon qui émergent de l'eau autour de l'île
@@ -498,6 +549,59 @@ function buildProps(g,mapId,pal){
       const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(.9+(i%3)*.5),wet);
       rk.position.set(CENTER.x+Math.cos(ang)*21,-6.4,CENTER.z+Math.sin(ang)*26);
       g.add(rk);
+    }
+  } else if(mapId==='temple'){
+    // la PYRAMIDE à degrés qui monte au centre du plateau
+    const pierre=new THREE.MeshStandardMaterial({color:0x33513C,roughness:.95,flatShading:true});
+    const orM=new THREE.MeshStandardMaterial({color:0xE0B24E,emissive:0x6a4a10,emissiveIntensity:.9,roughness:.5,flatShading:true});
+    // les terrasses de cases FORMENT déjà la pyramide : au centre du sanctuaire
+    // on ne pose que l'autel et son disque solaire, calés sur l'altitude du sommet
+    const cxT=CENTER.x, czT=toW({x:215,y:366,h:0}).z;
+    const hSom=3*ETAGE;
+    const autel=new THREE.Mesh(new THREE.BoxGeometry(2,1.1,2),pierre);
+    autel.position.set(cxT,hSom+.55,czT);
+    autel.castShadow=autel.receiveShadow=true;
+    g.add(autel);
+    const soleil=new THREE.Mesh(new THREE.TorusGeometry(1.35,.22,6,18),orM);
+    soleil.position.set(cxT,hSom+2.6,czT);
+    soleil.rotation.x=.35;
+    B3D.soleil=soleil;
+    g.add(soleil);
+    const halo=new THREE.PointLight(0xE0B24E,20,14);
+    halo.position.set(cxT,hSom+3,czT);
+    g.add(halo);
+    // totems et torches autour du temple
+    const torche=new THREE.MeshStandardMaterial({color:0xFF9F45,emissive:0xFF7A22,emissiveIntensity:1.6});
+    B3D.torches=[];
+    [[-13,-9],[13,-9],[-13,10],[13,10],[0,-19],[0,20]].forEach(([ox,oz],i)=>{
+      const q=ancre(cxT+ox,czT+oz,2.3); // aucune torche plantée dans une case
+      const t2=new THREE.Group();
+      const mat=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,2.4,5),pierre);
+      mat.position.y=1.2; t2.add(mat);
+      const fl=new THREE.Mesh(new THREE.ConeGeometry(.42,.9,6),torche);
+      fl.position.y=2.75; t2.add(fl);
+      t2.position.set(q.x,0,q.z);
+      t2.children.forEach(m=>m.castShadow=true);
+      B3D.torches.push(fl);
+      g.add(t2);
+      const lum=new THREE.PointLight(0xFF9F45,9,10);
+      lum.position.set(q.x,3,q.z);
+      g.add(lum);
+    });
+    // totems de pierre plantés dans la jungle
+    for(let i=0;i<5;i++){
+      const ang=i/5*Math.PI*2+.5;
+      const q=ancre(cxT+Math.cos(ang)*17,czT+Math.sin(ang)*27,2.6);
+      const tot=new THREE.Group();
+      for(let b=0;b<3;b++){
+        const bloc=new THREE.Mesh(new THREE.BoxGeometry(1.1-b*.14,.9,1.1-b*.14),pierre);
+        bloc.position.y=.45+b*.9;
+        bloc.rotation.y=b*.4;
+        bloc.castShadow=true;
+        tot.add(bloc);
+      }
+      tot.position.set(q.x,0,q.z);
+      g.add(tot);
     }
   }
 }
@@ -578,6 +682,25 @@ function buildDiorama(g,mapId,pal){
       fil.rotation.z=-.7;
       fil.userData={type:'filante',ph:i*4.2,y:12+i*4,z:CENTER.z+(i-1)*16};
       B3D.amb3d.push(fil); g.add(fil);
+    }
+  } else if(mapId==='temple'){
+    // singes qui traversent la canopée + aras qui volent au-dessus de la jungle
+    const mSing=new THREE.MeshStandardMaterial({color:0x6B4A32,roughness:.95,flatShading:true});
+    for(let i=0;i<3;i++){
+      const s=new THREE.Group();
+      s.add(new THREE.Mesh(new THREE.SphereGeometry(.34,6,5),mSing));
+      const tete=new THREE.Mesh(new THREE.SphereGeometry(.22,6,5),mSing);
+      tete.position.y=.4; s.add(tete);
+      s.userData={type:'ile',ph:i*2.4,y0:5.5+i*1.6}; // ils flottent dans la canopée
+      s.position.set(CENTER.x+(i-1)*11,5.5+i*1.6,CENTER.z+(i%2?12:-13));
+      B3D.amb3d.push(s); g.add(s);
+    }
+    const mAra=new THREE.MeshStandardMaterial({color:0x3EE6C1,emissive:0x0E4A3C,emissiveIntensity:.6,flatShading:true});
+    for(let i=0;i<4;i++){
+      const ara=new THREE.Mesh(new THREE.ConeGeometry(.22,.8,4),mAra);
+      ara.rotation.z=Math.PI/2;
+      ara.userData={type:'luciole',ph:i*1.7,x:CENTER.x+(i-1.5)*9,z:CENTER.z+((i%3)-1)*16};
+      B3D.amb3d.push(ara); g.add(ara);
     }
   } else if(mapId==='archipel'){
     // lucioles menthe qui errent + poisson qui saute du lagon
@@ -716,6 +839,8 @@ function loop(){
       }
     });
   }
+  if(B3D.soleil){ B3D.soleil.rotation.z=t*.0009; B3D.soleil.material.emissiveIntensity=.7+Math.sin(t*.0026)*.3; }
+  if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
   // la faune et le diorama vivent
@@ -905,8 +1030,8 @@ B3D.render=function(){
   }
   // la nuit tombe au fil des tours
   const prog=(room.round-1)/Math.max(1,room.maxRounds-1);
-  sun.intensity=1.55-prog*.55;
-  amb.intensity=1.15-prog*.3;
+  sun.intensity=2.15-prog*.45;
+  amb.intensity=1.85-prog*.25;
   return true;
 };
 B3D.detach=function(){

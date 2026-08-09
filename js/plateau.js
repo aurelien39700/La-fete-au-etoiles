@@ -118,7 +118,8 @@ const WEATHER={
   fete:    {g:['✦','❋','·'], c:['#FFD644','#FF5FA2','#5AC8FA'], dir:'down', dur:[4200,6800]},
   spirale: {g:['✦','·','✧'], c:['#F09BD8','#9FF7FF','#C39BFF'], dir:'down', dur:[5200,8000]},
   archipel:{g:['○','◦','·'], c:['#9FF7FF','#3EE6C1','#FFFFFF'], dir:'up',   dur:[4600,7200]},
-  volcan:  {g:['●','✦','·'], c:['#FF9B6B','#FF6B6B','#FFD644'], dir:'up',   dur:[3000,5400]}
+  volcan:  {g:['●','✦','·'], c:['#FF9B6B','#FF6B6B','#FFD644'], dir:'up',   dur:[3000,5400]},
+  temple:  {g:['🍃','·','✦'], c:['#7FE3B8','#4FB07A','#E0B24E'], dir:'down', dur:[4800,7600]}
 };
 function weather(on){
   const id=(on&&room)?(room.mapId||'fete'):'';
@@ -152,7 +153,8 @@ const MAP_MUSIC={
   fete:    {seq:[262,330,392,523,392,330,294,440], step:1500, w:'triangle'},
   spirale: {seq:[220,277,330,440,415,330,277,247], step:1750, w:'sine'},
   archipel:{seq:[294,370,440,494,440,370,330,294], step:1300, w:'triangle'},
-  volcan:  {seq:[196,233,196,175,233,262,233,175], step:1650, w:'sawtooth'}
+  volcan:  {seq:[196,233,196,175,233,262,233,175], step:1650, w:'sawtooth'},
+  temple:  {seq:[262,311,349,392,349,311,262,233], step:1420, w:'triangle'}
 };
 let musT=null, musOn=false;
 function music(on){

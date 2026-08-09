@@ -271,7 +271,7 @@ function mapVolcan(){
     y:Math.round((nodes[35].y+nodes[42].y)/2),next:[42]});
   // carrefours (vrais choix de route)
   nodes[3].next=[4,46];
-  nodes[3].labels=['🌫️ Longer les Pentes de Cendre','🔥 Plonger dans la Caldera (2 ⭐ !)'];
+  nodes[2].labels=['🌫️ Longer les Pentes de Cendre','🔥 Plonger dans la Caldera (2 ⭐ !)'];
   nodes[8].next=[9,40];
   nodes[8].labels=['🏦 Descente prudente vers la banque','♨️ Surfer la Rivière de Lave (court… mais brûlant !)'];
   nodes[24].next=[25,37];
@@ -307,7 +307,109 @@ function mapVolcan(){
     }
   };
 }
-const MAP_MAKERS=[mapFete,mapSpirale,mapArchipel,mapVolcan];
+function mapTemple(){
+  // Temple Oublié — une PYRAMIDE à gravir : jungle au pied (h0), terrasse des
+  // fauves (h1), galerie d'or (h2), sanctuaire au sommet (h3, 2 étoiles).
+  // Deux escaliers montent, deux autres redescendent, et une LIANE plonge
+  // du sommet jusqu'à la jungle : le grand raccourci qui fait tout reperdre… ou gagner.
+  const nodes=[];
+  const cx=215, cy=430;
+  const P=(px,py,rx,ry,deg)=>{ const a=deg*Math.PI/180;
+    return {x:Math.round(px+rx*Math.cos(a)), y:Math.round(py+ry*Math.sin(a))}; };
+  // 0..25 : la Jungle (grande boucle au pied de la pyramide)
+  for(let i=0;i<20;i++){
+    const deg=-90+i*(360/20);
+    const w=1+0.05*Math.sin(3*deg*Math.PI/180+0.7);
+    const p=P(cx,cy,200*w,356*w,deg);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%20],z:0});
+  }
+  const MID=nodes.length;              // 26 : Terrasse des Fauves
+  for(let i=0;i<12;i++){
+    const p=P(cx,cy-30,142,240,-90+i*(360/12));
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[MID+(i+1)%12],z:1});
+  }
+  const UP=nodes.length;               // 40 : Galerie d'Or
+  for(let i=0;i<8;i++){
+    const p=P(cx,cy-58,88,146,-90+i*45);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[UP+(i+1)%8],z:2});
+  }
+  const SUM=nodes.length;              // 50 : Sanctuaire (sommet)
+  for(let i=0;i<4;i++){
+    const p=P(cx,cy-76,44,70,-90+i*90);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[SUM+(i+1)%4],z:3});
+  }
+  // escalier : n marches interpolées entre deux nœuds
+  const esc=(from,to,n,z,amp)=>{
+    const A=nodes[from], B=nodes[to], first=nodes.length;
+    const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1;
+    const px=-dy/len, py=dx/len;   // l'écart se fait PERPENDICULAIREMENT au trajet :
+    for(let s=1;s<=n;s++){         // les marches restent régulièrement espacées
+      const t=s/(n+1), o=(amp||0)*Math.sin(t*Math.PI);
+      nodes.push({t:'blue',
+        x:Math.round(A.x+dx*t+o*px),
+        y:Math.round(A.y+dy*t+o*py),
+        next:[s<n?first+s:to], z:z});
+    }
+    return first;
+  };
+  const e1=esc(2,MID+1,2,4,0);        // Jungle est  → Terrasse
+  const e2=esc(12,MID+7,2,4,0);       // Jungle ouest→ Terrasse
+  const e3=esc(MID+2,UP+1,2,4,0);     // Terrasse    → Galerie
+  const e4=esc(MID+8,UP+5,2,4,0);    // Terrasse    → Galerie
+  const e5=esc(UP+3,SUM+1,1,4,0);     // Galerie     → Sanctuaire
+  const liane=esc(SUM+2,15,3,5,-150);   // LIANE : du sommet droit dans la jungle
+  // carrefours (vrais choix de route)
+  nodes[2].next=[3,e1];
+  nodes[2].labels=['🌿 Longer la Jungle Épaisse','🪜 Grimper vers la Terrasse des Fauves'];
+  nodes[12].next=[13,e2];
+  nodes[12].labels=['🌿 Rester dans la Jungle','🪜 Escalier ouest vers la Terrasse'];
+  nodes[MID+2].next=[MID+3,e3];
+  nodes[MID+2].labels=['🐆 Faire le tour de la Terrasse','🏺 Monter à la Galerie d\'Or'];
+  nodes[MID+8].next=[MID+9,e4];
+  nodes[MID+8].labels=['🐆 Continuer sur la Terrasse','🏺 Escalier secret vers la Galerie'];
+  nodes[UP+3].next=[UP+4,e5];
+  nodes[UP+3].labels=['🏺 Rester dans la Galerie','☀️ Entrer dans le SANCTUAIRE (2 ⭐ !)'];
+  nodes[SUM+2].next=[SUM+3,liane];
+  nodes[SUM+2].labels=['☀️ Refaire un tour du Sanctuaire','🌿 SAUTER À LA LIANE (retour jungle !)'];
+  const starSpots=[5,15,MID+1,UP+5,SUM,SUM+3];
+  const TYPES={
+    start:[0], starT:starSpots,
+    red:[4,11,17,MID+3,MID+10,UP+2,liane+1],
+    lucky:[7,MID+9,UP+6],
+    event:[3,13,19,MID+5,UP+4],
+    shop:[9,MID+11],
+    boo:[14,MID+6],
+    duel:[6,18,UP+7],
+    bank:[16,UP+1],
+    chance:[10,MID+4],
+    bowser:[1,MID+0,liane+2]
+  };
+  for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
+  return {
+    id:'temple', name:'Temple Oublié', e:'🗿', nodes, starSpots, starCost:18,
+    meta:{
+      view:[-30,-30,490,900],
+      isles:[{cx:215,cy:420,rx:250,ry:436}],
+      zones:[{name:'Jungle Épaisse',blue:'#4FB07A'},{name:'Terrasse des Fauves',blue:'#8FBF5A'},
+             {name:'Galerie d\'Or',blue:'#E0B24E'},{name:'Sanctuaire du Soleil',blue:'#F2D98C'},
+             {name:'Escaliers Sacrés',blue:'#9C8F72'},{name:'Lianes',blue:'#5FD9A0'}],
+      deco:[
+        {x:215,y:352,e:'🛕',s:46},
+        {x:150,y:300,e:'🗿',s:28,d:.4},{x:284,y:306,e:'🗿',s:26,d:1.1},
+        {x:215,y:250,e:'☀️',s:26,d:.8},
+        {x:96,y:520,e:'🌴',s:30,d:.6},{x:330,y:544,e:'🌴',s:28,d:1.3},{x:120,y:700,e:'🌴',s:26,d:.9},
+        {x:300,y:690,e:'🦜',s:22,d:.5},{x:80,y:610,e:'🐒',s:22,d:1.5},{x:340,y:430,e:'🦋',s:20,d:1.8},
+        {x:180,y:760,e:'🌺',s:22,d:.3},{x:262,y:770,e:'🍃',s:20,d:1.2},
+        {x:20,y:30,e:'🌙',s:24,d:1.8},{x:410,y:70,e:'✨',s:20,d:2.3},{x:400,y:800,e:'🪵',s:22,d:.9},
+        {x:40,y:330,e:'☁️',s:15,st:1},{x:402,y:398,e:'☁️',s:16,st:1},{x:92,y:830,e:'☁️',s:14,st:1},
+        {x:-12,y:520,e:'✦',s:13,st:1,c:'#7FE3B8'},{x:432,y:250,e:'✦',s:15,st:1,c:'#FFD644'},
+        {x:396,y:842,e:'✦',s:13,st:1,c:'#3EE6C1'},{x:200,y:-18,e:'✧',s:11,st:1,c:'#9FF7FF'}
+      ]
+    }
+  };
+}
+
+const MAP_MAKERS=[mapFete,mapSpirale,mapArchipel,mapVolcan,mapTemple];
 const MAP_LIST=MAP_MAKERS.map(f=>{ const m=f(); return {id:m.id,name:m.name,e:m.e}; });
 function mapById(id){
   for(const f of MAP_MAKERS){ const m=f(); if(m.id===id) return m; }
@@ -333,6 +435,21 @@ function computeHeights(nodes,id){
     // trois îles-plateaux : plage au niveau de la mer, jungle en terrasse,
     // grotte perchée sur sa falaise — les pontons restent au ras de l'eau
     nodes.forEach((n,i)=>{ n.h=n.z===1?1:(n.z===2?2:0); });
+  } else if(id==='temple'){
+    // la PYRAMIDE : chaque anneau est un étage, les escaliers montent marche à marche
+    nodes.forEach((n,i)=>{
+      n.h = n.z===0?0 : n.z===1?1 : n.z===2?2 : n.z===3?3 : 0;
+    });
+    // escaliers (z=4) et lianes (z=5) : altitude interpolée entre leurs extrémités
+    const alt=i=>nodes[i]?nodes[i].h:0;
+    nodes.forEach((n,i)=>{
+      if(n.z!==4&&n.z!==5) return;
+      const prevs=[]; nodes.forEach((m,j)=>{ if(m.next&&m.next.indexOf(i)>=0&&m.z!==4&&m.z!==5) prevs.push(j); });
+      let suiv=i, garde=0;
+      while(nodes[suiv]&&(nodes[suiv].z===4||nodes[suiv].z===5)&&garde++<8) suiv=nodes[suiv].next[0];
+      const a=prevs.length?alt(prevs[0]):0, b=alt(suiv);
+      n.h=Math.round((a+b)/2*10)/10;
+    });
   } else if(id==='volcan'){
     // caldera au SOMMET (h3), gorge et coulée en pente, rivière de lave en contrebas
     nodes.forEach((n,i)=>{
@@ -526,7 +643,7 @@ window.addEventListener('load',()=>{
   };
 });
 function addLocalRow(name){
-  if(localCount>=6) return;
+  if(localCount>=8) return;
   const i=localCount++;
   const row=document.createElement('div'); row.className='prow';
   row.dataset.h=i%HEROES.length; row.dataset.c=i%AURAS.length;
