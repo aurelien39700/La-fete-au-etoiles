@@ -970,8 +970,12 @@ async function duelAskRemote(p,foe,aShown){
   await saveRoom();
   const v=await new Promise(res=>{
     duelResolve=res;
-    // défenseur absent/AFK : son dé part tout seul après 15 s
-    setTimeout(()=>{ if(duelResolve===res){ duelResolve=null; res(1+rnd(6)); } },15000);
+    // défenseur absent/AFK/déconnecté : son dé part tout seul (8 s suffisent)
+    const T=setInterval(()=>{
+      const d=room.players.find(x=>x.id===foe.id);
+      if(duelResolve===res&&(!d||d.gone)){ clearInterval(T); duelResolve=null; res(1+rnd(6)); }
+    },1000);
+    setTimeout(()=>{ clearInterval(T); if(duelResolve===res){ duelResolve=null; res(1+rnd(6)); } },8000);
   });
   room.duelAsk=null;
   await saveRoom();
@@ -1036,6 +1040,7 @@ async function landEffect(p){
       await sleep(500);
       animBusy=wasBusy;
       if(lose.id===p.id) return; // éjecté : l'effet de la case ne se déclenche pas
+      p=room.players.find(q2=>q2.id===p.id)||p; // l'état a pu être resynchronisé
     }
   }
   // bombe piégée posée par un autre joueur ?

@@ -61,7 +61,7 @@ const VOXTEX={};
   new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg',t=>{
     t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
-    t.repeat.set(.5,.5); // un bloc = un fragment lisible de la matière
+    t.repeat.set(1,1); // un bloc = un motif COMPLET : la matiere se lit
     VOXTEX[k]=t;
     B3D.built=''; // reconstruire avec la matière dès qu'elle arrive
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
@@ -235,7 +235,20 @@ function build(){
   const pal=SOCLE[room.mapId]||SOCLE.fete;
   // ambiance du thème : panorama 360° en fond de diorama (sinon couleur), brume, lumières
   const amb2=AMBIANCE[room.mapId]||AMBIANCE.fete;
-  scene.background=PANO[room.mapId]||new THREE.Color(amb2.sky);
+  // fond : une VOÛTE lointaine (le panorama plaque sur une sphere geante) plutot
+  // qu'un arriere-plan etire par la perspective — l'image reste nette
+  scene.background=new THREE.Color(amb2.sky);
+  if(B3D.ciel){ scene.remove(B3D.ciel); B3D.ciel=null; }
+  const pano=PANO[room.mapId];
+  if(pano){
+    pano.mapping=THREE.EquirectangularReflectionMapping;
+    const geoC=new THREE.SphereGeometry(230,32,20);
+    geoC.scale(-1,1,1);
+    const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false}));
+    ciel.position.set(CENTER.x,0,CENTER.z);
+    B3D.ciel=ciel;
+    scene.add(ciel);
+  }
   scene.fog=new THREE.Fog(amb2.sky,80,190);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
@@ -252,8 +265,8 @@ function build(){
   const tex=VOXTEX[room.mapId];
   // texture du thème plaquée sur les blocs, teintes claires pour qu'elle RESSORTE
   // (le damier vient des deux teintes appliquées par-dessus la matière)
-  const mA=new THREE.MeshStandardMaterial({color:tex?0xD8CCF2:pal.a,map:tex||null,roughness:.92});
-  const mB=new THREE.MeshStandardMaterial({color:tex?0xFFFFFF:pal.b,map:tex||null,roughness:.92});
+  const mA=new THREE.MeshStandardMaterial({color:tex?0xFFFFFF:pal.a,map:tex||null,roughness:.92});
+  const mB=new THREE.MeshStandardMaterial({color:tex?0xBFB2E4:pal.b,map:tex||null,roughness:.92});
   const mGlow=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,emissiveIntensity:1.3,roughness:.6});
   B3D.mGlow=mGlow;
   const rng=(s=>()=>{s=(s*16807)%2147483647;return s/2147483647;})(42);
@@ -387,6 +400,26 @@ function build(){
   for(let i2=0;i2<220;i2++) sp.push(CENTER.x+(Math.random()-.5)*260,Math.random()*90-10,CENTER.z+(Math.random()-.5)*260);
   sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
   gStatic.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xFFE9A8,size:.5,transparent:true,opacity:.75})));
+  // ----- masse rocheuse sous l'ile : elle repose sur quelque chose -----
+  const sombre=(c,f)=>((Math.round(((c>>16)&255)*f)<<16)|(Math.round(((c>>8)&255)*f)<<8)|Math.round((c&255)*f));
+  const rocheM=new THREE.MeshStandardMaterial({color:sombre(pal.a,.78),map:tex||null,roughness:1});
+  const rocheM2=new THREE.MeshStandardMaterial({color:sombre(pal.a,.55),roughness:1,flatShading:true});
+  const gRoche=new THREE.BoxGeometry(CELL,1,CELL);
+  for(let couche=1;couche<=4;couche++){
+    const marge=couche*1.15;                   // chaque couche rentre vers l'interieur
+    const yy=-1.1-couche*1.25;
+    for(let i=0;i<NX;i++) for(let j=0;j<NZ;j++){
+      const x=minX-5+(i+.5)*CELL, z=minZ-5+(j+.5)*CELL;
+      const edge=Math.min(i,NX-1-i,j,NZ-1-j);
+      if(edge<marge) continue;                 // le dessous se retrecit : forme de rocher
+      if(couche>2&&rng()<.3) continue;
+      const m=new THREE.Mesh(gRoche,couche<3?rocheM:rocheM2);
+      m.position.set(x,yy,z);
+      m.scale.y=1.3;
+      m.userData.shared=1;
+      gStatic.add(m);
+    }
+  }
   scene.add(gStatic);
   lavaLight.position.set(CENTER.x,6,CENTER.z-8);
   lavaLight.intensity=room.mapId==='volcan'?46:14;
