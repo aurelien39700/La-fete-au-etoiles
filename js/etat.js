@@ -596,7 +596,7 @@ $('btnCreate').onclick=async()=>{
   const st={code:'', hostId:me.id, status:'lobby', version:1,
     players:[{id:me.id,name:me.name,hero:me.hero,skin:me.skin||null,avatar:me.avatar,color:me.color,pos:0,coins:10,stars:0,items:[],travel:0,mgWins:0,coinsEarned:0}],
     turn:0, round:1, maxRounds:MAX_ROUNDS, starCost:20, bank:0,
-    startCoins:10, mgEvery:1, tourney:false, manche:1, crowns:{},
+    startCoins:10, mgEvery:3, tourney:false, manche:1, crowns:{}, mgOff:[],
     log:['La partie est créée !'], mg:null, mgScores:{}};
   applyMap(st,'fete');
   const resp=await new Promise(res=>{ createResolve=res; send({t:'create', state:st});
@@ -612,7 +612,7 @@ let local=false;
 let localMg=null;
 let localCount=0;
 let localMapId='fete';
-const localSet={rounds:8, coins:10, mgEvery:1, tourney:false};
+const localSet={rounds:8, coins:10, mgEvery:3, tourney:false, mgOff:[]};
 const ROUND_OPTS=[6,8,10,12], COIN_OPTS=[5,10,20];
 window.addEventListener('load',()=>{
   const b=$('btnLocalMap'); if(!b) return;
@@ -631,8 +631,13 @@ window.addEventListener('load',()=>{
     snd('tap'); $('btnLocalCoins').textContent='🪙 Départ '+localSet.coins;
   };
   $('btnLocalMgEvery').onclick=()=>{
-    localSet.mgEvery=localSet.mgEvery===1?2:1;
-    snd('tap'); $('btnLocalMgEvery').textContent=localSet.mgEvery===1?'🎮 Chaque tour':'🎮 1 tour sur 2';
+    const O=[3,5,8,2];
+    localSet.mgEvery=O[(O.indexOf(localSet.mgEvery)+1)%O.length];
+    snd('tap'); $('btnLocalMgEvery').textContent='🎮 mini-jeu / '+localSet.mgEvery+' dés';
+  };
+  $('btnLocalMgPick').onclick=async()=>{
+    await choisirMiniJeux(()=>localSet.mgOff,v=>{ localSet.mgOff=v; });
+    $('btnLocalMgPick').textContent='🎛️ Mini-jeux ('+(MG_COUNT-localSet.mgOff.length)+')';
   };
   $('btnLocalTourney').onclick=()=>{
     localSet.tourney=!localSet.tourney;
@@ -679,7 +684,7 @@ $('btnStartLocal').onclick=()=>{
   clearInterval(pollI); clearInterval(hostI);
   room={code:'LOCAL', hostId:'local', status:'board', version:1,
     players, turn:0, round:1, maxRounds:localSet.rounds, starCost:20, bank:0,
-    startCoins:localSet.coins, mgEvery:localSet.mgEvery,
+    startCoins:localSet.coins, mgEvery:localSet.mgEvery, mgOff:localSet.mgOff.slice(),
     tourney:localSet.tourney, manche:1, crowns:{},
     log:['🎉 C\'est parti ! '+players[0].name+' commence.'], mg:null, mgScores:{}};
   applyMap(room, localMapId);

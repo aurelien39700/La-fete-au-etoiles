@@ -100,8 +100,11 @@ $('btnMgNext').onclick=async()=>{
   if(advancing) return; // anti double-tap pendant le duel final
   advancing=true;
   try{
-    if(room.round>=room.maxRounds){ await endGame(); }
-    else advanceRoundCore();
+    if(room.mgTourFini===false){
+      // le mini-jeu s'est glissé au milieu du tour : on reprend simplement le plateau
+      room.mgTourFini=null; room.status='board'; room.mg=null;
+    } else if(room.round>=room.maxRounds){ await endGame(); }
+    else { room.mgTourFini=null; advanceRoundCore(); }
     await saveRoom();
   } finally { advancing=false; }
 };

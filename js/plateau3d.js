@@ -6,10 +6,11 @@
    Module ES (three via importmap) ; expose window.B3D pour les scripts classiques. */
 import * as THREE from 'three';
 import {GLTFLoader} from '/js/GLTFLoader.js';
+import {clone as cloneSkinned} from '/js/SkeletonUtils.js';
 
 /* ---------- échelles (la consigne : des proportions justes partout) ---------- */
-const SC=1/11.5;          // 1 unité monde ≈ 11,5 px de carte 2D
-const TILE=2.5;           // largeur d'une dalle
+const SC=1/9.6;          // 1 unité monde ≈ 11,5 px de carte 2D
+const TILE=3.0;           // largeur d'une dalle
 const TILE_H=0.34;        // épaisseur du plateau de dalle
 const ETAGE=1.35;         // hauteur d'un étage de relief (h)
 const HERO_H=TILE*0.59;   // héros à l'échelle du diorama (~0,6 dalle de haut)
@@ -111,10 +112,18 @@ EL_TYPES.forEach(t=>{
   },undefined,()=>{ EL3D[t]={ok:0}; });
 });
 function heroGLB(id,cb){
-  if(HERO3D[id]){ if(HERO3D[id].ok) cb(HERO3D[id].gltf); return; }
-  HERO3D[id]={ok:0};
-  loader.load('/art/hero3d-'+id+'-anim.glb',g=>{ HERO3D[id]={ok:1,gltf:g}; cb(g); },
-    undefined,()=>{ HERO3D[id]={ok:0,fail:1}; });
+  const e=HERO3D[id];
+  if(e){
+    if(e.ok) cb(e.gltf);
+    else if(!e.fail) (e.q=e.q||[]).push(cb); // le modèle arrive : on prend la file
+    return;
+  }
+  HERO3D[id]={ok:0,q:[cb]};
+  loader.load('/art/hero3d-'+id+'-anim.glb',g=>{
+    const q=(HERO3D[id]&&HERO3D[id].q)||[];
+    HERO3D[id]={ok:1,gltf:g};
+    q.forEach(f=>{ try{ f(g); }catch(err){} }); // TOUS les joueurs servis
+  },undefined,()=>{ HERO3D[id]={ok:0,fail:1}; });
 }
 
 /* ---------- textures canvas (icônes de secours, pastilles) ---------- */
@@ -134,6 +143,25 @@ function badgeTex(txt,bg,fg){
     g.fillStyle=fg; g.fillText(txt,48,52);
   });
   return texCache[k];
+}
+function nomTex(nom,couleur){
+  const k='n'+nom+couleur;
+  if(texCache[k]) return texCache[k];
+  const c=document.createElement('canvas'); c.width=256; c.height=72;
+  const g=c.getContext('2d');
+  const txt=(nom||'?').slice(0,12);
+  g.font='800 34px "Baloo 2", sans-serif';
+  const w=Math.min(248,g.measureText(txt).width+34), x=(256-w)/2;
+  // pastille sombre + liseré à la couleur du joueur : lisible sur n'importe quel décor
+  g.fillStyle='rgba(16,10,38,.82)';
+  g.beginPath(); g.roundRect(x,10,w,44,22); g.fill();
+  g.lineWidth=4; g.strokeStyle=couleur||'#FFD644'; g.stroke();
+  g.font='800 34px "Baloo 2", sans-serif';
+  g.textAlign='center'; g.textBaseline='middle';
+  g.fillStyle='#FFF7FF'; g.fillText(txt,128,33);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  texCache[k]=t;
+  return t;
 }
 function emojiTex(ch){
   const k='e'+ch;
@@ -791,6 +819,14 @@ function ensurePion(p){
   spr.center.set(.5,.06);
   group.add(spr);
   po=B3D.pions[p.id]={group,spr,cur:new THREE.Vector3(),target:new THREE.Vector3(),mixer:null,mesh:null,walkT:0};
+  // étiquette flottante : on sait toujours QUI est QUI
+  const lab=new THREE.Sprite(new THREE.SpriteMaterial({map:nomTex(p.name,p.color),
+    transparent:true,depthWrite:false,depthTest:false}));
+  lab.scale.set(3.5,.98,1);
+  lab.position.y=HERO_H*2.2+1.15;
+  lab.renderOrder=6;
+  group.add(lab);
+  po.label=lab; po.labKey=p.name+'|'+p.color;
   const skin=(p.skin&&window.SKIN_OK&&SKIN_OK[p.skin])?p.skin:p.hero;
   new THREE.TextureLoader().load('/art/sprite-'+skin+'.png',t=>{
     t.colorSpace=THREE.SRGBColorSpace;
@@ -800,14 +836,9 @@ function ensurePion(p){
   },undefined,()=>{ spr.material.map=emojiTex(p.avatar||'❔'); spr.scale.set(1.6,1.6,1); });
   heroGLB(skin,g=>{ // le costume 3D si produit, sinon le héros 3D, sinon le sprite
     const skinned=!!(g.animations&&g.animations.length);
-    let m;
-    if(skinned){
-      // squelette animé : un seul exemplaire possible — le 2e joueur garde son sprite
-      if(g.__used) return;
-      g.__used=true; m=g.scene;
-    } else {
-      m=g.scene.clone(true); // statique : chaque joueur reçoit sa copie
-    }
+    // chaque joueur reçoit SA copie, squelette compris : deux joueurs peuvent
+    // choisir le même héros et être tous les deux en 3D
+    const m=skinned?cloneSkinned(g.scene):g.scene.clone(true);
     if(skinned){
       po.mixer=new THREE.AnimationMixer(m);
       const walk=g.animations.find(a=>/walk/i.test(a.name))||g.animations[0];
@@ -968,7 +999,7 @@ function loop(){
   const vWant=B3D.overview?vFull:vClose;
   if(Math.abs(vCur-vWant)>.05){ vCur+=(vWant-vCur)*Math.min(1,dt*3.4); applyCam(); }
   const az=azim+Math.sin(t*.00012)*.04;
-  const R=SPAN*2.1, el=.82;
+  const R=SPAN*2.1, el=1.02;
   cam.position.set(FOCUS.x+Math.sin(az)*R*Math.cos(el),R*Math.sin(el),FOCUS.z+Math.cos(az)*R*Math.cos(el));
   cam.lookAt(FOCUS.x,1.2,FOCUS.z);
   renderer.render(scene,cam);
@@ -980,7 +1011,7 @@ B3D.render=function(){
   if(!room||!room.board) return false;
   if(!canvas.parentNode||wrap.firstChild!==canvas){
     wrap.innerHTML='';
-    wrap.style.height=Math.min(innerHeight*.80,wrap.clientWidth*1.5)+'px';
+    wrap.style.height=Math.min(innerHeight*.86,wrap.clientWidth*1.72)+'px';
     wrap.style.position='relative';
     wrap.appendChild(canvas);
     // bascule suivi 🎯 / vue d'ensemble 🗺️
@@ -1019,6 +1050,11 @@ B3D.render=function(){
     po.group.visible=!p.gone;
     const scale=pi===room.turn?1.08:1;
     po.group.scale.setScalar(scale);
+    if(po.label){
+      const key=p.name+'|'+p.color;
+      if(po.labKey!==key){ po.labKey=key; po.label.material.map=nomTex(p.name,p.color); po.label.material.needsUpdate=true; }
+      po.label.material.opacity=p.gone?.35:1;
+    }
   });
   for(const id in B3D.pions) if(!seen[id]){ gPions.remove(B3D.pions[id].group); delete B3D.pions[id]; }
   // pastilles de portée du dé (mon tour)

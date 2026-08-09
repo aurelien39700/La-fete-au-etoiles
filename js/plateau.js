@@ -231,20 +231,22 @@ function renderLobby(){
     $('setRow').innerHTML=
       chip('rounds','🔁 '+(room.maxRounds||8)+' tours')+
       chip('coins','🪙 Départ '+(room.startCoins||10))+
-      chip('mg','🎮 '+((room.mgEvery||1)===1?'Chaque tour':'1 tour sur 2'))+
-      chip('tourney','🏆 Tournoi : '+(room.tourney?'OUI':'non'),!room.tourney);
+      chip('mg','🎮 mini-jeu / '+(room.mgEvery||3)+' dés')+
+      chip('tourney','🏆 Tournoi : '+(room.tourney?'OUI':'non'),!room.tourney)+
+      chip('mgpick','🎛️ Choisir les mini-jeux ('+(MG_COUNT-((room.mgOff||[]).length))+')');
     $('setRow').querySelectorAll('.ichip').forEach(b=>b.onclick=async()=>{
       const s=b.dataset.s;
       if(s==='rounds') room.maxRounds=ROUND_OPTS[(ROUND_OPTS.indexOf(room.maxRounds||8)+1)%ROUND_OPTS.length];
       else if(s==='coins') room.startCoins=COIN_OPTS[(COIN_OPTS.indexOf(room.startCoins||10)+1)%COIN_OPTS.length];
-      else if(s==='mg') room.mgEvery=(room.mgEvery||1)===1?2:1;
+      else if(s==='mg'){ const O=[3,5,8,2]; room.mgEvery=O[(O.indexOf(room.mgEvery||3)+1)%O.length]; }
       else if(s==='tourney'){ room.tourney=!room.tourney; if(room.tourney&&room.maxRounds>6) room.maxRounds=6; }
+      else if(s==='mgpick'){ await choisirMiniJeux(()=>room.mgOff||[],v=>{ room.mgOff=v; }); }
       snd('tap');
       await saveRoom();
     });
   } else {
     $('setRow').innerHTML='<span class="hint">🔁 '+(room.maxRounds||8)+' tours · 🪙 départ '+(room.startCoins||10)+
-      ' · 🎮 '+((room.mgEvery||1)===1?'chaque tour':'1 tour sur 2')+(room.tourney?' · 🏆 TOURNOI':'')+'</span>';
+      ' · 🎮 mini-jeu / '+(room.mgEvery||3)+' dés'+(room.tourney?' · 🏆 TOURNOI':'')+'</span>';
   }
   $('lobbyList').innerHTML=room.players.map(p=>
     `<div class="prow" style="border-left:5px solid ${p.color||'#FFD644'};"><span class="pav">${pAv(p,32)}</span>${p.name}
@@ -1342,16 +1344,22 @@ function advanceRoundCore(){
 
 async function endTurn(){
   room.turnFx=null;
-  if(room.turn===room.players.length-1){
-    room.turn=0;
-    const wantMg=(room.mgEvery||1)===1||room.round%(room.mgEvery||1)===0;
+  // un mini-jeu revient tous les N lancers de dé (réglable, 3 par défaut)
+  room.rolls=(room.rolls||0)+1;
+  const tourFini=room.turn===room.players.length-1;
+  if(tourFini) room.turn=0; else room.turn++;
+  const parN=Math.max(1,room.mgEvery||3);
+  const wantMg=room.rolls%parN===0;
+  {
     if(wantMg){
       room.status='minigame';
+      room.mgTourFini=tourFini;   // faut-il changer de tour après le mini-jeu ?
       // jamais deux fois le même mini-jeu tant que toute la ludothèque n'a pas tourné
       room.mgUsed=room.mgUsed||[];
       // les jeux 3D ne sortent que si le moteur WebGL a bien démarré chez l'hôte
       const no3D=!(window.MG3D&&MG3D.ok);
-      const jouable=i=>!(local&&MG_INFO[i].rt)&&!(no3D&&MG_INFO[i].d3);
+      const exclus=room.mgOff||[];
+      const jouable=i=>!(local&&MG_INFO[i].rt)&&!(no3D&&MG_INFO[i].d3)&&exclus.indexOf(i)<0;
       let pool=[];
       for(let i=0;i<MG_COUNT;i++){
         if(!jouable(i)) continue;
@@ -1381,16 +1389,15 @@ async function endTurn(){
         room.log.push('⚔️ UN CONTRE TOUS : '+solo.name+' affronte tous les autres !');
       }
       room.log.push('🎮 MINI-JEU ! Tout le monde joue sur son téléphone !');
-    } else if(room.round>=room.maxRounds){
-      animBusy=false;
-      await endGame();
-      await saveRoom();
-      return;
-    } else {
-      advanceRoundCore(); // pas de mini-jeu ce tour-ci
+    } else if(tourFini){
+      if(room.round>=room.maxRounds){
+        animBusy=false;
+        await endGame();
+        await saveRoom();
+        return;
+      }
+      advanceRoundCore(); // tour complet sans mini-jeu
     }
-  } else {
-    room.turn++;
   }
   animBusy=false;
   await saveRoom();

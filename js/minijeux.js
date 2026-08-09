@@ -50,6 +50,51 @@ const MG_INFO=[
   {name:'Chasse aux Étoiles 3D',desc:'EN 3D & EN DIRECT ⭐ : les étoiles apparaissent dans l\'arène, fonce les rafler avant les autres ! 28 s.',rt:true,d3:true}
 ];
 const MG_COUNT=MG_INFO.length;
+/* ---------- choix des mini-jeux : on coche ce qu'on veut voir sortir ---------- */
+function mgOffList(){ return (room&&room.mgOff)||(typeof localSet!=='undefined'?localSet.mgOff:[])||[]; }
+async function choisirMiniJeux(getOff,setOff){
+  const off=new Set(getOff());
+  const ov=document.createElement('div'); ov.className='ovl';
+  ov.innerHTML='<div class="pop" style="max-width:420px;">'+
+    '<h3>🎮 Mini-jeux de la partie</h3>'+
+    '<p class="hint" style="margin:2px 0 8px;">Décoche ceux que tu ne veux pas voir sortir.</p>'+
+    '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px;">'+
+      '<button class="ichip" id="mgAll" style="font-size:12.5px;font-weight:800;font-family:\'Baloo 2\';">Tout cocher</button>'+
+      '<button class="ichip" id="mg3d" style="font-size:12.5px;font-weight:800;font-family:\'Baloo 2\';">Que la 3D</button>'+
+      '<button class="ichip" id="mgNone" style="font-size:12.5px;font-weight:800;font-family:\'Baloo 2\';">Tout décocher</button>'+
+    '</div>'+
+    '<div id="mgListe" style="max-height:46vh;overflow-y:auto;text-align:left;"></div>'+
+    '<div class="popbtns"><button class="btn menthe" id="mgOk">Valider ✅</button></div></div>';
+  document.body.appendChild(ov);
+  const liste=ov.querySelector('#mgListe');
+  const dessine=()=>{
+    liste.innerHTML=MG_INFO.map((g,i)=>{
+      const on=!off.has(i);
+      return '<div class="prow" data-i="'+i+'" style="cursor:pointer;padding:8px 12px;margin:5px 0;font-size:14px;'+
+        'opacity:'+(on?1:.42)+';border-left:5px solid '+(on?'var(--menthe)':'rgba(255,255,255,.2)')+';">'+
+        '<span style="font-size:18px;">'+(on?'☑️':'⬜')+'</span>'+
+        '<span style="flex:1;">'+g.name+(g.d3?' <b style="color:var(--etoile);">3D</b>':'')+(g.rt?' ⚡':'')+'</span></div>';
+    }).join('');
+    liste.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{
+      const i=+r.dataset.i;
+      if(off.has(i)) off.delete(i); else off.add(i);
+      snd('tap'); dessine();
+    });
+  };
+  dessine();
+  ov.querySelector('#mgAll').onclick=()=>{ off.clear(); snd('tap'); dessine(); };
+  ov.querySelector('#mgNone').onclick=()=>{ MG_INFO.forEach((g,i)=>off.add(i)); snd('tap'); dessine(); };
+  ov.querySelector('#mg3d').onclick=()=>{ off.clear(); MG_INFO.forEach((g,i)=>{ if(!g.d3) off.add(i); }); snd('tap'); dessine(); };
+  snd('pop');
+  return new Promise(res=>{
+    ov.querySelector('#mgOk').onclick=()=>{
+      // on garde au moins un jeu jouable, sinon la partie se bloquerait
+      let arr=[...off];
+      if(arr.length>=MG_COUNT) arr=arr.filter((x,k)=>k>0);
+      setOff(arr); snd('tap'); ov.remove(); res(arr);
+    };
+  });
+}
 let mgPlayed=false, mgTimerI=null, mgDone=false, mgRoundKey=null;
 
 function renderMg(){
@@ -134,20 +179,42 @@ function mgIntro(cb){
       clearInterval(spin);
       nameEl.textContent=MG_INFO[room.mg.type].name;
       snd('star'); vib(20);
-      let n=3;
-      cnt.textContent=n; cnt.style.color='#FF6B6B';
-      const ci=setInterval(()=>{
-        n--;
-        if(n<=0){
-          clearInterval(ci);
-          cnt.textContent='GO !'; cnt.style.color='#3EE6C1'; snd('yay');
-          setTimeout(()=>{ ov.remove(); cb&&cb(); },350);
-        } else {
-          snd('tap');
-          cnt.textContent=n;
-          cnt.style.color=n===2?'#FFD644':'#3EE6C1';
-        }
-      },650);
+      // BRIEFING : on explique la règle AVANT de lancer, chacun lit à son rythme
+      const info=MG_INFO[room.mg.type];
+      cnt.innerHTML='';
+      const brief=document.createElement('div');
+      brief.style.cssText='max-width:330px;margin:2px auto 0;text-align:center;';
+      brief.innerHTML=
+        '<p style="font-size:14.5px;line-height:1.45;font-weight:700;margin:6px 0 10px;">'+info.desc+'</p>'+
+        '<p style="font-size:13px;opacity:.85;font-weight:800;margin:0 0 12px;">'+
+        (info.d3?'🕹️ Glisse ton doigt sur l\'arène pour piloter ton héros'
+               :(info.rt?'⚡ Partie en direct : tout le monde joue en même temps'
+                       :'📱 Chacun son tour sur le téléphone'))+'</p>'+
+        '<button class="btn menthe" id="btnBrief" style="max-width:250px;margin:0 auto;">C\'est parti ! 🎮</button>';
+      cnt.appendChild(brief);
+      cnt.style.fontSize='';
+      const lancer=()=>{
+        if(!brief.parentNode) return;
+        brief.remove();
+        cnt.style.fontSize='52px';
+        let n=3;
+        cnt.textContent=n; cnt.style.color='#FF6B6B';
+        const ci=setInterval(()=>{
+          n--;
+          if(n<=0){
+            clearInterval(ci);
+            cnt.textContent='GO !'; cnt.style.color='#3EE6C1'; snd('yay');
+            setTimeout(()=>{ ov.remove(); cb&&cb(); },350);
+          } else {
+            snd('tap');
+            cnt.textContent=n;
+            cnt.style.color=n===2?'#FFD644':'#3EE6C1';
+          }
+        },650);
+      };
+      brief.querySelector('#btnBrief').onclick=()=>{ snd('tap'); lancer(); };
+      // sécurité : personne ne bloque la partie, ça part tout seul au bout de 12 s
+      setTimeout(lancer,12000);
     }
   },90);
 }
