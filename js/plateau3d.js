@@ -30,6 +30,13 @@ const SOCLE={
   spirale: {a:0x201847,b:0x281E54,glow:0xC96BB8,glowC:0xF09BD8},
   archipel:{a:0x232045,b:0x2A2650,glow:0x18B89A,glowC:0x3EE6C1}
 };
+/* ambiance complète par carte : ciel, brume, lumières, océan sous l'île */
+const AMBIANCE={
+  volcan:  {sky:0x190F28,sun:0xFFC9A0,amb:0x8A6A90,sea:0x3A1006,seaGlow:0xFF5A18},
+  fete:    {sky:0x171030,sun:0xFFE2C4,amb:0x8A78C8,sea:0x1E1442,seaGlow:0xFFD644},
+  spirale: {sky:0x120C2C,sun:0xEDC6FF,amb:0x7A68B8,sea:0x160F3C,seaGlow:0xC96BB8},
+  archipel:{sky:0x0E1A32,sun:0xCFE6FF,amb:0x5C7AAA,sea:0x0A3448,seaGlow:0x3EE6C1}
+};
 
 const B3D={ready:false,ok:false,built:'',pions:{},focusId:null};
 window.B3D=B3D;
@@ -40,7 +47,7 @@ const VOXTEX={};
   new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg',t=>{
     t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
-    t.repeat.set(.5,.5); // motif zoomé : lisible à l'échelle d'un bloc
+    t.repeat.set(.34,.34); // motif très zoomé : chaque bloc montre un GROS détail lisible
     VOXTEX[k]=t;
     B3D.built=''; // reconstruire avec la matière dès qu'elle arrive
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
@@ -185,8 +192,15 @@ function clearGroup(g){
 function build(){
   const nodes=room.board;
   clearGroup(gStatic); rims=[]; bobs=[]; spinners=[]; puffs=[];
+  B3D.falls=[]; B3D.orbites=null; B3D.roue=null; B3D.starRay=null;
   gStatic=new THREE.Group();
   const pal=SOCLE[room.mapId]||SOCLE.fete;
+  // ambiance du thème : ciel, brume, teinte des lumières
+  const amb2=AMBIANCE[room.mapId]||AMBIANCE.fete;
+  scene.background=new THREE.Color(amb2.sky);
+  scene.fog=new THREE.Fog(amb2.sky,80,190);
+  sun.color.setHex(amb2.sun);
+  amb.color.setHex(amb2.amb);
   // emprise de la carte → centre caméra + cadrage
   let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
   nodes.forEach(n=>{ const p=toW(n); minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minZ=Math.min(minZ,p.z); maxZ=Math.max(maxZ,p.z); });
@@ -273,6 +287,12 @@ function build(){
       const halo=new THREE.PointLight(0xFFD644,24,9);
       halo.position.set(p.x,p.y+2.2,p.z);
       gStatic.add(halo);
+      // colonne de lumière au-dessus de l'étoile (visible de loin, tourne doucement)
+      const ray=new THREE.Mesh(new THREE.ConeGeometry(1.5,7,6,1,true),
+        new THREE.MeshBasicMaterial({color:0xFFD644,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false}));
+      ray.position.set(p.x,p.y+4.1,p.z);
+      B3D.starRay=ray;
+      gStatic.add(ray);
     }
     // pastille de carrefour
     if(n.next.length>1){
@@ -297,6 +317,28 @@ function build(){
       gStatic.add(m);
     }
   }));
+  // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(340,340),
+    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.14,roughness:.85}));
+  sea.rotation.x=-Math.PI/2;
+  sea.position.set(CENTER.x,-7.2,CENTER.z);
+  B3D.seaMat=sea.material;
+  gStatic.add(sea);
+  // ----- cascades voxel sur le bord de l'île (flux qui tombe en boucle) -----
+  const fallM=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,emissiveIntensity:1.1,transparent:true,opacity:.85});
+  const fallG=new THREE.BoxGeometry(.6,1.4,.6);
+  for(let i=0;i<7;i++){
+    const ang=(i/7)*Math.PI*2+.4;
+    const fx=CENTER.x+Math.cos(ang)*((maxX-minX)/2+4.4);
+    const fz=CENTER.z+Math.sin(ang)*((maxZ-minZ)/2+4.4);
+    for(let s2=0;s2<3;s2++){
+      const cube=new THREE.Mesh(fallG,fallM);
+      cube.position.set(fx,-1-s2*2,fz);
+      cube.userData={y0:-1,ph:i*.9+s2*2.1};
+      B3D.falls.push(cube);
+      gStatic.add(cube);
+    }
+  }
   // ----- props emblématiques par carte (primitives low-poly à l'échelle) -----
   buildProps(gStatic,room.mapId,pal);
   // ----- braises / particules d'ambiance -----
@@ -343,6 +385,14 @@ function buildProps(g,mapId,pal){
       puff.userData.o=i*1.4;
       g.add(puff); puffs.push(puff);
     }
+    // pics de basalte fumants autour de la caldera
+    const rockM2=new THREE.MeshStandardMaterial({color:0x2E2248,roughness:1,flatShading:true});
+    [[-7,-4],[7.5,-6],[-8,4],[8,6],[0,12]].forEach(([ox,oz],i)=>{
+      const pic=new THREE.Mesh(new THREE.ConeGeometry(.9+(i%2)*.4,2.4+(i%3),5),rockM2);
+      pic.position.set(p.x+ox,1.1,p.z+oz);
+      pic.castShadow=true;
+      g.add(pic);
+    });
   } else if(mapId==='fete'){
     const p=toW({x:210,y:90,h:0});
     const tent=new THREE.Group();
@@ -358,6 +408,34 @@ function buildProps(g,mapId,pal){
     tent.position.set(p.x,0,p.z);
     tent.children.forEach(m=>m.castShadow=true);
     g.add(tent);
+    // GRANDE ROUE qui tourne, cabines colorées
+    const roue=new THREE.Group();
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(3,.22,7,18),
+      new THREE.MeshStandardMaterial({color:0xE8C05A,emissive:0x6a4a10,roughness:.6,flatShading:true}));
+    roue.add(ring);
+    const cabCols=[0xFF5FA2,0x3EE6C1,0x5AC8FA,0xFFD644,0xFF9F45,0xC39BFF];
+    for(let i=0;i<6;i++){
+      const cab=new THREE.Mesh(new THREE.BoxGeometry(.8,.8,.8),
+        new THREE.MeshStandardMaterial({color:cabCols[i],roughness:.7,flatShading:true}));
+      const ang=i/6*Math.PI*2;
+      cab.position.set(Math.cos(ang)*3,Math.sin(ang)*3,0);
+      cab.userData.spoke=ang;
+      roue.add(cab);
+      const spoke=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,3,4),
+        new THREE.MeshStandardMaterial({color:0xB8933A,flatShading:true}));
+      spoke.position.set(Math.cos(ang)*1.5,Math.sin(ang)*1.5,0);
+      spoke.rotation.z=ang+Math.PI/2;
+      roue.add(spoke);
+    }
+    const pied=new THREE.Mesh(new THREE.CylinderGeometry(.16,.3,4,5),dark);
+    pied.position.y=-2;
+    roue.add(pied);
+    const pr=toW({x:355,y:120,h:0});
+    roue.position.set(pr.x,4.6,pr.z);
+    roue.rotation.y=.6;
+    roue.children.forEach(m=>m.castShadow=true);
+    B3D.roue=roue;
+    g.add(roue);
   } else if(mapId==='spirale'){
     const p=toW({x:215,y:470,h:3});
     const vor=new THREE.Mesh(new THREE.TorusGeometry(2.1,.5,7,16),
@@ -366,6 +444,21 @@ function buildProps(g,mapId,pal){
     vor.position.set(p.x,p.y+2.6,p.z);
     B3D.vortex=vor;
     g.add(vor);
+    // anneaux orbitaux + petites planètes qui tournent AUTOUR de l'île (au-delà du bord)
+    const orb=new THREE.Group();
+    [[SPAN*.46,.9,0xF09BD8],[SPAN*.56,-.5,0x9FF7FF]].forEach(([r,tilt,col])=>{
+      const an=new THREE.Mesh(new THREE.TorusGeometry(r,.09,5,40),
+        new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.5,transparent:true,opacity:.55}));
+      an.rotation.x=Math.PI/2+tilt*.14;
+      orb.add(an);
+      const pla=new THREE.Mesh(new THREE.SphereGeometry(.8,7,6),
+        new THREE.MeshStandardMaterial({color:col,roughness:.8,flatShading:true}));
+      pla.userData={r,tilt:tilt*.14,ph:r};
+      orb.add(pla);
+    });
+    orb.position.set(CENTER.x,2.5,CENTER.z);
+    B3D.orbites=orb;
+    g.add(orb);
   } else if(mapId==='archipel'){
     [[210,140],[120,440],[290,740]].forEach(([px,py])=>{
       const pw=toW({x:px,y:py,h:0});
@@ -385,6 +478,14 @@ function buildProps(g,mapId,pal){
       palm.position.set(pw.x+2.6,0,pw.z-1.2);
       g.add(palm);
     });
+    // rochers du lagon qui émergent de l'eau autour de l'île
+    const wet=new THREE.MeshStandardMaterial({color:0x1E3A50,roughness:.85,flatShading:true});
+    for(let i=0;i<6;i++){
+      const ang=i/6*Math.PI*2+.8;
+      const rk=new THREE.Mesh(new THREE.DodecahedronGeometry(.9+(i%3)*.5),wet);
+      rk.position.set(CENTER.x+Math.cos(ang)*21,-6.4,CENTER.z+Math.sin(ang)*26);
+      g.add(rk);
+    }
   }
 }
 
@@ -420,7 +521,10 @@ function ensurePion(p){
     // Les modèles statiques Meshy sont livrés en t-pose : la boîte inclut les
     // bras écartés et du vide → le corps réel est plus petit que la boîte.
     // On les grossit donc pour qu'ils aient la même présence que Cosmo.
-    const s=skinned ? (HERO_H*1.75)/Math.max(.0001,size.y)
+    // Cosmo (riggé) a une boîte FIDÈLE à son corps → petit facteur ;
+    // les statiques ont une boîte t-pose gonflée de vide → gros facteur.
+    // Résultat : même présence à l'écran pour tout le monde.
+    const s=skinned ? (HERO_H*1.15)/Math.max(.0001,size.y)
                     : (HERO_H*2.2)/Math.max(.0001,size.y);
     m.scale.setScalar(s);
     bb.setFromObject(m);
@@ -460,6 +564,23 @@ function loop(){
   if(B3D.crater) B3D.crater.material.emissiveIntensity=1.6+Math.sin(t*.004)*.5;
   if(B3D.vortex) B3D.vortex.rotation.z=t*.0011;
   if(B3D.mGlow) B3D.mGlow.emissiveIntensity=1.1+Math.sin(t*.003)*.45;
+  // la vie du décor : cascades qui coulent, grande roue, orbites, océan, rayon d'étoile
+  if(B3D.falls) B3D.falls.forEach(c=>{ c.position.y=c.userData.y0-((t*.004+c.userData.ph)%6.2); });
+  if(B3D.roue){
+    B3D.roue.rotation.z=t*.00035;
+    B3D.roue.children.forEach(ch=>{ if(ch.userData.spoke!==undefined) ch.rotation.z=-B3D.roue.rotation.z; });
+  }
+  if(B3D.orbites){
+    B3D.orbites.rotation.y=t*.00016;
+    B3D.orbites.children.forEach(ch=>{
+      if(ch.userData.r){
+        const a2=t*.0004+ch.userData.ph;
+        ch.position.set(Math.cos(a2)*ch.userData.r,Math.sin(a2)*ch.userData.r*Math.sin(ch.userData.tilt),Math.sin(a2)*ch.userData.r);
+      }
+    });
+  }
+  if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
+  if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
   puffs.forEach(p2=>{
     p2.position.y=6.5+p2.userData.o+((t*.0011+p2.userData.o)%3.2);
     p2.material.opacity=.55-((p2.position.y-6.5)/3.2)*.4;

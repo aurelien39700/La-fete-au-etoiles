@@ -365,7 +365,28 @@ const EVART_OK={};
   im.onload=()=>{ EVART_OK[k]=1; };
   im.src='/art/evart-'+k+'.jpg';
 });
+/* file d'attente des popups : chaque événement joue son temps PLEIN puis laisse
+   respirer avant le suivant — plus jamais un jackpot coupé par le « tour suivant » */
+let fxQueue=[], fxUntil=0, fxTimer=null;
 function fxShow(f){
+  fxQueue.push(f);
+  if(fxQueue.length>4) fxQueue.shift(); // on ne laisse pas 20 s de retard s'accumuler
+  pumpFx();
+}
+function pumpFx(){
+  if(fxTimer) return;
+  const now=Date.now();
+  if(now<fxUntil){
+    fxTimer=setTimeout(()=>{ fxTimer=null; pumpFx(); }, fxUntil-now+30);
+    return;
+  }
+  const f=fxQueue.shift();
+  if(!f) return;
+  fxUntil=now+(f.ms||2200)+260; // 260 ms de respiration entre deux popups
+  fxShowNow(f);
+  if(fxQueue.length) pumpFx();
+}
+function fxShowNow(f){
   snd('pop');
   if(f.icon&&['👹','💥','😵','💀','🌪️','☄️'].indexOf(f.icon)>=0){
     document.body.classList.add('shake');
