@@ -405,9 +405,24 @@ function fxCast(icon,title,text,ms){
   room.fx={seq,icon,title,text,ms:ms||2200};
   lastFxSeq=seq; fxShow(room.fx);
 }
+function cotePanneau(){
+  // sur grand écran le panneau se colle du côté OPPOSÉ au pion : on voit toujours
+  // le personnage et la portion de plateau qui nous intéresse
+  try{
+    const el=document.querySelector('#boardWrap canvas')||document.querySelector('#boardWrap');
+    if(!el) return '';
+    const r=el.getBoundingClientRect();
+    const pion=document.querySelector('#boardWrap .tok.cur');
+    if(pion){
+      const pr=pion.getBoundingClientRect();
+      return (pr.left+pr.width/2)>(r.left+r.width/2)?' gauche':'';
+    }
+  }catch(e){}
+  return '';
+}
 function ask(o){
   return new Promise(res=>{
-    const ov=document.createElement('div'); ov.className='ovl'+(o.sheet?' sheet':'');
+    const ov=document.createElement('div'); ov.className='ovl'+(o.sheet?(' sheet'+cotePanneau()):'');
     ov.innerHTML=`<div class="pop">${o.icon?`<div class="pic">${o.icon}</div>`:''}<h3>${o.title||''}</h3>${o.text?`<p>${o.text}</p>`:''}<div class="popbtns"></div></div>`;
     const bx=ov.querySelector('.popbtns');
     o.options.forEach(op=>{

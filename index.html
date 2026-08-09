@@ -310,6 +310,19 @@ input[type=text]:focus{border-color:var(--menthe);}
   padding-bottom:calc(18px + env(safe-area-inset-bottom, 0px));
   animation:sheetIn .25s ease-out, popglow 2.4s ease-in-out infinite;}
 @keyframes sheetIn{from{transform:translateY(60px); opacity:0;} to{transform:none; opacity:1;}}
+/* écran large : le panneau se colle sur le CÔTÉ, le plateau reste entier au centre */
+@media (min-width:760px){
+  .ovl.sheet{align-items:center; justify-content:flex-end; padding:0 18px;}
+  .ovl.sheet .pop{width:330px; max-width:330px; max-height:78vh;
+    border-radius:24px; border-bottom:3px solid var(--etoile);
+    padding-bottom:20px;
+    animation:sideIn .26s ease-out, popglow 2.4s ease-in-out infinite;}
+  /* alterne le côté : le panneau ne recouvre jamais le pion (classe posée par ask) */
+  .ovl.sheet.gauche{justify-content:flex-start;}
+  .ovl.sheet.gauche .pop{animation:sideInL .26s ease-out, popglow 2.4s ease-in-out infinite;}
+}
+@keyframes sideIn{from{transform:translateX(70px); opacity:0;} to{transform:none; opacity:1;}}
+@keyframes sideInL{from{transform:translateX(-70px); opacity:0;} to{transform:none; opacity:1;}}
 .pop{background:linear-gradient(160deg,#2B1960,#3A1E6B); border:3px solid var(--etoile);
   border-radius:26px; padding:20px 18px; max-width:340px; width:100%; text-align:center;
   animation:popin .32s cubic-bezier(.2,1.4,.4,1), popglow 2.4s ease-in-out infinite;

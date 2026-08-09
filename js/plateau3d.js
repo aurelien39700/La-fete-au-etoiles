@@ -598,24 +598,33 @@ function buildDiorama(g,mapId,pal){
    La boîte englobante d'un modèle riggé est calculée sur sa pose de repos
    (souvent recroquevillée) : elle ment. On mesure donc le SQUELETTE une fois
    le personnage posé par l'animation, ce qui donne sa vraie stature. */
-function fitHero(m,targetH,skinned){
-  const v=new THREE.Vector3(), bb=new THREE.Box3();
-  let os=false;
-  if(skinned){
-    m.updateMatrixWorld(true);
-    m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton) o.skeleton.bones.forEach(b=>{ bb.expandByPoint(b.getWorldPosition(v)); os=true; }); });
-  }
-  if(!os) bb.setFromObject(m);
-  const size=bb.getSize(new THREE.Vector3());
-  const hReel=os?size.y*1.30:size.y; // le squelette s'arrête aux articulations
-  m.scale.setScalar(targetH/Math.max(.0001,hReel));
+function heroBox(m){
+  // boîte englobante RÉELLE : pour un maillage riggé, on la recalcule sur la pose
+  // déformée par les os (sinon on mesure la pose de repos, qui ment)
+  const bb=new THREE.Box3();
   m.updateMatrixWorld(true);
-  const bb2=new THREE.Box3();
-  if(os) m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton) o.skeleton.bones.forEach(b=>{ bb2.expandByPoint(b.getWorldPosition(v)); }); });
-  else bb2.setFromObject(m);
-  m.position.y=-bb2.min.y+(os?-targetH*.06:0);
-  m.position.x=-(bb2.min.x+bb2.max.x)/2;
-  m.position.z=-(bb2.min.z+bb2.max.z)/2;
+  let any=false;
+  m.traverse(o=>{
+    if(!o.isMesh||!o.geometry) return;
+    let box=null;
+    if(o.isSkinnedMesh&&o.computeBoundingBox){ o.computeBoundingBox(); box=o.boundingBox; }
+    if(!box){ if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box=o.geometry.boundingBox; }
+    if(!box) return;
+    bb.union(box.clone().applyMatrix4(o.matrixWorld));
+    any=true;
+  });
+  if(!any) bb.setFromObject(m);
+  return bb;
+}
+function fitHero(m,targetH){
+  // MÊME règle pour tout le monde : la boîte réelle fait exactement targetH de haut
+  const bb=heroBox(m);
+  const size=bb.getSize(new THREE.Vector3());
+  m.scale.setScalar(targetH/Math.max(.0001,size.y));
+  const bb2=heroBox(m);
+  m.position.y-=bb2.min.y;
+  m.position.x-=(bb2.min.x+bb2.max.x)/2;
+  m.position.z-=(bb2.min.z+bb2.max.z)/2;
 }
 
 /* ---------- pions (héros 3D animé → sprite détouré, jamais déformé) ---------- */
@@ -652,7 +661,7 @@ function ensurePion(p){
       po.mixer.update(.35); // le personnage est POSÉ avant d'être mesuré
     }
     // mesure fiable : squelette animé pour les riggés, boîte pour les statiques
-    fitHero(m,HERO_H*(skinned?1.62:2.2),skinned);
+    fitHero(m,HERO_H*2.2);
     m.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
     group.remove(spr);
     group.add(m);

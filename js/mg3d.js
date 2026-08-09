@@ -108,28 +108,31 @@ M.floor=function(o){
    La boîte englobante d'un modèle riggé est calculée sur sa pose de repos
    (souvent recroquevillée) : elle ment. On mesure donc le SQUELETTE une fois
    le personnage posé par l'animation, ce qui donne sa vraie stature. */
-M.fit=function(m,targetH,skinned){
-  const v=new THREE.Vector3();
+function heroBox(m){
   const bb=new THREE.Box3();
-  let os=false;
-  if(skinned){
-    m.updateMatrixWorld(true);
-    m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton) o.skeleton.bones.forEach(b=>{ bb.expandByPoint(b.getWorldPosition(v)); os=true; }); });
-  }
-  if(!os) bb.setFromObject(m);
-  const size=bb.getSize(new THREE.Vector3());
-  // le squelette s'arrête aux articulations : on ajoute la tête et les pieds
-  const hReel=os?size.y*1.30:size.y;
-  const s=targetH/Math.max(.0001,hReel);
-  m.scale.setScalar(s);
   m.updateMatrixWorld(true);
-  const bb2=new THREE.Box3();
-  if(os){ let done=false; m.traverse(o=>{ if(o.isSkinnedMesh&&o.skeleton){ o.skeleton.bones.forEach(b=>{ bb2.expandByPoint(b.getWorldPosition(v)); }); done=true; } }); if(!done) bb2.setFromObject(m); }
-  else bb2.setFromObject(m);
-  m.position.y=-bb2.min.y+(os?-targetH*.06:0);
-  m.position.x=-(bb2.min.x+bb2.max.x)/2;
-  m.position.z=-(bb2.min.z+bb2.max.z)/2;
-  return s;
+  let any=false;
+  m.traverse(o=>{
+    if(!o.isMesh||!o.geometry) return;
+    let box=null;
+    if(o.isSkinnedMesh&&o.computeBoundingBox){ o.computeBoundingBox(); box=o.boundingBox; }
+    if(!box){ if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box=o.geometry.boundingBox; }
+    if(!box) return;
+    bb.union(box.clone().applyMatrix4(o.matrixWorld));
+    any=true;
+  });
+  if(!any) bb.setFromObject(m);
+  return bb;
+}
+M.fit=function(m,targetH){
+  // MÊME règle pour tout le monde : la boîte réelle fait exactement targetH de haut
+  const bb=heroBox(m);
+  const size=bb.getSize(new THREE.Vector3());
+  m.scale.setScalar(targetH/Math.max(.0001,size.y));
+  const bb2=heroBox(m);
+  m.position.y-=bb2.min.y;
+  m.position.x-=(bb2.min.x+bb2.max.x)/2;
+  m.position.z-=(bb2.min.z+bb2.max.z)/2;
 };
 
 /* ---------- héros : modèle 3D du joueur (repli sprite détouré) ---------- */
@@ -163,7 +166,7 @@ M.hero=function(p,o){
       H.action=H.mixer.clipAction(walk); H.action.play();
       H.mixer.update(.35); // on pose le personnage AVANT de le mesurer
     }
-    M.fit(m,h*(skinned?1.42:1.9),skinned);
+    M.fit(m,h*1.9);
     m.traverse(q=>{ if(q.isMesh) q.castShadow=true; });
     grp.remove(spr);
     grp.add(m);
