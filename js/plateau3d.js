@@ -33,12 +33,14 @@ const SOCLE={
   temple:  {a:0x1E2E24,b:0x25382C,glow:0xE0B24E,glowC:0xF2D98C}
 };
 /* ambiance complète par carte : ciel, brume, lumières, océan sous l'île */
+/* sea/seaGlow/em = matiere de l'etendue qui entoure l'ile : lave brulante, nuit de
+   fete, nebuleuse, lagon, sous-bois. em = combien elle rayonne d'elle-meme. */
 const AMBIANCE={
-  volcan:  {sky:0x190F28,sun:0xFFC9A0,amb:0x8A6A90,sea:0x3A1006,seaGlow:0xFF5A18},
-  fete:    {sky:0x171030,sun:0xFFE2C4,amb:0x8A78C8,sea:0x1E1442,seaGlow:0xFFD644},
-  spirale: {sky:0x120C2C,sun:0xEDC6FF,amb:0x7A68B8,sea:0x160F3C,seaGlow:0xC96BB8},
-  archipel:{sky:0x0E1A32,sun:0xCFE6FF,amb:0x5C7AAA,sea:0x0A3448,seaGlow:0x3EE6C1},
-  temple:  {sky:0x0C1A14,sun:0xE8F0C0,amb:0x6A8A70,sea:0x123020,seaGlow:0x4FB07A}
+  volcan:  {sky:0x190F28,sun:0xFFC9A0,amb:0x8A6A90,sea:0x3A1006,seaGlow:0xFF5A18,em:.16},
+  fete:    {sky:0x171030,sun:0xFFE2C4,amb:0x8A78C8,sea:0x241A46,seaGlow:0xFFC24A,em:.05},
+  spirale: {sky:0x120C2C,sun:0xEDC6FF,amb:0x7A68B8,sea:0x1B1245,seaGlow:0xC96BB8,em:.09},
+  archipel:{sky:0x0E1A32,sun:0xCFE6FF,amb:0x5C7AAA,sea:0x0E4258,seaGlow:0x3EE6C1,em:.07},
+  temple:  {sky:0x0C1A14,sun:0xE8F0C0,amb:0x6A8A70,sea:0x1B3324,seaGlow:0x4FB07A,em:.05}
 };
 
 const ART_V='?v=3';  // version des images : force le navigateur a reprendre les neuves
@@ -49,13 +51,14 @@ window.B3D=B3D;
 const PANO={};
 const PANO_HZ={};   // couleur moyenne de la ligne d'horizon : le sol se fond dedans
 
-/* lit la bande centrale du panorama = ce que l'oeil voit pile a l'horizon */
+/* derniere bande de ciel juste au-dessus de l'horizon : le sol lointain s'y dilue
+   comme un paysage qui se perd dans la brume */
 function teinteHorizon(img){
   try{
     const c=document.createElement('canvas'); c.width=64; c.height=32;
     const x=c.getContext('2d',{willReadFrequently:true});
     x.drawImage(img,0,0,64,32);
-    const d=x.getImageData(0,15,64,3).data;
+    const d=x.getImageData(0,14,64,2).data;
     let r=0,v=0,b=0,n=0;
     for(let i=0;i<d.length;i+=4){ r+=d[i]; v+=d[i+1]; b+=d[i+2]; n++; }
     return (Math.round(r/n)<<16)|(Math.round(v/n)<<8)|Math.round(b/n);
@@ -190,6 +193,100 @@ function emojiTex(ch){
   return texCache[k];
 }
 
+/* ---------- PAYSAGE : le plateau est posé dans un décor, pas sur une dalle ----------
+   Un terrain radial en relief part du pied de l'île, ondule en collines puis se
+   dresse en crêtes à l'horizon. Ses sommets sont teintés progressivement de la
+   couleur du ciel : le raccord avec le panorama n'a plus de couture. */
+function relief(x,z){
+  return Math.sin(x*.0210)*Math.cos(z*.0170)*1.0
+       + Math.sin(x*.0071+1.3)*Math.cos(z*.0091-.7)*2.4
+       + Math.sin((x+z)*.0043+2.1)*3.2
+       + Math.sin(x*.0031-.9)*Math.sin(z*.0037+1.7)*4.0;
+}
+function paysage(amb2,tex,rIle){
+  const R=1000, ANN=58, SEG=112;      // anneaux / secteurs : assez dense pour la brume
+  const y0=-3.2;                      // niveau du pied de l'île
+  const plat=Math.max(70,rIle+30);    // couronne plate autour de l'île (on ne cache rien)
+  const cSol=new THREE.Color(amb2.sea);
+  // les reliefs lointains tirent vers le ciel sans s'y fondre : ils gardent
+  // juste ce qu'il faut de matiere pour se decouper en silhouettes
+  const cCiel=new THREE.Color(PANO_HZ[room.mapId]!=null?PANO_HZ[room.mapId]:amb2.sky);
+  const cLoin=cCiel.clone().multiplyScalar(.72);
+  const pos=[],col=[],uvs=[],idx=[];
+  const c=new THREE.Color();
+  for(let a=0;a<=ANN;a++){
+    const t=a/ANN;
+    const rad=plat+Math.pow(t,1.55)*(R-plat);
+    for(let s=0;s<=SEG;s++){
+      const ang=s/SEG*Math.PI*2;
+      const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
+      // ondulations partout, puis chaine de sommets qui se dresse vers l'horizon
+      // quelques sommets marques plutot qu'une tolerie reguliere
+      const crete=(Math.pow(Math.abs(Math.sin(ang*1.7+.9)),3)
+                 +Math.pow(Math.abs(Math.sin(ang*3.1-2.0)),6)*.8
+                 +Math.pow(Math.abs(Math.cos(ang*2.3+2.6)),5)*.6)/2.4;
+      // hauteurs a l'echelle du plateau : des collines, pas des Alpes
+      const h=relief(x,z)*t*2.0 + Math.pow(t,2.0)*58*crete;
+      pos.push(x,y0+h,z);
+      uvs.push(x/27,z/27);
+      c.copy(cSol).lerp(cLoin,Math.min(1,Math.pow(t,.8)*1.05));
+      col.push(c.r,c.g,c.b);
+    }
+  }
+  const row=SEG+1;
+  for(let a=0;a<ANN;a++) for(let s=0;s<SEG;s++){
+    const i=a*row+s;
+    idx.push(i,i+row,i+1, i+1,i+row,i+row+1);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  let m=null;
+  if(tex){
+    m=tex.clone();
+    m.wrapS=m.wrapT=THREE.RepeatWrapping;
+    m.repeat.set(1,1);
+    m.anisotropy=renderer?renderer.capabilities.getMaxAnisotropy():8;
+    m.minFilter=THREE.LinearMipmapLinearFilter;
+    m.generateMipmaps=true;
+    m.needsUpdate=true;
+  }
+  const mat=new THREE.MeshStandardMaterial({vertexColors:true,map:m,
+    emissive:amb2.seaGlow,emissiveIntensity:amb2.em,roughness:.95,flatShading:true});
+  const sol=new THREE.Mesh(geo,mat);
+  sol.position.set(CENTER.x,0,CENTER.z);
+  sol.receiveShadow=true;
+  // semis de rochers : le milieu de plan respire au lieu d'etre une plaine nue
+  const gRoc=new THREE.Group();
+  const cRoc=new THREE.Color();
+  for(let i=0;i<150;i++){
+    const ang=i*2.39996;                       // spirale d'or : reparti sans motif
+    const t=.06+Math.pow(i/150,.8)*.94;
+    const rad=plat+12+t*(R*.52);
+    const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
+    const ech=1.4+Math.abs(Math.sin(i*12.9898))*5.6+t*4;
+    const g=new THREE.ConeGeometry(ech*.62,ech*(1.1+Math.abs(Math.cos(i*4.1))*1.5),5+(i%3));
+    cRoc.copy(cSol).lerp(cLoin,Math.min(.85,t*.9)).multiplyScalar(.86);
+    const r=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:cRoc.getHex(),roughness:1,flatShading:true}));
+    r.position.set(x,y0+relief(x,z)*t*2.0+ech*.2,z);
+    r.rotation.y=ang;
+    r.rotation.z=Math.sin(i*7.3)*.09;
+    gRoc.add(r);
+  }
+  gRoc.position.set(CENTER.x,0,CENTER.z);
+  // le disque plat sous l'île, pour qu'aucun trou n'apparaisse au pied du socle
+  const dg=new THREE.CircleGeometry(plat+1,SEG);
+  const disq=new THREE.Mesh(dg,new THREE.MeshStandardMaterial({color:amb2.sea,map:m,
+    emissive:amb2.seaGlow,emissiveIntensity:amb2.em,roughness:.95}));
+  disq.rotation.x=-Math.PI/2;
+  disq.position.set(CENTER.x,y0,CENTER.z);
+  disq.receiveShadow=true;
+  return {sol,disq,mat,plat,gRoc};
+}
+
 /* ---------- init ---------- */
 function init(){
   wrap=document.getElementById('boardWrap');
@@ -197,7 +294,7 @@ function init(){
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x171030);
   scene.fog=new THREE.Fog(0x171030,80,190);
-  cam=new THREE.PerspectiveCamera(42,1,.5,1200);
+  cam=new THREE.PerspectiveCamera(42,1,1.5,7000);
   renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.shadowMap.enabled=true;
@@ -244,7 +341,7 @@ function sizeToWrap(){
   cam.aspect=w/Math.max(1,h);
   cam.fov=(w/h)<0.85?50:42;          // portrait : on ouvre pour voir la route devant
   cam.updateProjectionMatrix();
-  vClose=TILE*11.5;                   // suivi rapproche : ~7 dalles devant soi
+  vClose=TILE*10.4;                   // suivi rapproche : ~7 dalles devant soi
   vFull=Math.max(SPAN*1.15,TILE*16); // vue d'ensemble
 }
 function applyCam(){}
@@ -273,14 +370,16 @@ function build(){
     pano.mapping=THREE.EquirectangularReflectionMapping;
     const geoC=new THREE.SphereGeometry(420,40,26);
     geoC.scale(-1,1,1);
-    const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false,color:0xFFFFFF,toneMapped:false}));
+    const ciel=new THREE.Mesh(geoC,new THREE.MeshBasicMaterial({map:pano,fog:false,color:0xFFFFFF,
+      toneMapped:false,depthWrite:false,depthTest:false}));
+    ciel.renderOrder=-1000;
     ciel.position.set(CENTER.x,-3.2,CENTER.z); // horizon de la voute pile sur le sol
     B3D.ciel=ciel;
     scene.add(ciel);
   }
   // la brume prend la teinte exacte de l'horizon du panorama : le sol s'y fond
   // sans bande sombre ni bord visible
-  scene.fog=new THREE.Fog(PANO_HZ[room.mapId]!=null?PANO_HZ[room.mapId]:amb2.sky,95,255);
+  scene.fog=new THREE.Fog(PANO_HZ[room.mapId]!=null?PANO_HZ[room.mapId]:amb2.sky,260,1800);
   sun.color.setHex(amb2.sun);
   amb.color.setHex(amb2.amb);
   // emprise de la carte → centre caméra + cadrage
@@ -387,25 +486,10 @@ function build(){
   });
   // ----- ROUTES : ruban de pierre continu + flux lumineux qui s'écoule -----
   buildRoutes(gStatic,nodes,pal);
-  // ----- océan animé sous l'île (lave / nuit de fête / nébuleuse / lagon) -----
-  // reste EN DECA du rayon de la voute (420) : sinon le plan la traverse et
-  // les deux surfaces se disputent la profondeur → scintillement a l'horizon
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(700,700),
-    new THREE.MeshStandardMaterial({color:amb2.sea,emissive:amb2.seaGlow,emissiveIntensity:.16,roughness:.9,map:tex||null}));
-  sea.rotation.x=-Math.PI/2;
-  sea.position.set(CENTER.x,-3.2,CENTER.z); // au ras du socle : aucun trou entre l'ile et l'horizon
-  if(tex){
-    const t2=tex.clone();
-    t2.wrapS=t2.wrapT=THREE.RepeatWrapping;
-    t2.repeat.set(34,34);                       // dalles plus larges : moins de moire au loin
-    t2.anisotropy=renderer?renderer.capabilities.getMaxAnisotropy():8;
-    t2.minFilter=THREE.LinearMipmapLinearFilter;
-    t2.generateMipmaps=true;
-    t2.needsUpdate=true;
-    sea.material.map=t2;
-  }
-  B3D.seaMat=sea.material;
-  gStatic.add(sea);
+  // ----- PAYSAGE : collines et cretes autour de l'ile jusqu'a l'horizon -----
+  const pay=paysage(amb2,tex,Math.max(SPAN*.6,84));
+  B3D.seaMat=pay.mat; B3D.seaEm=amb2.em;
+  gStatic.add(pay.sol); gStatic.add(pay.disq); gStatic.add(pay.gRoc);
   // ----- cascades voxel sur le bord de l'île (flux qui tombe en boucle) -----
   const fallM=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,emissiveIntensity:1.1,transparent:true,opacity:.85});
   const fallG=new THREE.BoxGeometry(.6,1.4,.6);
@@ -625,11 +709,11 @@ function buildProps(g,mapId,pal){
       spoke.rotation.z=ang+Math.PI/2;
       roue.add(spoke);
     }
-    const pied=new THREE.Mesh(new THREE.CylinderGeometry(.16,.3,4,5),dark);
-    pied.position.y=-2;
+    const pied=new THREE.Mesh(new THREE.CylinderGeometry(.18,.55,4.6,6),dark);
+    pied.position.y=-2.3;   // descend pile jusqu'au sol : la roue ne flotte plus
     roue.add(pied);
     const pr0=toW({x:355,y:120,h:0});
-    const pr=ancre(pr0.x,pr0.z,4.4);
+    const pr=ancre(pr0.x,pr0.z,7.2);
     roue.position.set(pr.x,4.6,pr.z);
     roue.rotation.y=.6;
     roue.children.forEach(m=>m.castShadow=true);
@@ -982,7 +1066,7 @@ function loop(){
   if(B3D.torches) B3D.torches.forEach((f,i)=>{ const k=1+Math.sin(t*.011+i*1.7)*.16; f.scale.set(k,1/k,k); });
   if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-3.2,cam.position.z);
   if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
-  if(B3D.seaMat) B3D.seaMat.emissiveIntensity=.12+Math.sin(t*.0016)*.06;
+  if(B3D.seaMat) B3D.seaMat.emissiveIntensity=B3D.seaEm*(1+Math.sin(t*.0016)*.28);
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
   // la faune et le diorama vivent
   if(B3D.amb3d) B3D.amb3d.forEach(o=>{
@@ -1087,13 +1171,13 @@ function loop(){
   FOCUS.lerp(focusTarget,Math.min(1,dt*2.6));
   const vWant=B3D.overview?vFull:vClose;
   vCur+=(vWant-vCur)*Math.min(1,dt*2.6);
-  const elWant=B3D.overview?.92:.52;
+  const elWant=B3D.overview?1.02:.70;
   elCur+=(elWant-elCur)*Math.min(1,dt*2.6);
   const az=(B3D.overview?azim:azimAuto+azim)+Math.sin(t*.00008)*.02;
   cam.position.set(FOCUS.x+Math.sin(az)*vCur*Math.cos(elCur),
                    Math.max(2.5,vCur*Math.sin(elCur)),
                    FOCUS.z+Math.cos(az)*vCur*Math.cos(elCur));
-  cam.lookAt(FOCUS.x,B3D.overview?2.5:TILE*1.7,FOCUS.z); // plateau devant, horizon dans le haut du cadre
+  cam.lookAt(FOCUS.x,B3D.overview?2.0:TILE*1.05,FOCUS.z); // le plateau remplit le cadre, l'horizon reste en haut
   renderer.render(scene,cam);
 }
 
