@@ -75,10 +75,10 @@ let rims=[],bobs=[],spinners=[],mixers=[],puffs=[];
 let CENTER=new THREE.Vector3(), SPAN=30;
 let BOUNDS={minX:-20,maxX:20,minZ:-30,maxZ:30};
 let FOCUS=new THREE.Vector3(), focusTarget=new THREE.Vector3(); // caméra qui suit le joueur actif
-let vClose=16, vFull=30, vCur=22;    // zoom suivi / zoom vue d'ensemble (lerpé)
+let vClose=22, vFull=48, vCur=26, elCur=.56, azimAuto=0;    // zoom suivi / zoom vue d'ensemble (lerpé)
 B3DoverviewInit();
 function B3DoverviewInit(){ B3D.overview=false; }
-let azim=Math.PI/4, azimBase=Math.PI/4, dragX=null, dragMoved=false;
+let azim=0, azimBase=0, dragX=null, dragMoved=false;
 let lastT=performance.now();
 
 const toW=n=>new THREE.Vector3((n.x-210)*SC,(n.h||0)*ETAGE,(n.y-390)*SC);
@@ -180,7 +180,7 @@ function init(){
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x171030);
   scene.fog=new THREE.Fog(0x171030,80,190);
-  cam=new THREE.OrthographicCamera(-1,1,1,-1,1,420);
+  cam=new THREE.PerspectiveCamera(42,1,.5,500);
   renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.shadowMap.enabled=true;
@@ -212,17 +212,14 @@ function sizeToWrap(){
   if(!wrap||!canvas.parentNode) return;
   const w=wrap.clientWidth, h=wrap.clientHeight||1;
   renderer.setSize(w,h,false);
-  const a=w/h;
-  // deux niveaux de zoom : lecture des dalles (suivi) / carte entière (ensemble)
-  vClose=Math.max(SPAN*0.30,(SPAN*0.64)/Math.max(.5,a)*0.30);
-  vFull=Math.max(SPAN*0.55,(SPAN*1.06)/Math.max(.5,a)*0.55);
-  applyCam(a);
-}
-function applyCam(a){
-  a=a||((wrap&&wrap.clientWidth||1)/(wrap&&wrap.clientHeight||1));
-  cam.left=-vCur*a; cam.right=vCur*a; cam.top=vCur; cam.bottom=-vCur;
+  cam.aspect=w/Math.max(1,h);
+  cam.fov=(w/h)<0.85?50:42;          // portrait : on ouvre pour voir la route devant
   cam.updateProjectionMatrix();
+  vClose=TILE*10.5;                   // suivi rapproche : ~7 dalles devant soi
+  vFull=Math.max(SPAN*1.15,TILE*16); // vue d'ensemble
 }
+function applyCam(){}
+
 
 /* ---------- construction statique (une fois par carte / étoile) ---------- */
 function clearGroup(g){
@@ -984,24 +981,39 @@ function loop(){
     po.group.position.copy(po.cur);
     if(po.mixer) po.mixer.update(dt);
   }
-  // caméra : suit le joueur dont c'est le tour, ou cadre TOUTE la carte (🗺️)
+  // ---- camera facon jeu de plateau : basse, derriere le joueur, tournee vers la route ----
   const cur=room&&room.players&&room.players[room.turn];
-  if(!B3D.overview&&cur&&B3D.pions[cur.id]) focusTarget.copy(B3D.pions[cur.id].cur);
+  const po=cur&&B3D.pions[cur.id];
+  if(!B3D.overview&&po) focusTarget.copy(po.cur);
   else focusTarget.copy(CENTER);
-  if(!B3D.overview){
-    // au bord de carte, on ne montre pas la moitié de vide : la visée reste dans l'île
-    const mX=Math.min(vCur*.72,(BOUNDS.maxX-BOUNDS.minX)/2);
-    const mZ=Math.min(vCur*.72,(BOUNDS.maxZ-BOUNDS.minZ)/2);
-    focusTarget.x=Math.max(BOUNDS.minX+mX,Math.min(BOUNDS.maxX-mX,focusTarget.x));
-    focusTarget.z=Math.max(BOUNDS.minZ+mZ,Math.min(BOUNDS.maxZ-mZ,focusTarget.z));
+  if(!B3D.overview&&po&&cur&&room.board){
+    let dx=po.target.x-po.cur.x, dz=po.target.z-po.cur.z;
+    if(Math.hypot(dx,dz)<.35){
+      const n=room.board[cur.pos];
+      const nx=n&&n.next&&room.board[n.next[0]];
+      if(nx){ const a2=toW(n), b2=toW(nx); dx=b2.x-a2.x; dz=b2.z-a2.z; }
+    }
+    if(Math.hypot(dx,dz)>.05){
+      const want=Math.atan2(-dx,-dz);
+      let d2=want-azimAuto;
+      while(d2>Math.PI) d2-=Math.PI*2;
+      while(d2<-Math.PI) d2+=Math.PI*2;
+      azimAuto+=d2*Math.min(1,dt*1.5);
+      const L=Math.hypot(dx,dz)||1;
+      focusTarget.x+=dx/L*TILE*2.2;
+      focusTarget.z+=dz/L*TILE*2.2;
+    }
   }
-  FOCUS.lerp(focusTarget,Math.min(1,dt*2.4));
+  FOCUS.lerp(focusTarget,Math.min(1,dt*2.6));
   const vWant=B3D.overview?vFull:vClose;
-  if(Math.abs(vCur-vWant)>.05){ vCur+=(vWant-vCur)*Math.min(1,dt*3.4); applyCam(); }
-  const az=azim+Math.sin(t*.00012)*.04;
-  const R=SPAN*2.1, el=1.02;
-  cam.position.set(FOCUS.x+Math.sin(az)*R*Math.cos(el),R*Math.sin(el),FOCUS.z+Math.cos(az)*R*Math.cos(el));
-  cam.lookAt(FOCUS.x,1.2,FOCUS.z);
+  vCur+=(vWant-vCur)*Math.min(1,dt*2.6);
+  const elWant=B3D.overview?1.02:.64;
+  elCur+=(elWant-elCur)*Math.min(1,dt*2.6);
+  const az=(B3D.overview?azim:azimAuto+azim)+Math.sin(t*.00008)*.02;
+  cam.position.set(FOCUS.x+Math.sin(az)*vCur*Math.cos(elCur),
+                   Math.max(2.5,vCur*Math.sin(elCur)),
+                   FOCUS.z+Math.cos(az)*vCur*Math.cos(elCur));
+  cam.lookAt(FOCUS.x,B3D.overview?1.2:TILE*.9,FOCUS.z);
   renderer.render(scene,cam);
 }
 
