@@ -40,6 +40,7 @@ const VOXTEX={};
   new THREE.TextureLoader().load('/art/voxtex-'+k+'.jpg',t=>{
     t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.colorSpace=THREE.SRGBColorSpace;
+    t.repeat.set(.5,.5); // motif zoomé : lisible à l'échelle d'un bloc
     VOXTEX[k]=t;
     B3D.built=''; // reconstruire avec la matière dès qu'elle arrive
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
@@ -197,9 +198,10 @@ function build(){
   const NX=Math.ceil((maxX-minX+10)/CELL), NZ=Math.ceil((maxZ-minZ+10)/CELL);
   const g1=new THREE.BoxGeometry(CELL,1,CELL);
   const tex=VOXTEX[room.mapId];
-  // texture du thème plaquée sur les blocs (le damier vient de deux teintes)
-  const mA=new THREE.MeshStandardMaterial({color:tex?0xBCB2DA:pal.a,map:tex||null,roughness:.95});
-  const mB=new THREE.MeshStandardMaterial({color:tex?0xE8E0FF:pal.b,map:tex||null,roughness:.95});
+  // texture du thème plaquée sur les blocs, teintes claires pour qu'elle RESSORTE
+  // (le damier vient des deux teintes appliquées par-dessus la matière)
+  const mA=new THREE.MeshStandardMaterial({color:tex?0xD8CCF2:pal.a,map:tex||null,roughness:.92});
+  const mB=new THREE.MeshStandardMaterial({color:tex?0xFFFFFF:pal.b,map:tex||null,roughness:.92});
   const mGlow=new THREE.MeshStandardMaterial({color:pal.glowC,emissive:pal.glow,emissiveIntensity:1.3,roughness:.6});
   B3D.mGlow=mGlow;
   const rng=(s=>()=>{s=(s*16807)%2147483647;return s/2147483647;})(42);
@@ -414,10 +416,13 @@ function ensurePion(p){
     }
     const bb=new THREE.Box3().setFromObject(m);
     const size=bb.getSize(new THREE.Vector3());
-    // taille homogène pour TOUS les persos : ni la hauteur ni l'empreinte au sol
-    // ne dépassent (sinon les persos larges/t-pose paraissent géants)
-    const foot=(size.x+size.z)/2;
-    m.scale.setScalar(HERO_H/Math.max(.0001,size.y,foot*.92));
+    // référence : Cosmo (riggé) — sa bbox en pose de marche est FIABLE.
+    // Les modèles statiques Meshy sont livrés en t-pose : la boîte inclut les
+    // bras écartés et du vide → le corps réel est plus petit que la boîte.
+    // On les grossit donc pour qu'ils aient la même présence que Cosmo.
+    const s=skinned ? (HERO_H*1.75)/Math.max(.0001,size.y)
+                    : (HERO_H*2.2)/Math.max(.0001,size.y);
+    m.scale.setScalar(s);
     bb.setFromObject(m);
     m.position.y=-bb.min.y;
     m.position.x=-(bb.min.x+bb.max.x)/2;

@@ -476,6 +476,17 @@ function renderBoard(){
     lastPosKey=pk;
     if(!myTurn()&&!animBusy) setTimeout(()=>scrollToPawn(),60);
   }
+  // duel de case : c'est MOI qu'on défie → je lance mon dé sur MON téléphone
+  if(!local&&room.duelAsk&&room.duelAsk.def===me.id&&lastDuelSeq!==room.duelAsk.seq){
+    lastDuelSeq=room.duelAsk.seq;
+    (async()=>{
+      snd('duel'); vib(50);
+      await ask({icon:'⚔️',title:'ON VEUT TA PLACE !',sheet:true,
+        text:(room.duelAsk&&room.duelAsk.atkName||'Un joueur')+' a fait '+(room.duelAsk&&room.duelAsk.a)+' au dé ! Défends ta case !',
+        options:[{label:'🎲 Lancer mon dé !',value:1,cls:'rose'}]});
+      actSend({k:'dref', v:1+rnd(6)});
+    })();
+  }
   const who=local?cur.name+' de jouer !':(myTurn()?'TOI de jouer !':cur.name+' de jouer');
   const myP=local?cur:room.players.find(p=>p.id===me.id);
   const dStar=myP?distToStar(myP.pos):-1;
@@ -948,28 +959,79 @@ async function moveBy(p,d){
   await landEffect(p);
 }
 
+/* duel de case : le défenseur lance son dé depuis SON téléphone (relais act) */
+let duelResolve=null, lastDuelSeq=0;
+async function duelAskRemote(p,foe,aShown){
+  room.duelAsk={seq:((room.duelAsk&&room.duelAsk.seq)||0)+1, atk:p.id, atkName:p.name, def:foe.id, a:aShown};
+  await saveRoom();
+  const v=await new Promise(res=>{
+    duelResolve=res;
+    // défenseur absent/AFK : son dé part tout seul après 15 s
+    setTimeout(()=>{ if(duelResolve===res){ duelResolve=null; res(1+rnd(6)); } },15000);
+  });
+  room.duelAsk=null;
+  await saveRoom();
+  return v;
+}
 async function landEffect(p){
-  // DUEL DE CASE : deux pions sur la même case → duel de dés, le perdant recule !
+  // DUEL DE CASE : deux pions sur la même case → CHACUN lance son dé, le perdant recule !
   if(p.pos!==0){
     const squatters=room.players.filter(o=>o.id!==p.id&&!o.gone&&o.pos===p.pos);
     if(squatters.length){
+      // verrou anti-écho : pendant le duel, les états entrants attendent —
+      // sinon room peut être remplacé entre la mutation et l'envoi (positions perdues)
+      const wasBusy=animBusy; animBusy=true;
       const foe=squatters[rnd(squatters.length)];
       snd('duel'); vib(30);
-      fxCast('⚔️','CASE OCCUPÉE !',p.name+' débarque chez '+foe.name+' : duel de dés pour la place !',2100);
-      await sleep(2250);
-      let a,b; do{ a=1+rnd(6); b=1+rnd(6); }while(a===b);
-      const win=a>b?p:foe, lose=a>b?foe:p;
+      fxCast('⚔️','CASE OCCUPÉE !',p.name+' débarque chez '+foe.name+' : duel de dés pour la place !',1900);
+      await sleep(2000);
+      // 1) l'arrivant lance SON dé — vrai geste, pas d'automatique
+      scrollToPawn();
+      await ask({icon:'⚔️',title:'DUEL DE CASE !',sheet:true,
+        text:p.name+', lance ton dé pour prendre la place de '+foe.name+' !',
+        options:[{label:'🎲 Lancer mon dé !',value:1,cls:'menthe'}]});
+      let a=1+rnd(6);
+      snd('duel'); vib(20);
+      fxCast('🎲',p.name+' fait '+a+' !','À '+foe.name+' de défendre sa place…',1500);
+      await sleep(1600);
+      // 2) le défenseur lance le sien (sur SON téléphone en ligne, en main propre en local)
+      let b;
+      if(local){
+        await ask({icon:'🎲',title:'DÉFENDS TA PLACE !',sheet:true,
+          text:'Passe le téléphone à '+foe.name+' — lance ton dé pour garder ta case !',
+          options:[{label:'🎲 Lancer mon dé !',value:1,cls:'rose'}]});
+        b=1+rnd(6);
+      } else {
+        b=await duelAskRemote(p,foe,a);
+      }
+      snd('duel');
+      fxCast('🎲',foe.name+' fait '+b+' !','',1500);
+      await sleep(1600);
+      // égalité : on relance les deux dés jusqu'à la décision
+      while(a===b){
+        fxCast('😮','ÉGALITÉ !','On relance les dés !',1300);
+        await sleep(1400);
+        a=1+rnd(6); b=1+rnd(6);
+        fxCast('🎲',(p.avatar||'')+' '+a+' 🆚 '+b+' '+(foe.avatar||''),'',1500);
+        await sleep(1600);
+      }
+      // après les attentes réseau, room a pu être resynchronisé :
+      // on re-résout les joueurs PAR ID pour ne jamais muter un objet orphelin
+      const pN=room.players.find(q=>q.id===p.id)||p;
+      const foeN=room.players.find(q=>q.id===foe.id)||foe;
+      const win=a>b?pN:foeN, lose=a>b?foeN:pN;
       // le perdant est repoussé d'une case en arrière (un prédécesseur de la case)
       const prevs=[];
-      room.board.forEach((n,i)=>{ if(n.next&&n.next.indexOf(p.pos)>=0) prevs.push(i); });
+      room.board.forEach((n,i)=>{ if(n.next&&n.next.indexOf(pN.pos)>=0) prevs.push(i); });
       lose.pos=prevs.length?prevs[rnd(prevs.length)]:0;
       snd(win===p?'yay':'bad');
-      fxCast('⚔️','DUEL DE CASE !',(p.avatar||'')+' '+a+' 🆚 '+b+' '+(foe.avatar||'')+'<br><b>'+win.name+'</b> garde la place — '+lose.name+' recule !',3000);
+      fxCast('⚔️','DUEL DE CASE !',(p.avatar||'')+' '+a+' 🆚 '+b+' '+(foe.avatar||'')+'<br><b>'+win.name+'</b> garde la place — '+lose.name+' recule !',2900);
       logAct(win,'⚔️','gagne le <b>duel de case</b> !','⚔️ Duel de case : '+win.name+' bat '+lose.name+' qui recule d\'une case !','win');
       renderBoard();
       await saveRoom();
       await sleep(500);
-      if(lose===p) return; // éjecté : l'effet de la case ne se déclenche pas
+      animBusy=wasBusy;
+      if(lose.id===p.id) return; // éjecté : l'effet de la case ne se déclenche pas
     }
   }
   // bombe piégée posée par un autre joueur ?

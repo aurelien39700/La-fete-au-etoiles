@@ -171,6 +171,9 @@ function onNet(m){
   else if(m.t==='act'){
     const d=m.data;
     if(d&&d.k==='emote') showEmote(d);
+    else if(d&&d.k==='dref'){ // dé du défenseur dans un duel de case
+      if(typeof duelResolve==='function'&&duelResolve){ const r=duelResolve; duelResolve=null; r(d.v); }
+    }
     else if(window.mgAct) try{ window.mgAct(d); }catch(e){}
   }
   else if(m.t==='prof'){ profGot(m); }
