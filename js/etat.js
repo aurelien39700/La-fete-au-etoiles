@@ -241,53 +241,54 @@ function mapArchipel(){
   };
 }
 function mapVolcan(){
-  // grande boucle des pentes + rivière de lave traversante + caldera intérieure (2 étoiles)
+  // REFONTE : 34 GRANDES dalles espacées (au lieu de 48 serrées) — lisible d'un
+  // coup d'œil. Mêmes quartiers : pentes, caldera (2 ⭐), rivière de lave, gorge.
   const nodes=[];
-  const cx=205, cy=400, OUT=30;
   const P=(px,py,rx,ry,deg)=>{ const a=deg*Math.PI/180;
     return {x:Math.round(px+rx*Math.cos(a)), y:Math.round(py+ry*Math.sin(a))}; };
-  for(let i=0;i<OUT;i++){ // 0..29 : grande boucle des pentes (bord déchiqueté)
+  const cx=205, cy=400, OUT=20;
+  for(let i=0;i<OUT;i++){ // 0..19 : grande boucle des pentes, bord déchiqueté
     const deg=-90+i*(360/OUT);
     const w=1+0.05*Math.sin(3*deg*Math.PI/180+1.0);
-    const p=P(cx,cy,175*w,375*w,deg);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%OUT]});
+    const pt=P(cx,cy,175*w,375*w,deg);
+    nodes.push({t:'blue',x:pt.x,y:pt.y,next:[(i+1)%OUT]});
   }
-  for(let k=0;k<10;k++){ // 30..39 : la Caldera Interdite (boucle intérieure, 2 étoiles)
-    const p=P(205,280,82,100,-90+k*36);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[30+(k+1)%10]});
+  for(let k=0;k<8;k++){ // 20..27 : la Caldera Interdite (2 étoiles)
+    const pt=P(205,280,86,104,-90+k*45);
+    nodes.push({t:'blue',x:pt.x,y:pt.y,next:[20+(k+1)%8]});
   }
-  // 40..45 : la Rivière de Lave — traversée est→ouest sous la caldera (raccourci brûlant)
-  const E=nodes[8], W=nodes[21];
-  for(let j=1;j<=6;j++){
-    const t=j/7;
+  // 28..31 : la Rivière de Lave — raccourci est→ouest sous la caldera
+  const E=nodes[5], W=nodes[15];
+  for(let j=1;j<=4;j++){
+    const t=j/5;
     nodes.push({t:'blue',
       x:Math.round(E.x+(W.x-E.x)*t),
-      y:Math.round(E.y+(W.y-E.y)*t+80*Math.sin(t*Math.PI)),
-      next:[j<6?40+j:21]});
+      y:Math.round(E.y+(W.y-E.y)*t+85*Math.sin(t*Math.PI)),
+      next:[j<4?28+j:15]});
   }
-  // 46 : gorge d'entrée de la caldera (depuis les pentes est)
-  nodes.push({t:'blue',x:Math.round((nodes[3].x+nodes[31].x)/2),
-    y:Math.round((nodes[3].y+nodes[31].y)/2),next:[31]});
-  // 47 : la coulée — sortie sud de la caldera qui rejoint la rivière
-  nodes.push({t:'blue',x:Math.round((nodes[35].x+nodes[42].x)/2),
-    y:Math.round((nodes[35].y+nodes[42].y)/2),next:[42]});
-  // carrefours (vrais choix de route)
-  nodes[3].next=[4,46];
-  nodes[2].labels=['🌫️ Longer les Pentes de Cendre','🔥 Plonger dans la Caldera (2 ⭐ !)'];
-  nodes[8].next=[9,40];
-  nodes[8].labels=['🏦 Descente prudente vers la banque','♨️ Surfer la Rivière de Lave (court… mais brûlant !)'];
-  nodes[24].next=[25,37];
-  nodes[24].labels=['💨 Continuer sur les cendres','🧗 Escalader jusqu\'à la Caldera (2 ⭐ !)'];
-  nodes[35].next=[36,47];
-  nodes[35].labels=['🔁 Refaire un tour de Caldera','🌋 Fuir par la coulée de lave'];
-  const starSpots=[12,18,27,32,38,43];
-  const TYPES={start:[0], starT:starSpots, red:[2,7,16,22,31,36,40,44], lucky:[6,23],
-    event:[1,15,28,37,47], shop:[4,17], boo:[25], duel:[11,20],
-    bank:[9], chance:[14], bowser:[34,41,46]};
+  // 32 : la gorge d'entrée (pentes nord-est → caldera)
+  nodes.push({t:'blue',x:Math.round((nodes[2].x+nodes[21].x)/2),
+    y:Math.round((nodes[2].y+nodes[21].y)/2),next:[21]});
+  // 33 : la coulée — sortie sud de la caldera vers la rivière
+  nodes.push({t:'blue',x:Math.round((nodes[24].x+nodes[30].x)/2),
+    y:Math.round((nodes[24].y+nodes[30].y)/2),next:[30]});
+  // carrefours : le choix se fait sur la case même, étiquettes claires
+  nodes[2].next=[3,32];
+  nodes[2].labels=['🌫️ Longer les Pentes de Cendre','🔥 Monter à la Caldera (2 ⭐ !)'];
+  nodes[5].next=[6,28];
+  nodes[5].labels=['🏦 Descendre prudemment vers la banque','♨️ Surfer la Rivière de Lave (court… mais brûlant !)'];
+  nodes[16].next=[17,26];
+  nodes[16].labels=['💨 Continuer sur les cendres','🧗 Escalader jusqu\'à la Caldera (2 ⭐ !)'];
+  nodes[24].next=[25,33];
+  nodes[24].labels=['🔁 Refaire un tour de Caldera','🌋 Fuir par la coulée de lave'];
+  const starSpots=[8,13,18,23,26,30];
+  const TYPES={start:[0], starT:starSpots, red:[4,10,17,21,28,31], lucky:[3,14],
+    event:[1,9,19,25,33], shop:[6,12], boo:[11], duel:[7,22],
+    bank:[15], chance:[20], bowser:[27,29,32]};
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
-  // zones : 0 pentes de cendre (haut), 1 rivière de lave, 2 caldera, 3 plaines d'obsidienne (bas)
+  // zones : 0 pentes de cendre, 1 rivière de lave, 2 caldera, 3 plaines d'obsidienne
   nodes.forEach((n,i)=>{
-    n.z=(i>=30&&i<=39)||i===46?2:((i>=40&&i<=45)||i===47?1:((i>=8&&i<=22)?3:0));
+    n.z=(i>=20&&i<=27)||i===32?2:((i>=28&&i<=31)||i===33?1:((i>=5&&i<=15)?3:0));
   });
   return {
     id:'volcan', name:'Volcan Maudit', e:'🌋', nodes, starSpots, starCost:15,

@@ -556,6 +556,24 @@ function renderBoard(){
   // PLATEAU VOXEL 3D : pris en charge par le moteur three.js quand il est prêt ;
   // sinon (WebGL absent, module pas encore chargé) le rendu SVG ci-dessous prend le relais
   const use3D=!!(window.B3D&&B3D.ok&&B3D.render());
+  // portée du dé en 3D : les cases atteignables (1 à 6) portent leur pastille
+  if(use3D&&B3D.portee){
+    let lst=null;
+    if(myTurn()&&!animBusy&&room.status==='board'){
+      const src=local?cur:room.players.find(q=>q.id===me.id);
+      if(src){
+        const depth={}; depth[src.pos]=0; const q=[src.pos];
+        while(q.length){
+          const i=q.shift();
+          if(depth[i]>=6) continue;
+          for(const j of room.board[i].next) if(depth[j]===undefined){ depth[j]=depth[i]+1; q.push(j); }
+        }
+        lst=Object.keys(depth).filter(i=>depth[i]>=1)
+          .map(i=>({node:room.board[+i], dist:depth[i]}));
+      }
+    }
+    if(lst&&lst.length) B3D.portee(lst); else if(B3D.porteeOff) B3D.porteeOff();
+  }
   if(!use3D){
   // carte façon Mario Party : graphe de nœuds sur une île volante ovale
   const nodes=room.board;

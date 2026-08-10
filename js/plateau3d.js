@@ -416,26 +416,33 @@ function build(){
     gStatic.add(m);
   }
   // ----- dalles : pilier + liseré émissif + plateau + élément 3D du type -----
+  // les cartes aérées (refonte) gagnent des dalles plus LARGES : l'empreinte
+  // suit l'espacement moyen entre cases voisines, bornée pour ne pas se toucher
+  let dSum=0,dN=0;
+  nodes.forEach((n,i)=>{ const pw=toW(n); (n.next||[]).forEach(j=>{ const q=toW(nodes[j]);
+    dSum+=Math.hypot(pw.x-q.x,pw.z-q.z); dN++; }); });
+  const dMoy=dN?dSum/dN:TILE*1.6;
+  const KD=Math.max(1,Math.min(1.42,dMoy/(TILE*1.75)));
   const pillG={}, pillM=new THREE.MeshStandardMaterial({color:0x2A2038,roughness:.9});
   nodes.forEach((n,i)=>{
     const p=toW(n);
     const active=n.t==='starT'&&i===room.starIdx;
     const hPil=.8+(n.h||0)*ETAGE;
     const gk=hPil.toFixed(2);
-    if(!pillG[gk]) pillG[gk]=new THREE.BoxGeometry(TILE,hPil,TILE);
+    if(!pillG[gk]) pillG[gk]=new THREE.BoxGeometry(TILE*KD,hPil,TILE*KD);
     const pl=new THREE.Mesh(pillG[gk],pillM);
     pl.position.set(p.x,p.y-hPil/2+.3,p.z);
     pl.castShadow=pl.receiveShadow=true; pl.userData.shared=1;
     gStatic.add(pl);
     const col=active?0xFFD644:TYPE_COL[n.t]||0x8F86C8;
     const emit=active?0xAA7A00:TYPE_EMIT[n.t]||0x191430;
-    const rim=new THREE.Mesh(new THREE.BoxGeometry(TILE*1.18,.14,TILE*1.18),
+    const rim=new THREE.Mesh(new THREE.BoxGeometry(TILE*1.18*KD,.14,TILE*1.18*KD),
       new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.5,roughness:.4}));
     rim.position.set(p.x,p.y+.32,p.z);
     rim.userData={ph:i*.7,base:active?.95:(n.t!=='blue'?.55:.32)};
     rims.push(rim);
     gStatic.add(rim);
-    const top=new THREE.Mesh(new THREE.BoxGeometry(TILE*1.05,TILE_H,TILE*1.05),
+    const top=new THREE.Mesh(new THREE.BoxGeometry(TILE*1.05*KD,TILE_H,TILE*1.05*KD),
       new THREE.MeshStandardMaterial({color:col,emissive:emit,emissiveIntensity:.85,roughness:.55}));
     top.position.set(p.x,p.y+.56,p.z);
     top.castShadow=top.receiveShadow=true;
@@ -1068,6 +1075,9 @@ function loop(){
   if(B3D.ciel) B3D.ciel.position.set(cam.position.x,-3.2,cam.position.z);
   if(B3D.fluxMat&&B3D.fluxMat.map) B3D.fluxMat.map.offset.y=-(t*.00022)%1; // les chevrons s'écoulent
   if(B3D.seaMat) B3D.seaMat.emissiveIntensity=B3D.seaEm*(1+Math.sin(t*.0016)*.28);
+  if(B3D.gPortee) B3D.gPortee.children.forEach(sp=>{
+    sp.position.y=sp.userData.y+Math.sin(t*.004-sp.userData.d*.9)*.24;
+  });
   if(B3D.starRay){ B3D.starRay.rotation.y=t*.0012; B3D.starRay.material.opacity=.13+Math.sin(t*.0035)*.05; }
   // la faune et le diorama vivent
   if(B3D.amb3d) B3D.amb3d.forEach(o=>{
@@ -1316,6 +1326,39 @@ B3D.routes=function(list){
   scene.add(g);
 };
 B3D.routesOff=function(){ if(B3D.gJonc&&scene){ scene.remove(B3D.gJonc); B3D.gJonc=null; } };
+
+/* ---------- portée du dé : pastilles 1-6 au-dessus des cases atteignables ---------- */
+const PORTEE_TEX={};
+function porteeTex(d){
+  if(PORTEE_TEX[d]) return PORTEE_TEX[d];
+  const cols=['#3EE6C1','#3EE6C1','#FFD644','#FFD644','#FF9F45','#FF5FA2'];
+  const c=document.createElement('canvas'); c.width=c.height=128;
+  const x=c.getContext('2d');
+  x.beginPath(); x.arc(64,64,54,0,7);
+  x.fillStyle='rgba(16,10,38,.9)'; x.fill();
+  x.lineWidth=9; x.strokeStyle=cols[d-1]; x.stroke();
+  x.fillStyle='#fff'; x.font='800 66px "Baloo 2",sans-serif';
+  x.textAlign='center'; x.textBaseline='middle'; x.fillText(String(d),64,70);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  PORTEE_TEX[d]=t; return t;
+}
+B3D.portee=function(list){
+  if(!scene) return;
+  B3D.porteeOff();
+  const g=new THREE.Group();
+  list.forEach(it=>{
+    const p=toW(it.node);
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:porteeTex(it.dist),transparent:true,depthTest:false,depthWrite:false}));
+    sp.renderOrder=880;
+    sp.position.set(p.x,p.y+1.4,p.z);
+    sp.scale.set(1.2,1.2,1);
+    sp.userData.d=it.dist; sp.userData.y=p.y+1.4;
+    g.add(sp);
+  });
+  B3D.gPortee=g;
+  scene.add(g);
+};
+B3D.porteeOff=function(){ if(B3D.gPortee&&scene){ scene.remove(B3D.gPortee); B3D.gPortee=null; } };
 B3D.detach=function(){
   if(canvas&&canvas.parentNode) canvas.parentNode.removeChild(canvas);
 };
