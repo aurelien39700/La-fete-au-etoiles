@@ -47,34 +47,85 @@ const ART_V='?v=3';  // version des images : force le navigateur a reprendre les
 const B3D={ready:false,ok:false,built:'',pions:{},focusId:null};
 window.B3D=B3D;
 
-/* panoramas 360° d'ambiance (fond de diorama, tourne avec la caméra) */
+/* ---------- CIEL PROCÉDURAL ----------
+   Plus aucune photo de fond : le ciel est peint à la volée sur un canevas
+   (dégradé vertical + astre + voile de nuages + étoiles). C'est net à toutes
+   les résolutions, ça colle au style voxel, et ça n'a rien à télécharger. */
+const CIEL={
+  //          zénith     haute      basse      horizon    astre           halo de l'astre
+  volcan:  {a:'#150B24',b:'#4A1430',c:'#A8331E',d:'#E8763A',astre:'#FFD9A0',halo:'#FF6A20',ax:.62,ay:.60,ar:.085,nuage:'#7A2418',etoiles:60},
+  fete:    {a:'#140C2E',b:'#3A1A5E',c:'#8E2F6E',d:'#E89BC0',astre:'#FFF4D8',halo:'#FFC46A',ax:.30,ay:.30,ar:.055,nuage:'#4A2050',etoiles:150},
+  spirale: {a:'#0C0824',b:'#1E1858',c:'#4148A0',d:'#9AA6E8',astre:'#D8C4FF',halo:'#8E6AD8',ax:.72,ay:.34,ar:.10,nuage:'#2A2470',etoiles:190},
+  archipel:{a:'#08182E',b:'#1A4A74',c:'#3893B4',d:'#A8E4E8',astre:'#FFF6D0',halo:'#FFD07A',ax:.24,ay:.52,ar:.07,nuage:'#2E6E8C',etoiles:40},
+  temple:  {a:'#07160F',b:'#123A2A',c:'#2F7048',d:'#A8C878',astre:'#EAF6C8',halo:'#9AD87A',ax:.78,ay:.26,ar:.05,nuage:'#1C4A34',etoiles:120}
+};
 const PANO={};
-const PANO_HZ={};   // couleur moyenne de la ligne d'horizon : le sol se fond dedans
+const PANO_HZ={};   // couleur de l'horizon : le sol lointain s'y dilue
 
-/* derniere bande de ciel juste au-dessus de l'horizon : le sol lointain s'y dilue
-   comme un paysage qui se perd dans la brume */
-function teinteHorizon(img){
-  try{
-    const c=document.createElement('canvas'); c.width=64; c.height=32;
-    const x=c.getContext('2d',{willReadFrequently:true});
-    x.drawImage(img,0,0,64,32);
-    const d=x.getImageData(0,14,64,2).data;
-    let r=0,v=0,b=0,n=0;
-    for(let i=0;i<d.length;i+=4){ r+=d[i]; v+=d[i+1]; b+=d[i+2]; n++; }
-    return (Math.round(r/n)<<16)|(Math.round(v/n)<<8)|Math.round(b/n);
-  }catch(e){ return null; }
+function cielTex(k){
+  const C=CIEL[k]||CIEL.fete;
+  const W=2048, H=1024;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const x=cv.getContext('2d');
+  // 1) dégradé vertical : le zénith sombre descend vers un horizon lumineux
+  const g=x.createLinearGradient(0,0,0,H*0.52);
+  g.addColorStop(0,C.a); g.addColorStop(.45,C.b); g.addColorStop(.80,C.c); g.addColorStop(1,C.d);
+  x.fillStyle=g; x.fillRect(0,0,W,H*0.52);
+  // sous l'horizon : la teinte se referme (on ne la voit qu'en vue d'ensemble)
+  const g2=x.createLinearGradient(0,H*0.52,0,H);
+  g2.addColorStop(0,C.d); g2.addColorStop(.35,C.c); g2.addColorStop(1,C.a);
+  x.fillStyle=g2; x.fillRect(0,H*0.52,W,H*0.48);
+  // 2) étoiles (uniquement dans la moitié haute, densité propre au thème)
+  for(let i=0;i<C.etoiles;i++){
+    const px=Math.random()*W, py=Math.random()*H*0.42;
+    const r=Math.random()*1.9+0.5;
+    x.globalAlpha=0.25+Math.random()*0.75*(1-py/(H*0.42));
+    x.fillStyle='#fff';
+    x.beginPath(); x.arc(px,py,r,0,7); x.fill();
+  }
+  x.globalAlpha=1;
+  // 3) voiles de nuages : ellipses très floues posées près de l'horizon
+  for(let i=0;i<7;i++){
+    const px=(i*0.1637+0.05)%1*W, py=H*(0.30+Math.random()*0.19);
+    const rx=W*(0.09+Math.random()*0.13), ry=H*(0.022+Math.random()*0.035);
+    const gr=x.createRadialGradient(px,py,0,px,py,rx);
+    gr.addColorStop(0,C.nuage); gr.addColorStop(1,'rgba(0,0,0,0)');
+    x.globalAlpha=.34;
+    x.save(); x.translate(px,py); x.scale(1,ry/rx);
+    x.fillStyle=gr; x.beginPath(); x.arc(0,0,rx,0,7); x.fill(); x.restore();
+  }
+  x.globalAlpha=1;
+  // 4) l'astre : halo large puis disque net (soleil couchant, lune, planète…)
+  const ax=C.ax*W, ay=C.ay*H*0.52, ar=C.ar*H;
+  const hg=x.createRadialGradient(ax,ay,ar*0.6,ax,ay,ar*5.2);
+  hg.addColorStop(0,C.halo); hg.addColorStop(1,'rgba(0,0,0,0)');
+  x.globalAlpha=.55; x.fillStyle=hg;
+  x.beginPath(); x.arc(ax,ay,ar*5.2,0,7); x.fill();
+  x.globalAlpha=1;
+  x.fillStyle=C.astre;
+  x.beginPath(); x.arc(ax,ay,ar,0,7); x.fill();
+  if(k==='spirale'){                       // la planète a des anneaux
+    x.strokeStyle=C.halo; x.globalAlpha=.75;
+    [1.9,2.25,2.6].forEach((m,i)=>{
+      x.lineWidth=ar*(0.14-i*0.03);
+      x.save(); x.translate(ax,ay); x.rotate(-0.32); x.scale(1,0.2);
+      x.beginPath(); x.arc(0,0,ar*m,0,7); x.stroke(); x.restore();
+    });
+    x.globalAlpha=1;
+  }
+  // 5) la bande d'horizon, reprise telle quelle pour la brume du terrain
+  const d=x.getImageData(0,Math.round(H*0.50),W,4).data;
+  let r=0,v=0,b=0,n=0;
+  for(let i=0;i<d.length;i+=4){ r+=d[i]; v+=d[i+1]; b+=d[i+2]; n++; }
+  PANO_HZ[k]=(Math.round(r/n)<<16)|(Math.round(v/n)<<8)|Math.round(b/n);
+  const t=new THREE.CanvasTexture(cv);
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  t.colorSpace=THREE.SRGBColorSpace;
+  t.wrapS=THREE.RepeatWrapping;
+  t.needsUpdate=true;
+  return t;
 }
-
-['volcan','fete','spirale','archipel','temple'].forEach(k=>{
-  new THREE.TextureLoader().load('/art/pano-'+k+'.jpg'+ART_V,t=>{
-    t.mapping=THREE.EquirectangularReflectionMapping;
-    t.colorSpace=THREE.SRGBColorSpace;
-    const hz=teinteHorizon(t.image); if(hz!=null) PANO_HZ[k]=hz;
-    PANO[k]=t;
-    B3D.built='';
-    try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
-  });
-});
+['volcan','fete','spirale','archipel','temple'].forEach(k=>{ PANO[k]=cielTex(k); });
 /* textures Meshy plaquées sur les blocs du socle (une par thème de carte) */
 const VOXTEX={};
 ['volcan','fete','spirale','archipel','temple'].forEach(k=>{
@@ -217,7 +268,7 @@ function paysage(amb2,tex,rIle){
   const c=new THREE.Color();
   for(let a=0;a<=ANN;a++){
     const t=a/ANN;
-    const rad=plat+Math.pow(t,1.55)*(R-plat);
+    const rad=plat+Math.pow(t,1.8)*(R-plat);
     for(let s=0;s<=SEG;s++){
       const ang=s/SEG*Math.PI*2;
       const x=Math.cos(ang)*rad, z=Math.sin(ang)*rad;
@@ -227,7 +278,7 @@ function paysage(amb2,tex,rIle){
                  +Math.pow(Math.abs(Math.sin(ang*3.1-2.0)),6)*.8
                  +Math.pow(Math.abs(Math.cos(ang*2.3+2.6)),5)*.6)/2.4;
       // hauteurs a l'echelle du plateau : des collines, pas des Alpes
-      const h=relief(x,z)*t*2.0 + Math.pow(t,2.0)*58*crete;
+      const h=relief(x,z)*t*1.7 + Math.pow(t,2.3)*40*crete;
       pos.push(x,y0+h,z);
       uvs.push(x/27,z/27);
       c.copy(cSol).lerp(cLoin,Math.min(1,Math.pow(t,.8)*1.05));

@@ -40,12 +40,13 @@ function starCost(){ return room.starCost||20; }
    {t, x, y, next:[...], z:zone} — le plateau est un graphe fortement connexe.
    Une carte = {id, name, e, nodes, starSpots, meta:{view, isles, zones, deco}}. */
 function mapFete(){
-  // Île de la Fête v2 — fête foraine céleste : grande promenade extérieure
-  // + Grand-Huit intérieur reliés par 2 échangeurs, plus un plongeon central.
+  // Île de la Fête — REFONTE : grande promenade (18 dalles larges) + Grand-Huit
+  // intérieur (10), reliés par 4 échangeurs DIRECTS (pas de chapelet de cases),
+  // plus un plongeon central. 31 dalles au lieu de 53 : tout se lit d'un coup.
   const nodes=[];
   const cx=220, cy=390;
-  const OUT=28, ORx=185, ORy=330;   // 0..27  : grande boucle extérieure
-  const INN=16, IRx=95,  IRy=200;   // 28..43 : boucle « Grand-Huit »
+  const OUT=18, ORx=185, ORy=330;   // 0..17  : grande promenade extérieure
+  const INN=10, IRx=95,  IRy=200;   // 18..27 : boucle « Grand-Huit »
   for(let i=0;i<OUT;i++){
     const a=-Math.PI/2+i*2*Math.PI/OUT;
     const w=1+0.06*Math.sin(3*a+0.8);
@@ -53,41 +54,32 @@ function mapFete(){
   }
   for(let j=0;j<INN;j++){
     const a=-Math.PI/2+j*2*Math.PI/INN;
-    nodes.push({t:'blue', x:Math.round(cx+IRx*Math.cos(a)), y:Math.round(cy+IRy*Math.sin(a)), next:[28+(j+1)%INN]});
+    nodes.push({t:'blue', x:Math.round(cx+IRx*Math.cos(a)), y:Math.round(cy+IRy*Math.sin(a)), next:[18+(j+1)%INN]});
   }
-  // échangeurs Est/Ouest : 4 passerelles au point médian (44..47)
-  const mid=(a,b)=>({t:'blue', x:Math.round((nodes[a].x+nodes[b].x)/2), y:Math.round((nodes[a].y+nodes[b].y)/2), next:[b]});
-  nodes.push(mid(6,31));   // 44 : entrée Est   (ext 6  → int 31)
-  nodes.push(mid(33,8));   // 45 : sortie Est   (int 33 → ext 8)
-  nodes.push(mid(20,39));  // 46 : entrée Ouest (ext 20 → int 39)
-  nodes.push(mid(41,22));  // 47 : sortie Ouest (int 41 → ext 22)
-  // plongeon central : du sommet (28) au creux (36) du Grand-Huit (48..52)
-  const SC=5, T=nodes[28], B=nodes[36];
-  for(let k=1;k<=SC;k++){
+  // 28..30 : le plongeon central, du sommet du Grand-Huit jusqu'à son creux
+  const T=nodes[18], B=nodes[23];
+  for(let k=1;k<=3;k++){
     nodes.push({t:'blue',
-      x:Math.round(cx+30*Math.sin(k*Math.PI/3)),
-      y:Math.round(T.y+(B.y-T.y)*k/(SC+1)),
-      next:[k<SC?48+k:36]});
+      x:Math.round(cx+34*Math.sin(k*Math.PI/2.4)),
+      y:Math.round(T.y+(B.y-T.y)*k/4),
+      next:[k<3?28+k:23]});
   }
-  // carrefours (vrais choix de route)
-  nodes[6].next=[7,44];   nodes[6].labels=['🎡 Grande promenade (boutique !)','🎢 Échangeur Est → Grand-Huit !'];
-  nodes[20].next=[21,46]; nodes[20].labels=['⛄ Longer la banquise','🎢 Échangeur Ouest → Grand-Huit !'];
-  nodes[28].next=[29,48]; nodes[28].labels=['☄️ Suivre le Grand-Huit','🌀 Plongeon central (étoile ?)'];
-  nodes[33].next=[34,45]; nodes[33].labels=['🎢 Boucler le Grand-Huit (étoile !)','🌲 Sortie Est → Bois Étoilé'];
-  nodes[41].next=[42,47]; nodes[41].labels=['☄️ Remonter le Grand-Huit','❄️ Sortie Ouest → Glacier'];
-  const starSpots=[3,11,17,24,34,50];
-  const TYPES={start:[0], starT:starSpots, red:[5,13,21,30,38,52], lucky:[10,46],
-    event:[2,9,16,26,42], shop:[7,40], boo:[25], duel:[14,32],
-    bank:[19], chance:[29], bowser:[37,49]};
+  // échangeurs : liaisons DIRECTES entre les deux anneaux (le pont se lit tout seul)
+  nodes[5].next=[6,21];   nodes[5].labels=['🎡 Grande promenade (boutique !)','🎢 Échangeur Est → Grand-Huit !'];
+  nodes[14].next=[15,26]; nodes[14].labels=['⛄ Longer la banquise','🎢 Échangeur Ouest → Grand-Huit !'];
+  nodes[18].next=[19,28]; nodes[18].labels=['☄️ Suivre le Grand-Huit','🌀 Plongeon central (étoile ?)'];
+  nodes[23].next=[24,9];  nodes[23].labels=['🎢 Boucler le Grand-Huit (étoile !)','🌲 Sortie Sud → Bois Étoilé'];
+  nodes[27].next=[18,16]; nodes[27].labels=['☄️ Refaire un tour de Grand-Huit','❄️ Sortie Ouest → Glacier'];
+  const starSpots=[3,11,16,22,25,29];
+  const TYPES={start:[0], starT:starSpots, red:[4,8,13,20,26,30], lucky:[6,24],
+    event:[2,10,15,19,28], shop:[5,17], boo:[12], duel:[7,21],
+    bank:[9], chance:[18], bowser:[14,23]};
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
   // zones : 0 fête foraine (haut), 1 bois étoilé (sud-est), 2 glacier (sud-ouest),
-  //         3 grand-huit des comètes (boucle intérieure + plongeon)
+  //         3 grand-huit des comètes (anneau intérieur + plongeon)
   nodes.forEach((n,i)=>{
-    if(i<OUT){ n.z = i<=8?0 : i<=15?1 : i<=23?2 : 0; }
-    else if(i<44) n.z=3;
-    else if(i===44) n.z=0;
-    else if(i===45) n.z=1;
-    else n.z=(i<=47)?2:3;
+    if(i<OUT) n.z = i<=5?0 : i<=10?1 : i<=15?2 : 0;
+    else n.z=3;
   });
   return {
     id:'fete', name:'Île de la Fête', e:'🎪', nodes, starSpots,
@@ -110,11 +102,10 @@ function mapFete(){
   };
 }
 function mapSpirale(){
-  // Spirale Céleste v2 : vraie spirale de 2,5 tours qui plonge vers le Cœur du Vortex.
-  // 0..43 : la spirale (nœuds équidistants par longueur d'arc), 44 : le Cœur,
-  // 45..48 : le Trou de Ver (remontée vers le départ), 49 : milieu du Pont Comète.
-  // 3 ponts stellaires coupent d'une spire à l'autre : 7→28 (droite), 13→49→32 (bas), 28→41 (plongée).
-  const cx=215, cy=470, TURNS=2.5, K=44;
+  // Spirale Céleste — REFONTE : la même descente de 2,5 tours vers le Cœur du
+  // Vortex, mais en 30 dalles largement espacées au lieu de 44 serrées.
+  // 0..29 : la spirale, 30 : le Cœur, 31..33 : le Trou de Ver, 34 : Pont Comète.
+  const cx=215, cy=470, TURNS=2.5, K=30;
   const pos=t=>{ const a=-Math.PI/2+t*TURNS*2*Math.PI;
     return {x:cx+(205-150*t)*Math.cos(a), y:cy+(420-330*t)*Math.sin(a)}; };
   // table de longueur d'arc → pas constant le long de la spirale
@@ -128,25 +119,25 @@ function mapSpirale(){
     const p=pos(t); ts.push(t);
     nodes.push({t:'blue',x:Math.round(p.x),y:Math.round(p.y),next:[i+1]});
   }
-  nodes[K-1].next=[44]; // fin de spirale → Cœur
-  nodes.push({t:'blue',x:215,y:470,next:[45]});    // 44 : le Cœur du Vortex
-  nodes.push({t:'blue',x:215,y:385,next:[46]});    // 45 : trou de ver ↑
-  nodes.push({t:'blue',x:215,y:280,next:[47,24]}); // 46 : carrefour d'éjection
-  nodes.push({t:'blue',x:215,y:218,next:[48]});    // 47 : trou de ver ↑
-  nodes.push({t:'blue',x:215,y:134,next:[0]});     // 48 : trou de ver → départ
-  nodes.push({t:'blue',x:215,y:758,next:[32]});    // 49 : milieu du Pont Comète
-  // ponts stellaires : carrefours (vrais choix de route)
-  nodes[7].next=[8,28];   nodes[7].labels=['🌸 Grande spirale de la Nébuleuse','🌉 Pont stellaire : plonger vers la Ceinture'];
-  nodes[13].next=[14,49]; nodes[13].labels=['🌌 Longer la grande spire','☄️ Pont comète : couper court (Bowser rôde !)'];
-  nodes[28].next=[29,41]; nodes[28].labels=['🪨 Continuer la Ceinture d\'Astéroïdes','🌉 Pont stellaire : plonger vers l\'Aurore'];
-  nodes[46].labels=['🌀 Remonter le Trou de Ver vers le départ','☄️ Éjection : retomber sur la Ceinture !'];
-  const starSpots=[9,20,30,37,42,44];
-  const TYPES={start:[0], starT:starSpots, red:[3,12,26,35,41], lucky:[16,45],
-    event:[5,14,22,31,43], shop:[2,34], boo:[33], duel:[10,36],
-    bank:[47], chance:[25], bowser:[40,49]};
+  nodes[K-1].next=[30];                            // fin de spirale → Cœur
+  nodes.push({t:'blue',x:215,y:470,next:[31]});    // 30 : le Cœur du Vortex
+  // le Trou de Ver remonte par le couloir libre à gauche de la spirale
+  nodes.push({t:'blue',x:158,y:458,next:[32]});    // 31 : trou de ver ↑
+  nodes.push({t:'blue',x:170,y:270,next:[33,15]}); // 32 : carrefour d'éjection
+  nodes.push({t:'blue',x:135,y:168,next:[0]});     // 33 : trou de ver → départ
+  nodes.push({t:'blue',x:215,y:772,next:[22]});    // 34 : le Pont Comète
+  // ponts stellaires : liaisons DIRECTES d'une spire à l'autre
+  nodes[5].next=[6,19];   nodes[5].labels=['🌸 Grande spirale de la Nébuleuse','🌉 Pont stellaire : plonger vers la Ceinture'];
+  nodes[9].next=[10,34];  nodes[9].labels=['🌌 Longer la grande spire','☄️ Pont comète : couper court (Bowser rôde !)'];
+  nodes[19].next=[20,27]; nodes[19].labels=['🪨 Continuer la Ceinture d\'Astéroïdes','🌉 Pont stellaire : plonger vers l\'Aurore'];
+  nodes[32].labels=['🌀 Remonter le Trou de Ver vers le départ','☄️ Éjection : retomber sur la Ceinture !'];
+  const starSpots=[6,14,21,25,28,30];
+  const TYPES={start:[0], starT:starSpots, red:[2,8,18,24,27], lucky:[11,31],
+    event:[4,10,15,20,29], shop:[1,23], boo:[22], duel:[7,26],
+    bank:[33], chance:[17], bowser:[13,34]};
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
-  // zones : 0 nébuleuse (1er tour), 1 ceinture (2e tour + pont comète), 2 aurore (spire finale), 3 cœur + trou de ver
-  nodes.forEach((n,i)=>{ n.z=i<K?(ts[i]<0.4?0:(ts[i]<0.8?1:2)):(i===49?1:3); });
+  // zones : 0 nébuleuse, 1 ceinture (+ pont comète), 2 aurore, 3 cœur + trou de ver
+  nodes.forEach((n,i)=>{ n.z=i<K?(ts[i]<0.4?0:(ts[i]<0.8?1:2)):(i===34?1:3); });
   return {
     id:'spirale', name:'Spirale Céleste', e:'🌀', nodes, starSpots,
     meta:{
@@ -167,27 +158,27 @@ function mapSpirale(){
   };
 }
 function mapArchipel(){
-  // Archipel Perdu v2 — trois îles reliées par cinq pontons (zone à part) :
-  // Plage Dorée (haut) ⇄ Jungle Sauvage (milieu-gauche) ⇄ Grotte aux Perles (bas-droite)
+  // Archipel Perdu — REFONTE : trois îles bien rondes (10 + 8 + 8 dalles larges)
+  // reliées par des pontons courts. 33 dalles au lieu de 51.
   const nodes=[];
   const P=(cx,cy,rx,ry,deg)=>{ const a=deg*Math.PI/180;
     return {x:Math.round(cx+rx*Math.cos(a)), y:Math.round(cy+ry*Math.sin(a))}; };
   const ax=210, ay=140, aRx=145, aRy=112;   // île A : Plage Dorée
   const bx=120, by=440, bRx=92,  bRy=98;    // île B : Jungle Sauvage
   const gx=290, gy=740, gRx=110, gRy=105;   // île C : Grotte aux Perles
-  for(let i=0;i<14;i++){ // 0..13 : boucle de la Plage
-    const p=P(ax,ay,aRx,aRy,-90+i*(360/14));
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%14],z:0});
+  for(let i=0;i<10;i++){ // 0..9 : boucle de la Plage
+    const p=P(ax,ay,aRx,aRy,-90+i*36);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%10],z:0});
   }
-  for(let k=0;k<12;k++){ // 14..25 : boucle de la Jungle
-    const p=P(bx,by,bRx,bRy,-90+k*30);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[14+(k+1)%12],z:1});
+  for(let k=0;k<8;k++){ // 10..17 : boucle de la Jungle
+    const p=P(bx,by,bRx,bRy,-90+k*45);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[10+(k+1)%8],z:1});
   }
-  for(let k=0;k<12;k++){ // 26..37 : boucle de la Grotte
-    const p=P(gx,gy,gRx,gRy,-90+k*30);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[26+(k+1)%12],z:2});
+  for(let k=0;k<8;k++){ // 18..25 : boucle de la Grotte
+    const p=P(gx,gy,gRx,gRy,-90+k*45);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[18+(k+1)%8],z:2});
   }
-  // ponton : n nœuds interpolés de from vers to (ondulation amp), zone 3
+  // ponton : n dalles interpolées de from vers to (ondulation amp), zone 3
   const bridge=(from,to,n,amp)=>{
     const A=nodes[from], B=nodes[to], first=nodes.length;
     for(let s=1;s<=n;s++){
@@ -199,26 +190,25 @@ function mapArchipel(){
     }
     return first;
   };
-  const b1=bridge(9,14,2,0);    // 38..39 : Plage sud-ouest → Jungle nord
-  const b2=bridge(6,26,4,26);   // 40..43 : grande passerelle Plage → Grotte
-  const b3=bridge(19,36,2,-18); // 44..45 : Jungle sud-est → Grotte nord-ouest
-  const b4=bridge(25,10,2,-20); // 46..47 : Jungle nord-ouest → Plage (retour)
-  const b5=bridge(35,21,3,0);   // 48..50 : Grotte ouest → Jungle sud (retour)
-  nodes[9].next=[10,b1];
-  nodes[9].labels=['🏖️ Longer la Plage Dorée','🌉 Ponton vers la Jungle'];
-  nodes[6].next=[7,b2];
-  nodes[6].labels=['🏖️ Rester sur la Plage','🐚 Grande passerelle vers la Grotte'];
-  nodes[19].next=[20,b3];
-  nodes[19].labels=['🌴 Continuer dans la Jungle','🌉 Ponton vers la Grotte aux Perles'];
-  nodes[25].next=[14,b4];
-  nodes[25].labels=['🌴 Refaire un tour de Jungle','⛵ Retour vers la Plage'];
-  nodes[35].next=[36,b5];
-  nodes[35].labels=['💎 Rester dans la Grotte','🌫️ Ponton brumeux vers la Jungle'];
-  const starSpots=[3,11,20,29,33];
+  const b1=bridge(6,10,1,0);    // 26    : Plage sud-ouest → Jungle nord
+  const b2=bridge(4,18,3,34);   // 27..29: grande passerelle Plage → Grotte
+  const b3=bridge(13,22,2,-24); // 30..31: Jungle sud → Grotte ouest
+  const b4=bridge(17,8,1,-18);  // 32    : Jungle nord → Plage (retour)
+  nodes[6].next=[7,b1];
+  nodes[6].labels=['🏖️ Longer la Plage Dorée','🌉 Ponton vers la Jungle'];
+  nodes[4].next=[5,b2];
+  nodes[4].labels=['🏖️ Rester sur la Plage','🐚 Grande passerelle vers la Grotte'];
+  nodes[13].next=[14,b3];
+  nodes[13].labels=['🌴 Continuer dans la Jungle','🌉 Ponton vers la Grotte aux Perles'];
+  nodes[17].next=[10,b4];
+  nodes[17].labels=['🌴 Refaire un tour de Jungle','⛵ Retour vers la Plage'];
+  nodes[22].next=[23,15];
+  nodes[22].labels=['💎 Rester dans la Grotte','🌫️ Traversée brumeuse vers la Jungle'];
+  const starSpots=[2,8,12,16,20,24];
   const TYPES={start:[0], starT:starSpots,
-    red:[2,8,16,23,31,41,49], lucky:[5,22,37], event:[1,15,27,36,46],
-    shop:[4,18,30], boo:[13,34], duel:[10,21,32],
-    bank:[17], chance:[24], bowser:[7,42,48]};
+    red:[1,7,14,19,25,28], lucky:[5,17,31], event:[3,11,21,26,32],
+    shop:[9,15], boo:[23], duel:[6,18],
+    bank:[13], chance:[10], bowser:[4,29,30]};
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
   return {
     id:'archipel', name:'Archipel Perdu', e:'🏝️', nodes, starSpots,
@@ -311,81 +301,60 @@ function mapVolcan(){
   };
 }
 function mapTemple(){
-  // Temple Oublié — une PYRAMIDE à gravir : jungle au pied (h0), terrasse des
-  // fauves (h1), galerie d'or (h2), sanctuaire au sommet (h3, 2 étoiles).
-  // Deux escaliers montent, deux autres redescendent, et une LIANE plonge
-  // du sommet jusqu'à la jungle : le grand raccourci qui fait tout reperdre… ou gagner.
+  // Temple Oublié — REFONTE : la pyramide garde ses 4 étages (jungle, terrasse
+  // des fauves, galerie d'or, sanctuaire) mais chaque étage est bien plus aéré,
+  // et les escaliers ne font plus qu'UNE marche : 35 dalles au lieu de 56.
   const nodes=[];
   const cx=215, cy=430;
   const P=(px,py,rx,ry,deg)=>{ const a=deg*Math.PI/180;
     return {x:Math.round(px+rx*Math.cos(a)), y:Math.round(py+ry*Math.sin(a))}; };
-  // 0..25 : la Jungle (grande boucle au pied de la pyramide)
-  for(let i=0;i<20;i++){
-    const deg=-90+i*(360/20);
+  for(let i=0;i<14;i++){        // 0..13 : la Jungle (grande boucle au pied)
+    const deg=-90+i*(360/14);
     const w=1+0.05*Math.sin(3*deg*Math.PI/180+0.7);
     const p=P(cx,cy,200*w,356*w,deg);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%20],z:0});
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[(i+1)%14],z:0});
   }
-  const MID=nodes.length;              // 26 : Terrasse des Fauves
-  for(let i=0;i<12;i++){
-    const p=P(cx,cy-30,142,240,-90+i*(360/12));
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[MID+(i+1)%12],z:1});
-  }
-  const UP=nodes.length;               // 40 : Galerie d'Or
+  const MID=nodes.length;       // 14..21 : Terrasse des Fauves
   for(let i=0;i<8;i++){
-    const p=P(cx,cy-58,88,146,-90+i*45);
-    nodes.push({t:'blue',x:p.x,y:p.y,next:[UP+(i+1)%8],z:2});
+    const p=P(cx,cy-30,142,240,-90+i*45);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[MID+(i+1)%8],z:1});
   }
-  const SUM=nodes.length;              // 50 : Sanctuaire (sommet)
+  const UP=nodes.length;        // 22..27 : Galerie d'Or
+  for(let i=0;i<6;i++){
+    const p=P(cx,cy-58,88,146,-90+i*60);
+    nodes.push({t:'blue',x:p.x,y:p.y,next:[UP+(i+1)%6],z:2});
+  }
+  const SUM=nodes.length;       // 28..31 : Sanctuaire (sommet, 2 ⭐)
   for(let i=0;i<4;i++){
-    const p=P(cx,cy-76,44,70,-90+i*90);
+    const p=P(cx,cy-76,46,74,-90+i*90);
     nodes.push({t:'blue',x:p.x,y:p.y,next:[SUM+(i+1)%4],z:3});
   }
-  // escalier : n marches interpolées entre deux nœuds
-  const esc=(from,to,n,z,amp)=>{
-    const A=nodes[from], B=nodes[to], first=nodes.length;
-    const dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1;
-    const px=-dy/len, py=dx/len;   // l'écart se fait PERPENDICULAIREMENT au trajet :
-    for(let s=1;s<=n;s++){         // les marches restent régulièrement espacées
-      const t=s/(n+1), o=(amp||0)*Math.sin(t*Math.PI);
-      nodes.push({t:'blue',
-        x:Math.round(A.x+dx*t+o*px),
-        y:Math.round(A.y+dy*t+o*py),
-        next:[s<n?first+s:to], z:z});
-    }
-    return first;
-  };
-  const e1=esc(2,MID+1,2,4,0);        // Jungle est  → Terrasse
-  const e2=esc(12,MID+7,2,4,0);       // Jungle ouest→ Terrasse
-  const e3=esc(MID+2,UP+1,2,4,0);     // Terrasse    → Galerie
-  const e4=esc(MID+8,UP+5,2,4,0);    // Terrasse    → Galerie
-  const e5=esc(UP+3,SUM+1,1,4,0);     // Galerie     → Sanctuaire
-  const liane=esc(SUM+2,15,3,5,-150);   // LIANE : du sommet droit dans la jungle
-  // carrefours (vrais choix de route)
-  nodes[2].next=[3,e1];
+  // les étages sont reliés DIRECTEMENT : la montée se lit d'un trait, sans
+  // chapelet de petites marches qui venaient se coller aux dalles voisines
+  nodes[2].next=[3,MID+1];
   nodes[2].labels=['🌿 Longer la Jungle Épaisse','🪜 Grimper vers la Terrasse des Fauves'];
-  nodes[12].next=[13,e2];
-  nodes[12].labels=['🌿 Rester dans la Jungle','🪜 Escalier ouest vers la Terrasse'];
-  nodes[MID+2].next=[MID+3,e3];
+  nodes[9].next=[10,MID+5];
+  nodes[9].labels=['🌿 Rester dans la Jungle','🪜 Escalier ouest vers la Terrasse'];
+  nodes[MID+2].next=[MID+3,UP+1];
   nodes[MID+2].labels=['🐆 Faire le tour de la Terrasse','🏺 Monter à la Galerie d\'Or'];
-  nodes[MID+8].next=[MID+9,e4];
-  nodes[MID+8].labels=['🐆 Continuer sur la Terrasse','🏺 Escalier secret vers la Galerie'];
-  nodes[UP+3].next=[UP+4,e5];
-  nodes[UP+3].labels=['🏺 Rester dans la Galerie','☀️ Entrer dans le SANCTUAIRE (2 ⭐ !)'];
-  nodes[SUM+2].next=[SUM+3,liane];
+  nodes[MID+6].next=[MID+7,UP+4];
+  nodes[MID+6].labels=['🐆 Continuer sur la Terrasse','🏺 Escalier secret vers la Galerie'];
+  nodes[UP+2].next=[UP+3,SUM+1];
+  nodes[UP+2].labels=['🏺 Rester dans la Galerie','☀️ Entrer dans le SANCTUAIRE (2 ⭐ !)'];
+  nodes[SUM+2].next=[SUM+3,10];
   nodes[SUM+2].labels=['☀️ Refaire un tour du Sanctuaire','🌿 SAUTER À LA LIANE (retour jungle !)'];
-  const starSpots=[5,15,MID+1,UP+5,SUM,SUM+3];
+  const starSpots=[4,11,MID+1,UP+4,SUM,SUM+3];
   const TYPES={
     start:[0], starT:starSpots,
-    red:[4,11,17,MID+3,MID+10,UP+2,liane+1],
-    lucky:[7,MID+9,UP+6],
-    event:[3,13,19,MID+5,UP+4],
-    shop:[9,MID+11],
-    boo:[14,MID+6],
-    duel:[6,18,UP+7],
-    bank:[16,UP+1],
-    chance:[10,MID+4],
-    bowser:[1,MID+0,liane+2]
+    red:[3,8,12,MID+3,MID+7,UP+2],
+    lucky:[5,MID+5,UP+5],
+    event:[2,10,MID+4,UP+3],
+    shop:[7,MID+6],
+    boo:[13,UP+1],
+    duel:[6,MID+2],
+    bank:[9,UP+0],
+    chance:[MID+0],
+    bowser:[1,SUM+1]
   };
   for(const t in TYPES) TYPES[t].forEach(i=>{ if(nodes[i]) nodes[i].t=t; });
   return {
@@ -411,7 +380,6 @@ function mapTemple(){
     }
   };
 }
-
 const MAP_MAKERS=[mapFete,mapSpirale,mapArchipel,mapVolcan,mapTemple];
 const MAP_LIST=MAP_MAKERS.map(f=>{ const m=f(); return {id:m.id,name:m.name,e:m.e}; });
 function mapById(id){
