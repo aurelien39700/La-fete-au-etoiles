@@ -14,8 +14,8 @@ const ITEMS={
   shield:{e:'🛡️', name:'Bouclier',       price:6,  desc:'Bloque le prochain coup dur (auto)'},
   bomb:  {e:'🧨', name:'Bombe Piégée',   price:9,  desc:'Piège ta case : −12 🪙 au prochain qui s\'y arrête'},
   triple:{e:'🎲', name:'Dé Triple',      price:12, desc:'Lance 3 dés ce tour !'},
-  ovni:  {e:'🛸', name:'OVNI',           price:13, desc:'Renvoie un joueur à la case départ !'},
-  pipe:  {e:'🌀', name:'Tuyau Magique',  price:15, desc:'Téléporte-toi sur l\'étoile !'},
+  ovni:  {e:'🛸', name:'OVNI',           price:14, desc:'Renvoie un joueur à la case départ !'},
+  pipe:  {e:'🌀', name:'Tuyau Magique',  price:28, desc:'Téléporte-toi droit sur l\'étoile — ça se paie !'},
   mirror:{e:'🪞', name:'Miroir Maudit',  price:10, desc:'Échange ta place avec un joueur au choix'},
   spook: {e:'👻', name:'Fantôme Voleur', price:9,  desc:'Le fantôme vole 10 🪙 au joueur de ton choix'}
 };

@@ -55,7 +55,6 @@ function pfInit(area,opt){
     W.plats.push(p);
     return p;
   };
-  window.__PF=W;
   return W;
 }
 

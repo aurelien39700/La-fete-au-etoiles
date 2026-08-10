@@ -288,9 +288,12 @@ function mgIntro(cb){
           }
         },650);
       };
-      brief.querySelector('#btnBrief').onclick=()=>{ snd('tap'); lancer(); };
-      // sécurité : personne ne bloque la partie, ça part tout seul au bout de 12 s
-      setTimeout(lancer,12000);
+      // le filet de sécurité ne doit JAMAIS relancer un mini-jeu déjà commencé :
+      // sans ce verrou, appuyer sur « C'est parti » puis attendre 12 s relançait tout
+      let parti=false;
+      const partirUneFois=()=>{ if(parti) return; parti=true; clearTimeout(secours); lancer(); };
+      const secours=setTimeout(partirUneFois,12000);
+      brief.querySelector('#btnBrief').onclick=()=>{ snd('tap'); partirUneFois(); };
     }
   },90);
 }
@@ -308,7 +311,14 @@ const MG_BG=(()=>{
   m[39]='paint'; m[40]='lava'; m[41]='siege';
   return m;
 })();
+let mgEnCours=null;
 function startMiniGame(){
+  // verrou : la meme manche ne peut pas demarrer deux fois (echo reseau, minuteur
+  // de secours, re-rendu). C'etait la source des mini-jeux qui repartaient seuls.
+  const cle=(room&&room.mg)?(room.mg.round+'#'+room.mg.type+'#'+room.mg.startedAt):null;
+  if(cle&&cle===mgEnCours&&document.querySelector('#mgArea canvas, #mgArea .big-tap')) return;
+  mgEnCours=cle;
+  try{ if(window.MG3D&&MG3D.stop) MG3D.stop(); }catch(e){}
   const area=$('mgArea'); area.innerHTML='';
   area.onpointerdown=null; area.onpointermove=null; area.onpointerup=null; area.onpointercancel=null;
   area.style.touchAction='none';

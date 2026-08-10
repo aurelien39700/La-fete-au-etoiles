@@ -243,9 +243,8 @@ function heroGLB(id,cb){
     const q=(HERO3D[id]&&HERO3D[id].q)||[];
     HERO3D[id]={ok:1,gltf:g};
     q.forEach(f=>{ try{ f(g); }catch(err){} }); // TOUS les joueurs servis
-  },undefined,err=>{ HERO3D[id]={ok:0,fail:1,err:String((err&&err.message)||err).slice(0,300)}; });
+  },undefined,()=>{ HERO3D[id]={ok:0,fail:1}; });
 }
-window.__H3D=HERO3D;
 
 /* ---------- textures canvas (icônes de secours, pastilles) ---------- */
 function canvasTex(draw){
