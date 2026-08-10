@@ -2978,7 +2978,7 @@ function mgCoins3D(area){
     area.innerHTML='';
     if(!MG3D.init(area,{theme:room.mapId,dist:26,el:.60})){ submitScore(0); return; }
     const R=11.5;
-    MG3D.floor({size:26,theme:room.mapId});
+    MG3D.floor({size:Math.round(26*mgEch()),theme:room.mapId});
     const H=MG3D.hero(curP(),{x:0,z:0});
     const stick=MG3D.joystick(area);
     const info=mg3dInfo(area,'🪙 0');
@@ -3058,7 +3058,7 @@ function mgSumo3D(area){
     snd('tap');
     area.innerHTML='';
     if(!MG3D.init(area,{theme:room.mapId,dist:32,el:.66})){ submitScore(0); return; }
-    const floor=MG3D.floor({size:24,theme:room.mapId});
+    const floor=MG3D.floor({size:Math.round(24*mgEch()),theme:room.mapId});
     const stick=MG3D.joystick(area);
     const info=mg3dInfo(area,'');
     const hs={};
@@ -3243,7 +3243,7 @@ function mgHill3D(area){
     area.innerHTML='';
     if(!MG3D.init(area,{theme:room.mapId,dist:32,el:.64})){ submitScore(0); return; }
     const T=MG3D.THREE;
-    MG3D.floor({size:26,theme:room.mapId});
+    MG3D.floor({size:Math.round(26*mgEch()),theme:room.mapId});
     // la colline : un disque doré surélevé au centre
     const colline=new T.Mesh(new T.CylinderGeometry(3.6,4.2,1.4,26),
       new T.MeshStandardMaterial({color:0xFFD644,emissive:0x6a4a00,emissiveIntensity:.7,roughness:.6}));
@@ -3323,7 +3323,8 @@ function mgTiles3D(area){
     area.innerHTML='';
     if(!MG3D.init(area,{theme:room.mapId,dist:30,el:.70})){ submitScore(0); return; }
     const T=MG3D.THREE;
-    const N=7, CELL=3.1, ORI=-(N-1)/2*CELL;
+    const N=7+(room.players.length>4?2:0)+(room.players.length>6?2:0);
+    const CELL=3.1, ORI=-(N-1)/2*CELL;
     const grille=MG3D.group();
     const matOK=new T.MeshStandardMaterial({color:0x8F86C8,roughness:.85,map:null});
     const matAlerte=new T.MeshStandardMaterial({color:0xFF6B6B,emissive:0x571510,emissiveIntensity:1.2,roughness:.6});
@@ -3429,7 +3430,7 @@ function mgStars3D(area){
     area.innerHTML='';
     if(!MG3D.init(area,{theme:room.mapId,dist:29,el:.62})){ submitScore(0); return; }
     const R=11.5;
-    MG3D.floor({size:26,theme:room.mapId});
+    MG3D.floor({size:Math.round(26*mgEch()),theme:room.mapId});
     const stick=MG3D.joystick(area);
     const info=mg3dInfo(area,'0 etoiles');
     const hs={};

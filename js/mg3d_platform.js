@@ -5,10 +5,17 @@
    ========================================================================== */
 
 /* ---------- noyau ---------- */
+/* À 2 ou 3 on est à l'aise ; à 8 on se marche dessus. Toutes les arènes
+   s'élargissent donc avec le nombre de joueurs (jusqu'à +65 %). */
+function mgEch(){
+  const n=(typeof room!=='undefined'&&room&&room.players)?room.players.length:2;
+  return 1+Math.max(0,Math.min(5,n-3))*.13;
+}
 function pfInit(area,opt){
   opt=opt||{};
+  const E=mgEch();
   if(!MG3D.init(area,{theme:room.mapId,
-      dist:opt.dist||27, el:opt.el===undefined?.52:opt.el, az:opt.az,
+      dist:(opt.dist||27)*(opt.brut?1:E), el:opt.el===undefined?.52:opt.el, az:opt.az,
       vise:opt.vise===undefined?1:opt.vise,   // ce que la camera regarde par rapport au joueur
       lerp:opt.lerp||3.2,                     // suivi vif : les jeux verticaux vont vite
       fog:opt.fog, far:opt.far})) return null;
@@ -268,7 +275,8 @@ function mgObst3D(area){
 function mgFuite3D(area){
   pfDepart(area,(preActs,start)=>{
     const W=pfInit(area,{dist:30,el:.66,vise:1,lerp:4.5}); if(!W){ submitScore(0); return; }
-    const N=7, CELL=3.4, ORI=-(N-1)/2*CELL;
+    const N=7+(room.players.length>4?2:0)+(room.players.length>6?2:0);
+    const CELL=3.4, ORI=-(N-1)/2*CELL;
     for(let i=0;i<N;i++) for(let j=0;j<N;j++){
       const p=W.plat(ORI+i*CELL,0,ORI+j*CELL,CELL*.9,CELL*.9,0x8F86C8);
       p.vie=-1;
@@ -312,8 +320,9 @@ function mgCorde3D(area){
   pfDepart(area,(preActs,start)=>{
     const W=pfInit(area,{dist:26,el:.52,vise:1.6,lerp:3.4}); if(!W){ submitScore(0); return; }
     const T=W.T;
-    W.plat(0,0,0,17,17,0x8F86C8);
-    const bras=new T.Mesh(new T.BoxGeometry(25,.7,.7),W.matiere(0xFF5FA2,0x6a0a30));
+    const E=mgEch();
+    W.plat(0,0,0,17*E,17*E,0x8F86C8);
+    const bras=new T.Mesh(new T.BoxGeometry(25*E,.7,.7),W.matiere(0xFF5FA2,0x6a0a30));
     bras.position.set(0,.75,0);
     MG3D.group().add(bras);
     const mat=new T.Mesh(new T.CylinderGeometry(.5,.5,5,7),W.matiere(0x2A2038));
@@ -331,13 +340,13 @@ function mgCorde3D(area){
       bras.rotation.y=ang;
       if(me.alive!==false){
         pfStep(W,me,dt,{sp:9.5,jv:14.2});
-        const lim=7.6;
+        const lim=7.6*E;
         me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
         // la poutre nous fauche si on est au sol et sur sa ligne exacte
         const d=Math.hypot(me.x,me.z);
         const bx=Math.cos(ang), bz=-Math.sin(ang);          // direction reelle du bras
         const ecart=Math.abs(me.x*bz-me.z*bx);              // distance a la ligne
-        if(me.y<1.15&&d<12.6&&ecart<1.0){
+        if(me.y<1.15&&d<12.6*E&&ecart<1.0){
           me.alive=false; mortA=Date.now(); snd('bad'); vib(70);
           MG3D.burst(me.x,1,me.z,0xFF5FA2,14);
           actSend({k:'pd',id:me.pid});
@@ -401,15 +410,16 @@ function mgPont3D(area){
 function mgTrampo3D(area){
   pfDepart(area,(preActs,start,rng)=>{
     const W=pfInit(area,{dist:28,el:.46,vise:3,lerp:4.5,fog:[60,180]}); if(!W){ submitScore(0); return; }
-    W.plat(0,0,0,20,20,0x6E63A8);
+    const E=mgEch();
+    W.plat(0,0,0,20*E,20*E,0x6E63A8);
     for(let i=0;i<7;i++){
       const a=i/7*Math.PI*2;
-      const p=W.plat(Math.cos(a)*6.4,.5,Math.sin(a)*6.4,3.6,3.6,0x3EE6C1,.5);
+      const p=W.plat(Math.cos(a)*6.4*E,.5,Math.sin(a)*6.4*E,3.6,3.6,0x3EE6C1,.5);
       p.ressort=22+i%3*2;
     }
     const etoiles=[];
     for(let i=0;i<26;i++){
-      const a=rng()*7, r=rng()*8.4;
+      const a=rng()*7, r=rng()*8.4*E;
       const m=MG3D.obj('star',{x:Math.cos(a)*r,y:3+rng()*13,z:Math.sin(a)*r});
       etoiles.push({m,pris:false});
     }
@@ -421,7 +431,7 @@ function mgTrampo3D(area){
       if(over) return;
       const el=(Date.now()-start)/1000;
       pfStep(W,me,dt,{sp:9.2,jv:14.6,g:29});
-      const lim=9.4;
+      const lim=9.4*E;
       me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
       if(me.y<-6){ me.x=0; me.z=0; me.y=1; me.vy=0; }
       etoiles.forEach(e=>{
@@ -662,7 +672,8 @@ function tirTop(area,opt){
     fog:opt.fog||[60,200], far:600});
   if(!W) return null;
   const T=W.T;
-  W.portee=opt.portee||26;
+  W.ech=mgEch();
+  W.portee=(opt.portee||26)*W.ech;
   W.cadence=opt.cadence||.26;
   W.vitesse=opt.vitesse||30;
   W.calibre=opt.calibre||.28;
@@ -772,10 +783,10 @@ function mgNeige3D(area){
     const W=tirTop(area,{portee:34,cadence:.26,vitesse:42,calibre:.38,rayonTouche:2.7,jauge:15});
     if(!W){ submitScore(0); return; }
     const T=W.T;
-    W.plat(0,0,0,46,46,0xBBD4E8);
+    W.plat(0,0,0,46*W.ech,46*W.ech,0xBBD4E8);
     // abris : on se cache derrière pour recharger
     for(let i=0;i<9;i++){
-      const a=(i/9)*Math.PI*2, R=8+((i*7)%3)*4.5;
+      const a=(i/9)*Math.PI*2, R=(8+((i*7)%3)*4.5)*W.ech;
       W.mur(Math.cos(a)*R,Math.sin(a)*R,3.4,2.3,3.4,0xE8F4FF,rng()*2);
     }
     const me=pfHeros(W,0,0,3.2);
@@ -789,7 +800,7 @@ function mgNeige3D(area){
       const el=(Date.now()-start)/1000;
       if(gele>0) gele-=dt;
       else pfStep(W,me,dt,{sp:12});
-      const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      const lim=21*W.ech; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
       W.degage(me,.9);
       W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
       // les rivaux bougent : en local ils patrouillent, en ligne le réseau les pilote
@@ -811,7 +822,7 @@ function mgNeige3D(area){
         touches++; vib(18);
         MG3D.burst(p.x,p.y,p.z,0xFFFFFF,16);
         // le touché part se replacer plus loin
-        const a=rng()*Math.PI*2, R=10+rng()*8;
+        const a=rng()*Math.PI*2, R=(10+rng()*8)*W.ech;
         h.x=Math.cos(a)*R; h.z=Math.sin(a)*R;
       });
       MG3D.look(me.x*.5,me.z*.5,false,0);
@@ -829,11 +840,12 @@ function mgBallons3D(area){
     const W=tirTop(area,{portee:30,cadence:.22,vitesse:40,calibre:.34,rayonTouche:2.5,dist:33,jauge:13});
     if(!W){ submitScore(0); return; }
     const T=W.T;
-    W.plat(0,0,0,44,44,0x6E63A8);
+    W.plat(0,0,0,44*W.ech,44*W.ech,0x6E63A8);
     const COLS=[0xFF5FA2,0x3EE6C1,0xFFD644,0x5AC8FA,0xC39BFF,0xFF9F45];
     const ballons=[];
-    for(let i=0;i<24;i++){
-      const a=rng()*Math.PI*2, R=4+rng()*16;
+    const NB=24+(room.players.length>4?8:0);
+    for(let i=0;i<NB;i++){
+      const a=rng()*Math.PI*2, R=(4+rng()*16)*W.ech;
       const col=COLS[i%COLS.length];
       const g=new T.Group();
       const b=new T.Mesh(new T.SphereGeometry(.95,10,9),W.matiere(col,col));
@@ -853,13 +865,13 @@ function mgBallons3D(area){
       if(over) return;
       const el=(Date.now()-start)/1000;
       pfStep(W,me,dt,{sp:12.5});
-      const lim=20; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      const lim=20*W.ech; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
       W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
       ballons.forEach(b=>{
         if(!b.vivant) return;
         b.g.position.x+=b.vx*dt; b.g.position.z+=b.vz*dt;
-        if(Math.abs(b.g.position.x)>20) b.vx*=-1;
-        if(Math.abs(b.g.position.z)>20) b.vz*=-1;
+        if(Math.abs(b.g.position.x)>20*W.ech) b.vx*=-1;
+        if(Math.abs(b.g.position.z)>20*W.ech) b.vz*=-1;
         b.g.position.y=b.y0+Math.sin(t*.0014+b.ph)*b.amp;
       });
       W.recharge-=dt;
@@ -891,14 +903,14 @@ function mgRobots3D(area){
     const W=tirTop(area,{portee:32,cadence:.24,vitesse:42,calibre:.36,rayonTouche:2.7,dist:35,jauge:15});
     if(!W){ submitScore(0); return; }
     const T=W.T;
-    W.plat(0,0,0,46,46,0x5A5478);
+    W.plat(0,0,0,46*W.ech,46*W.ech,0x5A5478);
     // le cœur du réacteur, au centre : c'est lui qu'on défend
     const coeur=new T.Mesh(new T.IcosahedronGeometry(1.9,0),W.matiere(0x3EE6C1,0x18B89A));
     coeur.position.y=1.9; MG3D.group().add(coeur);
     const socle=new T.Mesh(new T.CylinderGeometry(2.6,3.2,1.1,10),W.matiere(0x4A4270));
     socle.position.y=.55; MG3D.group().add(socle);
     for(let i=0;i<6;i++){
-      const a=(i/6)*Math.PI*2+.4, R=11;
+      const a=(i/6)*Math.PI*2+.4, R=11*W.ech;
       W.mur(Math.cos(a)*R,Math.sin(a)*R,3.6,2.4,2.2,0x4A4270,-a);
     }
     const bots=[];
@@ -910,7 +922,7 @@ function mgRobots3D(area){
       if(over) return;
       const el=(Date.now()-start)/1000;
       pfStep(W,me,dt,{sp:12});
-      const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      const lim=21*W.ech; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
       W.degage(me,.9);
       W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
       coeur.rotation.y+=dt*.8;
@@ -919,7 +931,7 @@ function mgRobots3D(area){
       prochaine-=dt;
       if(prochaine<=0){
         prochaine=Math.max(.40,1.5-el*.026);
-        const a=rng()*Math.PI*2, R=23;
+        const a=rng()*Math.PI*2, R=23*W.ech;
         const g=new T.Group();
         const corps=new T.Mesh(new T.BoxGeometry(1.5,1.7,1.2),W.matiere(0xC96BB8,0x4a1040));
         corps.position.y=1.25; g.add(corps);
