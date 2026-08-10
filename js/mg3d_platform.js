@@ -90,6 +90,7 @@ function pfStep(W,me,dt,o){
   }
   if(W.saut){
     W.saut=false;
+    if(W.sansSaut) return;
     if(me.grounded||me.coyote>0){
       me.vy=(me.surSol&&me.surSol.ressort)?me.surSol.ressort:jv;
       me.grounded=false; me.coyote=0; snd('tap');
@@ -667,7 +668,40 @@ function tirTop(area,opt){
   W.vitesse=opt.vitesse||30;
   W.calibre=opt.calibre||.28;
   W.rayonTouche=opt.rayonTouche||1.7;
-  W.recharge=0; W.feu=false; W.balles=[];
+  W.recharge=0; W.feu=false; W.balles=[]; W.obstacles=[];
+  W.sansSaut=true;   // ici le bouton tire : il ne doit pas faire bondir le héros
+  /* pose un abri : il stoppe les tirs et on ne le traverse pas */
+  W.mur=(x,z,l,h,prof,col,rot)=>{
+    const m=new T.Mesh(new T.BoxGeometry(l,h,prof),W.matiere(col===undefined?0xE8F4FF:col));
+    m.position.set(x,h/2,z);
+    m.rotation.y=rot||0;
+    m.castShadow=m.receiveShadow=true;
+    MG3D.group().add(m);
+    // emprise circulaire : simple, et suffisant pour des abris trapus
+    W.obstacles.push({x,z,r:Math.max(l,prof)*.5,h});
+    return m;
+  };
+  /* la balle a-t-elle percuté un abri ? */
+  W.bloque=(x,y,z)=>{
+    for(const o of W.obstacles){
+      if(y>o.h) continue;
+      const dx=x-o.x, dz=z-o.z;
+      if(dx*dx+dz*dz<o.r*o.r) return o;
+    }
+    return null;
+  };
+  /* repousse un personnage hors des abris : on se cache VRAIMENT derrière */
+  W.degage=(h,rayon)=>{
+    for(const o of W.obstacles){
+      const dx=h.x-o.x, dz=h.z-o.z;
+      const d=Math.hypot(dx,dz), min=o.r+(rayon||.8);
+      if(d<min){
+        // pile au centre : on choisit une sortie plutôt que de rester coincé
+        if(d<.001){ h.x=o.x+min; h.z=o.z; }
+        else { h.x=o.x+dx/d*min; h.z=o.z+dz/d*min; }
+      }
+    }
+  };
   // le bouton de saut devient le BOUTON DE TIR
   W.btnSaut.textContent='🎯';
   W.btnSaut.style.background='rgba(255,95,162,.94)';
@@ -710,6 +744,10 @@ function tirTop(area,opt){
       // on teste aussi le MILIEU du trajet : une balle rapide ne traverse plus une cible
       const mx=(ax+b.m.position.x)/2, my=(ay+b.m.position.y)/2, mz=(az+b.m.position.z)/2;
       let fini=b.vie<=0||(!b.haut&&b.m.position.y<.2);
+      if(!fini&&W.bloque(b.m.position.x,b.m.position.y,b.m.position.z)){
+        MG3D.burst(b.m.position.x,b.m.position.y,b.m.position.z,0xE8F4FF,7);
+        fini=true;                       // l'abri encaisse le tir
+      }
       if(!fini&&cibles){
         for(const c of cibles){
           const p=pos(c); if(!p) continue;
@@ -739,10 +777,7 @@ function mgNeige3D(area){
     // abris : on se cache derrière pour recharger
     for(let i=0;i<9;i++){
       const a=(i/9)*Math.PI*2, R=8+((i*7)%3)*4.5;
-      const m=new T.Mesh(new T.BoxGeometry(3.2,2.2,3.2),W.matiere(0xE8F4FF));
-      m.position.set(Math.cos(a)*R,1.1,Math.sin(a)*R);
-      m.rotation.y=rng()*2;
-      MG3D.group().add(m);
+      W.mur(Math.cos(a)*R,Math.sin(a)*R,3.4,2.3,3.4,0xE8F4FF,rng()*2);
     }
     const me=pfHeros(W,0,0,3.2);
     const info=mg3dInfo(area,'0 touche');
@@ -756,6 +791,7 @@ function mgNeige3D(area){
       if(gele>0) gele-=dt;
       else pfStep(W,me,dt,{sp:12});
       const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      W.degage(me,.9);
       W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
       // les rivaux bougent : en local ils patrouillent, en ligne le réseau les pilote
       if(local) rivaux.forEach(h=>{
@@ -764,6 +800,7 @@ function mgNeige3D(area){
         h.x+=Math.sin(h.cap)*3.6*dt; h.z+=Math.cos(h.cap)*3.6*dt;
         if(Math.abs(h.x)>lim||Math.abs(h.z)>lim){ h.cap+=Math.PI; h.chg=.4; }
         h.x=Math.max(-lim,Math.min(lim,h.x)); h.z=Math.max(-lim,Math.min(lim,h.z));
+        W.degage(h,.9);
         h.dir=h.cap; h.moving=true;
       });
       W.recharge-=dt;
@@ -861,6 +898,10 @@ function mgRobots3D(area){
     coeur.position.y=1.9; MG3D.group().add(coeur);
     const socle=new T.Mesh(new T.CylinderGeometry(2.6,3.2,1.1,10),W.matiere(0x4A4270));
     socle.position.y=.55; MG3D.group().add(socle);
+    for(let i=0;i<6;i++){
+      const a=(i/6)*Math.PI*2+.4, R=11;
+      W.mur(Math.cos(a)*R,Math.sin(a)*R,3.6,2.4,2.2,0x4A4270,-a);
+    }
     const bots=[];
     const me=pfHeros(W,0,5,2.2);
     const info=mg3dInfo(area,'0 bot');
@@ -871,6 +912,7 @@ function mgRobots3D(area){
       const el=(Date.now()-start)/1000;
       pfStep(W,me,dt,{sp:12});
       const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      W.degage(me,.9);
       W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
       coeur.rotation.y+=dt*.8;
       coeur.position.y=1.9+Math.sin(t*.0022)*.18;
