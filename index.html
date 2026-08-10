@@ -392,8 +392,15 @@ input[type=text]:focus{border-color:var(--menthe);}
 @keyframes chipOut{to{opacity:0; transform:translateY(-14px) scale(.85);}}
 @keyframes chipBounce{0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);}}
 /* ---------- émotes en direct ---------- */
-.emobar{position:fixed; left:6px; bottom:76px; z-index:55; display:none; flex-direction:column; gap:6px;}
-.emobar button{border:2px solid rgba(255,255,255,.22); background:rgba(30,20,64,.72);
+/* réactions : repliées derrière un bouton, elles ne masquent plus le plateau.
+   Ouvertes, elles se déroulent en ligne au-dessus de la barre d'action. */
+.emobar{position:fixed; right:8px; bottom:calc(100% - 100%); z-index:55; display:none;
+  flex-direction:row; gap:6px; align-items:center;}
+.emobar.ouvert{display:flex;}
+#emoToggle{position:fixed; right:10px; z-index:56; display:none;
+  width:44px; height:44px; border-radius:50%; font-size:21px; line-height:1; cursor:pointer;
+  border:2px solid rgba(255,255,255,.28); background:rgba(30,20,64,.82); color:#fff;}
+.emobar button{border:2px solid rgba(255,255,255,.22); background:rgba(30,20,64,.82);
   border-radius:50%; width:40px; height:40px; font-size:19px; cursor:pointer; padding:0;}
 .emobar button:active{transform:scale(.88);}
 .emofly{position:fixed; bottom:110px; z-index:56; pointer-events:none; text-align:center;
@@ -590,6 +597,7 @@ body.shake{animation:shake2 .32s;}
   font-family:'Baloo 2';font-size:15px;font-weight:800;color:#fff;padding:6px 14px;cursor:pointer;">← Retour</button>
 <button id="btnSnd" style="position:fixed;top:10px;right:10px;z-index:70;border:2px solid rgba(255,255,255,.3);background:rgba(30,20,64,.75);border-radius:14px;font-size:18px;padding:6px 10px;cursor:pointer;">🔊</button>
 <div class="emobar" id="emoBar"></div>
+<button id="emoToggle" title="Réactions">😀</button>
 
 <script src="/js/base.js"></script>
 <script src="/js/heros.js"></script>

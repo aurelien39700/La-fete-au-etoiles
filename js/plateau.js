@@ -26,7 +26,10 @@ window.addEventListener('load',()=>{
     const now=Date.now(); if(now-lastEmoteT<1200) return; lastEmoteT=now;
     const d={k:'emote',id:me.id,e:b.dataset.e};
     showEmote(d); actSend(d); snd('tap');
+    bar.classList.remove('ouvert');          // on referme après avoir réagi
   });
+  const t=$('emoToggle');
+  if(t) t.onclick=()=>{ bar.classList.toggle('ouvert'); snd('tap'); };
 });
 function showEmote(d){
   const p=room&&room.players.find(q=>q.id===d.id);
@@ -37,8 +40,16 @@ function showEmote(d){
   setTimeout(()=>el.remove(),2700);
 }
 function updateEmoteBar(){
-  const bar=$('emoBar'); if(!bar) return;
-  bar.style.display=(room&&!local&&['board','minigame','mgres'].indexOf(room.status)>=0)?'flex':'none';
+  const bar=$('emoBar'), t=$('emoToggle'); if(!bar||!t) return;
+  const actif=!!(room&&!local&&['board','minigame','mgres'].indexOf(room.status)>=0);
+  t.style.display=actif?'block':'none';
+  if(!actif){ bar.classList.remove('ouvert'); return; }
+  // on se cale JUSTE au-dessus de la barre d'action : jamais sur l'aire de jeu
+  const dz=$('diceZone');
+  const bas=(dz&&dz.offsetHeight?dz.offsetHeight:90)+10;
+  t.style.bottom=bas+'px';
+  bar.style.bottom=(bas+54)+'px';
+  bar.style.right='8px';
 }
 
 /* ---------- exploits persistants (par téléphone, parties en ligne) ---------- */

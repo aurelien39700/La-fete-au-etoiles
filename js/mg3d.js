@@ -10,7 +10,7 @@ window.MG3D=M;
 
 let ren=null,scene=null,cam=null,areaEl=null,raf=null,frameCb=null,lastT=0;
 let camFocus=new THREE.Vector3(), camWant=new THREE.Vector3(), camDist=30, camEl=.86, camAz=Math.PI/4;
-let camVise=1, camLerp=3.2, fovBase=42, camAzWant=null;   // point visé au-dessus/au-dessous du joueur, et vivacité du suivi
+let camVise=1, camLerp=3.2, fovBase=42, camAzWant=null, camFps=false, camEpaule=0;   // point visé au-dessus/au-dessous du joueur, et vivacité du suivi
 const loader=new GLTFLoader(), texL=new THREE.TextureLoader();
 const TEX={};
 const heroes=[]; // handles vivants (pour l'animation procédurale)
@@ -61,6 +61,8 @@ M.init=function(el,opt){
   camDist=opt.dist||30; camEl=opt.el||.86;
   camAz=opt.az!==undefined?opt.az:Math.PI/4;
   camAzWant=null;
+  camFps=!!opt.fps;                          // visee par-dessus l'epaule (jeux de tir)
+  camEpaule=opt.epaule||0;                   // decalage lateral : le heros libere la mire
   camVise=opt.vise!==undefined?opt.vise:1;   // hauteur visee par rapport au joueur
   camLerp=opt.lerp||3.2;                     // vivacite du suivi
   camFocus.set(0,0,0); camWant.set(0,0,0);
@@ -83,6 +85,12 @@ M.frame=function(cb){ frameCb=cb; };
 /* convertit le joystick en direction MONDE relative a la camera :
    pousser vers le haut envoie toujours le heros vers le fond de l'ecran,
    quel que soit l'angle de vue. */
+/* oeil + direction reellement rendus : la mire et le tir ne peuvent plus diverger */
+M.viseur=function(){
+  if(!cam) return null;
+  const d=new THREE.Vector3(); cam.getWorldDirection(d);
+  return {pos:cam.position.clone(), dir:d};
+};
 M.dir=function(sx,sy){
   const c=Math.cos(camAz), s2=Math.sin(camAz);
   return {x:sx*c+sy*s2, z:-sx*s2+sy*c};
@@ -96,6 +104,8 @@ M.cadre=function(o){
   if(o.az!==undefined){ camAz=o.az; camAzWant=null; }
   if(o.azWant!==undefined) camAzWant=o.azWant;   // vue de dos : on glisse derriere le joueur
   if(o.vise!==undefined) camVise=o.vise;
+  if(o.fps!==undefined) camFps=!!o.fps;
+  if(o.epaule!==undefined) camEpaule=o.epaule;
   if(o.lerp!==undefined) camLerp=o.lerp;
 };
 M.setAz=function(a){ camAz=a; };
@@ -351,10 +361,23 @@ function loop(){
     let d=((camAzWant-camAz)%(Math.PI*2)+Math.PI*3)%(Math.PI*2)-Math.PI;
     camAz+=d*Math.min(1,dt*2.4);
   }
-  cam.position.set(camFocus.x+Math.sin(camAz)*camDist*Math.cos(camEl),
-                   camFocus.y+camDist*Math.sin(camEl),
-                   camFocus.z+Math.cos(camAz)*camDist*Math.cos(camEl));
-  cam.lookAt(camFocus.x,camFocus.y+camVise,camFocus.z);
+  if(camFps){
+    // VISEE PAR-DESSUS L'EPAULE : la caméra se place DERRIÈRE le héros, sur l'axe
+    // de visée, et regarde dans cette direction. On voit donc son personnage, et
+    // le centre de l'écran reste exactement la ligne de tir. camDist=0 → 1re personne.
+    const ce=Math.cos(camEl);
+    const dx=-Math.sin(camAz)*ce, dy=Math.sin(camEl), dz=-Math.cos(camAz)*ce;
+    // décalage d'épaule : translation PURE (l'axe de visée reste exactement d)
+    const rl=Math.hypot(-dz,dx)||1, rx=-dz/rl*camEpaule, rz=dx/rl*camEpaule;
+    const ox=camFocus.x+rx, oy=camFocus.y+camVise, oz=camFocus.z+rz;
+    cam.position.set(ox-dx*camDist, oy-dy*camDist, oz-dz*camDist);
+    cam.lookAt(ox+dx*24, oy+dy*24, oz+dz*24);
+  } else {
+    cam.position.set(camFocus.x+Math.sin(camAz)*camDist*Math.cos(camEl),
+                     camFocus.y+camDist*Math.sin(camEl),
+                     camFocus.z+Math.cos(camAz)*camDist*Math.cos(camEl));
+    cam.lookAt(camFocus.x,camFocus.y+camVise,camFocus.z);
+  }
   const W=areaEl.clientWidth,H2=areaEl.clientHeight;
   if(W&&H2&&(cam.aspect!==W/H2)){
     cam.aspect=W/H2;

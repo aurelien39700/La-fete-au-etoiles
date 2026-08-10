@@ -58,9 +58,9 @@ const MG_INFO=[
   {name:'Chute Libre',desc:'PLATEFORME 3D 🪂 : tu plonges dans le puits ! Dirige-toi pour passer par les trous des anneaux. 32 s.',rt:true,d3:true},
   {name:'Escalier Roulant',desc:'PLATEFORME 3D 🪜 : l\'escalier descend sous tes pieds, monte sans arrêt pour ne pas tomber !',rt:true,d3:true},
   {name:'Attrape-Drapeau',desc:'PLATEFORME 3D 🚩 : escalade la tour de plateformes tournantes et attrape le drapeau au sommet !',rt:true,d3:true},
-  {name:'Stand de Tir',desc:'TIR 3D 🎯 : les cibles surgissent tout autour de toi ! Glisse pour viser, bouton 🎯 pour tirer. 32 s.',rt:true,d3:true},
-  {name:'Pluie de Météores',desc:'TIR 3D ☄️ : les rochers tombent du ciel — pulvérise-les avant qu\'ils ne touchent le sol ! 34 s.',rt:true,d3:true},
-  {name:'Duel de Ballons',desc:'TIR 3D 🎈 : 22 ballons flottent autour de l\'arène, crève-les tous le plus vite possible !',rt:true,d3:true}
+  {name:'Bataille de Boules de Neige',desc:'TIR 3D ❄️ : vue du dessus ! Cours, oriente ton héros et balance des boules sur les autres. Cache-toi derrière les congères ! 36 s.',rt:true,d3:true},
+  {name:'Invasion des Bots',desc:'TIR 3D 🤖 : vue du dessus ! Les bots marchent vers le réacteur central — oriente ton héros et tire avant qu\'ils ne l\'atteignent. 38 s.',rt:true,d3:true},
+  {name:'Chasse aux Ballons',desc:'TIR 3D 🎈 : 24 ballons dérivent au-dessus de l\'arène — cours dessous, ça éclate tout seul. Le plus rapide gagne !',rt:true,d3:true}
 ];
 const MG_COUNT=MG_INFO.length;
 /* ---------- choix des mini-jeux : on coche ce qu'on veut voir sortir ---------- */
@@ -331,7 +331,7 @@ function startMiniGame(){
     mgTurret,mgGuard,mgTiles,mgSumo,mgHill,mgFrog,mgPaint,mgLava,mgSiege,
     mgCoins3D,mgSumo3D,mgRun3D,mgHill3D,mgTiles3D,mgStars3D,
     mgTour3D,mgObst3D,mgFuite3D,mgCorde3D,mgPont3D,mgTrampo3D,mgMontee3D,mgChute3D,mgEscalier3D,mgDrapeau3D,
-    mgStand3D,mgMeteo3D,mgBallons3D];
+    mgNeige3D,mgRobots3D,mgBallons3D];
   (games[type]||mgTapo)(area);
 }
 

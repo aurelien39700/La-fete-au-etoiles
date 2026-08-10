@@ -28,7 +28,7 @@ function pfInit(area,opt){
   W.btnSaut=b;
   // clavier : flèches + espace
   W.onDown=e=>{
-    if(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){ W.saut=true; e.preventDefault(); }
+    if(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){ W.saut=true; W.feu=true; e.preventDefault(); }
     if(e.code==='ArrowLeft'||e.code==='KeyA') W.kx=-1;
     if(e.code==='ArrowRight'||e.code==='KeyD') W.kx=1;
     if(e.code==='KeyS'||e.code==='ArrowDown') W.kz=1;
@@ -650,247 +650,277 @@ function mgDrapeau3D(area){
 }
 
 /* ============================================================================
-   MINI-JEUX 3D DE TIR
-   Le joystick vise (réticule au centre de l'écran), le bouton tire. Même
-   noyau réseau que les jeux de plateforme, mais on reste en place et on cadre.
+   MINI-JEUX 3D DE TIR — VUE DU DESSUS, VRAIS PROJECTILES
+   On voit les personnages d'en haut, le joystick les déplace et les oriente,
+   le bouton 🎯 tire DROIT DEVANT. Les projectiles sont de vrais objets qui
+   voyagent dans l'arène : on peut les voir partir, les rater, les anticiper.
    ========================================================================== */
-function tirInit(area,opt){
+function tirTop(area,opt){
   opt=opt||{};
-  if(!MG3D.init(area,{theme:room.mapId,
-      dist:opt.dist||3, el:opt.el===undefined?.12:opt.el, az:opt.az===undefined?0:opt.az,
-      vise:opt.vise===undefined?1.6:opt.vise, lerp:opt.lerp||9,
-      fog:opt.fog, far:opt.far||600, fov:opt.fov||52})) return null;
-  const T=MG3D.THREE;
-  const W={T,hs:{},feu:false,area,az:0,el:(opt.el===undefined?.12:opt.el)};
-  W.stick=MG3D.joystick(area);
-  // réticule fixe au centre
-  const r=document.createElement('div');
-  r.style.cssText='position:absolute;left:50%;top:50%;width:38px;height:38px;margin:-19px 0 0 -19px;'+
-    'border:3px solid rgba(255,255,255,.85);border-radius:50%;pointer-events:none;z-index:5;'+
-    'box-shadow:0 0 0 2px rgba(0,0,0,.35),0 0 12px rgba(0,0,0,.5);';
-  const pt=document.createElement('div');
-  pt.style.cssText='position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;'+
-    'background:#FF5FA2;border-radius:50%;pointer-events:none;z-index:6;';
-  area.appendChild(r); area.appendChild(pt);
-  // bouton de tir
-  const b=document.createElement('button');
-  b.textContent='🎯';
-  b.style.cssText='position:absolute;right:14px;bottom:14px;width:88px;height:88px;border-radius:50%;'+
-    'border:3px solid rgba(255,255,255,.45);background:rgba(255,95,162,.92);color:#fff;'+
-    'font-size:36px;line-height:1;z-index:6;touch-action:none;cursor:pointer;'+
-    'box-shadow:0 6px 16px rgba(0,0,0,.45);';
-  b.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); W.feu=true; });
-  area.appendChild(b);
-  W.onDown=e=>{ if(e.code==='Space'){ W.feu=true; e.preventDefault(); } };
-  addEventListener('keydown',W.onDown);
-  W.fin=()=>{ removeEventListener('keydown',W.onDown); };
-  W.matiere=(col,glow)=>new T.MeshStandardMaterial({color:col,emissive:glow||0,
-    emissiveIntensity:glow?1.2:0,roughness:.6,flatShading:true});
-  // le joystick fait pivoter la visée ; la caméra suit
-  W.viser=dt=>{
-    W.az-=W.stick.x*1.9*dt;
-    W.el=Math.max(-.12,Math.min(.62,W.el-W.stick.y*1.2*dt));
-    MG3D.cadre({az:W.az,el:W.el});
+  const W=pfInit(area,{dist:opt.dist||34, el:opt.el===undefined?.98:opt.el,
+    vise:opt.vise===undefined?1:opt.vise, lerp:opt.lerp||5,
+    fog:opt.fog||[60,200], far:600});
+  if(!W) return null;
+  const T=W.T;
+  W.portee=opt.portee||26;
+  W.cadence=opt.cadence||.26;
+  W.vitesse=opt.vitesse||30;
+  W.calibre=opt.calibre||.28;
+  W.rayonTouche=opt.rayonTouche||1.7;
+  W.recharge=0; W.feu=false; W.balles=[];
+  // le bouton de saut devient le BOUTON DE TIR
+  W.btnSaut.textContent='🎯';
+  W.btnSaut.style.background='rgba(255,95,162,.94)';
+  W.btnSaut.style.color='#fff';
+  W.btnSaut.style.fontSize='34px';
+  W.btnSaut.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); W.feu=true; });
+  // repère au sol : la ligne de tir part des pieds du personnage
+  const ligne=new T.Mesh(new T.PlaneGeometry(.5,opt.jauge||13),
+    new T.MeshBasicMaterial({color:0x3EE6C1,transparent:true,opacity:.28,side:T.DoubleSide}));
+  ligne.rotation.x=-Math.PI/2;
+  ligne.position.z=(opt.jauge||13)/2;
+  const pivot=new T.Group(); pivot.add(ligne);
+  MG3D.group().add(pivot);
+  W.mire=pivot;
+  W.geoBalle=new T.SphereGeometry(W.calibre,7,6);
+  /* tire un projectile droit devant le personnage */
+  W.tirer=(me,col,monte,vertical)=>{
+    const m=new T.Mesh(W.geoBalle,new T.MeshStandardMaterial({
+      color:col,emissive:col,emissiveIntensity:1.1,roughness:.4}));
+    const fx=Math.sin(me.dir||0), fz=Math.cos(me.dir||0);
+    if(vertical){
+      // DCA : l'obus monte droit au-dessus du tireur
+      m.position.set(me.x,1.6,me.z);
+      MG3D.group().add(m);
+      W.balles.push({m,vx:0,vy:W.vitesse,vz:0,vie:W.portee/W.vitesse,haut:1});
+    } else {
+      m.position.set(me.x+fx*.9,1.45,me.z+fz*.9);
+      MG3D.group().add(m);
+      W.balles.push({m,vx:fx*W.vitesse,vy:monte||0,vz:fz*W.vitesse,vie:W.portee/W.vitesse});
+    }
+    snd('shot');
   };
-  // direction du canon : pile là où pointe le réticule
-  W.tir=()=>{
-    const ce=Math.cos(W.el);
-    return new T.Vector3(-Math.sin(W.az)*ce,Math.sin(W.el),-Math.cos(W.az)*ce);
+  /* fait voyager les balles et teste les impacts */
+  W.majBalles=(dt,cibles,pos,onTouche)=>{
+    for(let i=W.balles.length-1;i>=0;i--){
+      const b=W.balles[i];
+      const ax=b.m.position.x, ay=b.m.position.y, az=b.m.position.z;
+      b.m.position.x+=b.vx*dt; b.m.position.y+=b.vy*dt; b.m.position.z+=b.vz*dt;
+      b.vie-=dt;
+      // on teste aussi le MILIEU du trajet : une balle rapide ne traverse plus une cible
+      const mx=(ax+b.m.position.x)/2, my=(ay+b.m.position.y)/2, mz=(az+b.m.position.z)/2;
+      let fini=b.vie<=0||(!b.haut&&b.m.position.y<.2);
+      if(!fini&&cibles){
+        for(const c of cibles){
+          const p=pos(c); if(!p) continue;
+          const R2=W.rayonTouche*W.rayonTouche;
+          const dx=p.x-b.m.position.x, dy=p.y-b.m.position.y, dz=p.z-b.m.position.z;
+          const ex=p.x-mx, ey=p.y-my, ez=p.z-mz;
+          if(dx*dx+dy*dy+dz*dz<R2||ex*ex+ey*ey+ez*ez<R2){
+            try{ onTouche(c,b.m.position.clone()); }catch(e){}
+            fini=true; break;
+          }
+        }
+      }
+      if(fini){ MG3D.remove(b.m); W.balles.splice(i,1); }
+    }
   };
-  // une cible est-elle dans le réticule ?
-  W.touche=(p,tol)=>{
-    const d=W.tir();
-    const v=new T.Vector3(p.x,p.y-1.6,p.z).normalize();
-    return v.dot(d)>Math.cos(tol||.13);
-  };
+  W.videBalles=()=>{ W.balles.forEach(b=>MG3D.remove(b.m)); W.balles.length=0; };
   return W;
 }
-/* trait lumineux du tir, qui s'efface tout seul */
-function trait(W,dir,portee,col){
-  const T=W.T;
-  const g=new T.BufferGeometry().setFromPoints([
-    new T.Vector3(0,1.4,0), new T.Vector3(dir.x*portee,1.6+dir.y*portee,dir.z*portee)]);
-  const l=new T.Line(g,new T.LineBasicMaterial({color:col||0xFFD644,transparent:true,opacity:.95}));
-  MG3D.group().add(l);
-  let t=0;
-  const f=setInterval(()=>{
-    t+=.05; l.material.opacity=Math.max(0,.95-t*4);
-    if(t>.25){ clearInterval(f); MG3D.remove(l); }
-  },50);
-}
 
-/* --- Stand de Tir : les cibles surgissent, on dégaine --- */
-function mgStand3D(area){
+/* --- Bataille de Boules de Neige : tout le monde dans l'arène, on se canarde --- */
+function mgNeige3D(area){
   pfDepart(area,(preActs,start,rng)=>{
-    const W=tirInit(area,{fog:[40,150]}); if(!W){ submitScore(0); return; }
+    const W=tirTop(area,{portee:34,cadence:.26,vitesse:42,calibre:.38,rayonTouche:2.7,jauge:15});
+    if(!W){ submitScore(0); return; }
     const T=W.T;
-    const cibles=[];
-    for(let i=0;i<14;i++){
-      const a=(i/14)*Math.PI*2;
-      const g=new T.Group();
-      const d=new T.Mesh(new T.CylinderGeometry(1.15,1.15,.22,14),W.matiere(0xFF5FA2,0x5a0a28));
-      d.rotation.x=Math.PI/2; g.add(d);
-      const c=new T.Mesh(new T.CylinderGeometry(.5,.5,.26,12),W.matiere(0xFFF4D8,0x8a7a40));
-      c.rotation.x=Math.PI/2; c.position.z=.03; g.add(c);
-      const pied=new T.Mesh(new T.CylinderGeometry(.12,.16,2.4,6),W.matiere(0x6E63A8));
-      pied.position.y=-2.3; g.add(pied);
-      const R=17+((i*5)%3)*3.5;
-      g.position.set(Math.sin(a)*R,2.4+((i*7)%3)*1.5,Math.cos(a)*R);
-      g.lookAt(0,g.position.y,0);
-      g.visible=false;
-      MG3D.group().add(g);
-      cibles.push({g,active:false,t:0});
+    W.plat(0,0,0,46,46,0xBBD4E8);
+    // abris : on se cache derrière pour recharger
+    for(let i=0;i<9;i++){
+      const a=(i/9)*Math.PI*2, R=8+((i*7)%3)*4.5;
+      const m=new T.Mesh(new T.BoxGeometry(3.2,2.2,3.2),W.matiere(0xE8F4FF));
+      m.position.set(Math.cos(a)*R,1.1,Math.sin(a)*R);
+      m.rotation.y=rng()*2;
+      MG3D.group().add(m);
     }
-    const info=mg3dInfo(area,'0 pt');
-    let over=false, pts=0, rate=0, prochaine=.5;
+    const me=pfHeros(W,0,0,3.2);
+    const info=mg3dInfo(area,'0 touche');
+    pfReseau(W,me,preActs);
+    const rivaux=Object.values(W.hs).filter(h=>h!==me);
+    rivaux.forEach((h,k)=>{ h.cap=rng()*7; h.chg=0; });
+    const env={}; let over=false, touches=0, recus=0, gele=0;
     MG3D.frame((dt,t)=>{
       if(over) return;
       const el=(Date.now()-start)/1000;
-      W.viser(dt);
-      prochaine-=dt;
-      if(prochaine<=0){
-        prochaine=Math.max(.32,1.15-el*.022);
-        const libres=cibles.filter(c=>!c.active);
-        if(libres.length){
-          const c=libres[Math.floor(rng()*libres.length)];
-          c.active=true; c.t=Math.max(1.1,2.4-el*.03); c.g.visible=true;
-        }
-      }
-      cibles.forEach(c=>{
-        if(!c.active) return;
-        c.t-=dt;
-        c.g.rotation.z=Math.sin(t*.006)*.25;
-        if(c.t<=0){ c.active=false; c.g.visible=false; }
+      if(gele>0) gele-=dt;
+      else pfStep(W,me,dt,{sp:12});
+      const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
+      // les rivaux bougent : en local ils patrouillent, en ligne le réseau les pilote
+      if(local) rivaux.forEach(h=>{
+        h.chg-=dt;
+        if(h.chg<=0){ h.chg=.8+rng()*1.6; h.cap=rng()*Math.PI*2; }
+        h.x+=Math.sin(h.cap)*3.6*dt; h.z+=Math.cos(h.cap)*3.6*dt;
+        if(Math.abs(h.x)>lim||Math.abs(h.z)>lim){ h.cap+=Math.PI; h.chg=.4; }
+        h.x=Math.max(-lim,Math.min(lim,h.x)); h.z=Math.max(-lim,Math.min(lim,h.z));
+        h.dir=h.cap; h.moving=true;
       });
+      W.recharge-=dt;
       if(W.feu){
         W.feu=false;
-        const d=W.tir();
-        trait(W,d,42,0xFFD644);
-        snd('shot');
-        const vise=cibles.filter(c=>c.active&&W.touche(c.g.position,.10))
-          .sort((a,b)=>a.g.position.length()-b.g.position.length())[0];
-        if(vise){
-          pts+=10; vise.active=false; vise.g.visible=false;
-          snd('coin'); vib(18);
-          MG3D.burst(vise.g.position.x,vise.g.position.y,vise.g.position.z,0xFFD644,14);
-        } else rate++;
+        if(W.recharge<=0&&gele<=0){ W.recharge=W.cadence; W.tirer(me,0xE8F8FF,0); }
       }
-      info.textContent=pts+' pt'+(pts>1?'s':'')+(rate?'  ·  '+rate+' raté'+(rate>1?'s':''):'');
-      $('mgTimer').textContent=Math.max(0,32-el).toFixed(0)+' s';
-      if(el>=32){ over=true; snd('fanfare'); pfFin(W,pts*9-rate*4); }
+      W.majBalles(dt,rivaux,h=>({x:h.x,y:1.3,z:h.z}),(h,p)=>{
+        touches++; vib(18);
+        MG3D.burst(p.x,p.y,p.z,0xFFFFFF,16);
+        // le touché part se replacer plus loin
+        const a=rng()*Math.PI*2, R=10+rng()*8;
+        h.x=Math.cos(a)*R; h.z=Math.sin(a)*R;
+      });
+      MG3D.look(me.x*.5,me.z*.5,false,0);
+      pfEnvoi(W,me,env);
+      info.textContent=touches+' touche'+(touches>1?'s':'');
+      $('mgTimer').textContent=Math.max(0,36-el).toFixed(0)+' s';
+      if(el>=36){ over=true; W.videBalles(); snd('fanfare'); pfFin(W,touches*22); }
     });
   });
 }
 
-/* --- Pluie de Météores : abattre les rochers avant l'impact --- */
-function mgMeteo3D(area){
-  pfDepart(area,(preActs,start,rng)=>{
-    const W=tirInit(area,{el:.30,vise:2.4,fog:[50,180]}); if(!W){ submitScore(0); return; }
-    const T=W.T;
-    const sol=new T.Mesh(new T.CylinderGeometry(26,26,1,30),W.matiere(0x6E63A8));
-    sol.position.y=-.5; MG3D.group().add(sol);
-    const roches=[];
-    const info=mg3dInfo(area,'0 abattu');
-    let over=false, abattus=0, impacts=0, prochaine=.6;
-    MG3D.frame((dt,t)=>{
-      if(over) return;
-      const el=(Date.now()-start)/1000;
-      W.viser(dt);
-      prochaine-=dt;
-      if(prochaine<=0){
-        prochaine=Math.max(.34,1.3-el*.028);
-        const a=rng()*Math.PI*2, R=9+rng()*13;
-        const m=new T.Mesh(new T.DodecahedronGeometry(.95+rng()*.5),W.matiere(0x8A5A3A,0x3a1408));
-        m.position.set(Math.sin(a)*R,26+rng()*7,Math.cos(a)*R);
-        MG3D.group().add(m);
-        roches.push({m,v:3.4+rng()*2.2+el*.07,sp:rng()*3});
-      }
-      for(let i=roches.length-1;i>=0;i--){
-        const r=roches[i];
-        r.m.position.y-=r.v*dt;
-        r.m.rotation.x+=dt*r.sp; r.m.rotation.y+=dt*r.sp*.7;
-        if(r.m.position.y<=.9){
-          impacts++; snd('boom'); vib(45);
-          MG3D.burst(r.m.position.x,.9,r.m.position.z,0xFF6B6B,16);
-          MG3D.remove(r.m); roches.splice(i,1);
-        }
-      }
-      if(W.feu){
-        W.feu=false;
-        const d=W.tir();
-        trait(W,d,44,0x3EE6C1);
-        snd('shot');
-        let best=-1, bd=1e9;
-        roches.forEach((r,i)=>{
-          if(!W.touche(r.m.position,.12)) return;
-          const dd=r.m.position.length();
-          if(dd<bd){ bd=dd; best=i; }
-        });
-        if(best>=0){
-          const r=roches[best];
-          abattus++; snd('boom'); vib(20);
-          MG3D.burst(r.m.position.x,r.m.position.y,r.m.position.z,0xFFD644,18);
-          MG3D.remove(r.m); roches.splice(best,1);
-        }
-      }
-      info.textContent=abattus+' abattu'+(abattus>1?'s':'')+(impacts?'  ·  '+impacts+' impact'+(impacts>1?'s':''):'');
-      $('mgTimer').textContent=Math.max(0,34-el).toFixed(0)+' s';
-      if(el>=34){ over=true; snd('fanfare'); pfFin(W,abattus*14-impacts*7); }
-    });
-  });
-}
-
-/* --- Duel de Ballons : crever les 22 ballons le plus vite possible --- */
+/* --- Chasse aux Ballons : ils dérivent, il faut les prendre de vitesse --- */
 function mgBallons3D(area){
   pfDepart(area,(preActs,start,rng)=>{
-    const W=tirInit(area,{el:.22,vise:2.0,fog:[45,170]}); if(!W){ submitScore(0); return; }
+    const W=tirTop(area,{portee:30,cadence:.22,vitesse:40,calibre:.34,rayonTouche:2.5,dist:33,jauge:13});
+    if(!W){ submitScore(0); return; }
     const T=W.T;
+    W.plat(0,0,0,44,44,0x6E63A8);
     const COLS=[0xFF5FA2,0x3EE6C1,0xFFD644,0x5AC8FA,0xC39BFF,0xFF9F45];
     const ballons=[];
-    for(let i=0;i<22;i++){
-      const a=(i/22)*Math.PI*2+rng()*.2, R=13+rng()*9;
+    for(let i=0;i<24;i++){
+      const a=rng()*Math.PI*2, R=4+rng()*16;
       const col=COLS[i%COLS.length];
       const g=new T.Group();
       const b=new T.Mesh(new T.SphereGeometry(.95,10,9),W.matiere(col,col));
-      b.material.emissiveIntensity=.35;
-      b.scale.y=1.25; g.add(b);
-      const n=new T.Mesh(new T.ConeGeometry(.22,.42,6),W.matiere(col));
-      n.position.y=-1.3; n.rotation.x=Math.PI; g.add(n);
-      g.position.set(Math.sin(a)*R,2.6+rng()*8,Math.cos(a)*R);
+      b.material.emissiveIntensity=.45; b.scale.y=1.2; g.add(b);
+      const fil=new T.Mesh(new T.CylinderGeometry(.05,.05,1.6,4),W.matiere(0xE8E8F0));
+      fil.position.y=-1.3; g.add(fil);
+      g.position.set(Math.cos(a)*R,1.5,Math.sin(a)*R);
       MG3D.group().add(g);
-      ballons.push({g,ph:rng()*7,amp:.5+rng()*.9,y0:g.position.y,vivant:true});
+      ballons.push({g,ph:rng()*7,amp:.3+rng()*.35,y0:1.5,vivant:true,
+        vx:(rng()-.5)*2.6,vz:(rng()-.5)*2.6});
     }
-    const info=mg3dInfo(area,'0 / 22');
-    let over=false, creves=0, rate=0, fini=0;
+    const me=pfHeros(W,0,0,2.2);
+    const info=mg3dInfo(area,'0 / 24');
+    pfReseau(W,me,preActs);
+    const env={}; let over=false, creves=0, tires=0, fini=0;
     MG3D.frame((dt,t)=>{
       if(over) return;
       const el=(Date.now()-start)/1000;
-      W.viser(dt);
-      ballons.forEach(b=>{ if(b.vivant) b.g.position.y=b.y0+Math.sin(t*.0013+b.ph)*b.amp; });
+      pfStep(W,me,dt,{sp:12.5});
+      const lim=20; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
+      ballons.forEach(b=>{
+        if(!b.vivant) return;
+        b.g.position.x+=b.vx*dt; b.g.position.z+=b.vz*dt;
+        if(Math.abs(b.g.position.x)>20) b.vx*=-1;
+        if(Math.abs(b.g.position.z)>20) b.vz*=-1;
+        b.g.position.y=b.y0+Math.sin(t*.0014+b.ph)*b.amp;
+      });
+      W.recharge-=dt;
       if(W.feu){
         W.feu=false;
-        const d=W.tir();
-        trait(W,d,40,0xFF5FA2);
-        snd('shot');
-        let best=null, bd=1e9;
-        ballons.forEach(b=>{
-          if(!b.vivant||!W.touche(b.g.position,.11)) return;
-          const dd=b.g.position.length();
-          if(dd<bd){ bd=dd; best=b; }
-        });
-        if(best){
-          best.vivant=false; best.g.visible=false; creves++;
-          snd('pop'); vib(16);
-          MG3D.burst(best.g.position.x,best.g.position.y,best.g.position.z,0xFF5FA2,16);
-          if(creves>=ballons.length&&!fini) fini=el;
-        } else rate++;
+        if(W.recharge<=0){ W.recharge=W.cadence; tires++; W.tirer(me,0xFFD644,0); }
       }
+      W.majBalles(dt,ballons.filter(b=>b.vivant),b=>b.g.position,(b,p)=>{
+        b.vivant=false; b.g.visible=false; creves++;
+        snd('pop'); vib(14);
+        MG3D.burst(p.x,p.y,p.z,0xFF5FA2,16);
+        if(creves>=ballons.length&&!fini) fini=el;
+      });
+      MG3D.look(me.x*.5,me.z*.5,false,0);
+      pfEnvoi(W,me,env);
       info.textContent=creves+' / '+ballons.length;
-      $('mgTimer').textContent=Math.max(0,34-el).toFixed(0)+' s';
-      if(fini||el>=34){
-        over=true; snd('fanfare');
-        pfFin(W,fini?(760-fini*12-rate*4):(creves*26-rate*4));
+      $('mgTimer').textContent=Math.max(0,36-el).toFixed(0)+' s';
+      if(fini||el>=36){
+        over=true; W.videBalles(); snd('fanfare');
+        pfFin(W,fini?(800-fini*13):(creves*28-Math.max(0,tires-creves)*2));
       }
+    });
+  });
+}
+
+/* --- Invasion des Bots : ils avancent vers toi, tiens la ligne --- */
+function mgRobots3D(area){
+  pfDepart(area,(preActs,start,rng)=>{
+    const W=tirTop(area,{portee:32,cadence:.24,vitesse:42,calibre:.36,rayonTouche:2.7,dist:35,jauge:15});
+    if(!W){ submitScore(0); return; }
+    const T=W.T;
+    W.plat(0,0,0,46,46,0x5A5478);
+    // le cœur du réacteur, au centre : c'est lui qu'on défend
+    const coeur=new T.Mesh(new T.IcosahedronGeometry(1.9,0),W.matiere(0x3EE6C1,0x18B89A));
+    coeur.position.y=1.9; MG3D.group().add(coeur);
+    const socle=new T.Mesh(new T.CylinderGeometry(2.6,3.2,1.1,10),W.matiere(0x4A4270));
+    socle.position.y=.55; MG3D.group().add(socle);
+    const bots=[];
+    const me=pfHeros(W,0,5,2.2);
+    const info=mg3dInfo(area,'0 bot');
+    pfReseau(W,me,preActs);
+    const env={}; let over=false, abattus=0, perdus=0, prochaine=.6;
+    MG3D.frame((dt,t)=>{
+      if(over) return;
+      const el=(Date.now()-start)/1000;
+      pfStep(W,me,dt,{sp:12});
+      const lim=21; me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
+      W.mire.position.set(me.x,.07,me.z); W.mire.rotation.y=me.dir||0;
+      coeur.rotation.y+=dt*.8;
+      coeur.position.y=1.9+Math.sin(t*.0022)*.18;
+      // les bots surgissent du bord et marchent vers le cœur
+      prochaine-=dt;
+      if(prochaine<=0){
+        prochaine=Math.max(.40,1.5-el*.026);
+        const a=rng()*Math.PI*2, R=23;
+        const g=new T.Group();
+        const corps=new T.Mesh(new T.BoxGeometry(1.5,1.7,1.2),W.matiere(0xC96BB8,0x4a1040));
+        corps.position.y=1.25; g.add(corps);
+        const tete=new T.Mesh(new T.BoxGeometry(.95,.8,.9),W.matiere(0xFF9F45,0x5a2a00));
+        tete.position.y=2.45; g.add(tete);
+        [[-.55,0],[.55,0]].forEach(([x])=>{
+          const j=new T.Mesh(new T.BoxGeometry(.42,1,.42),W.matiere(0x4A4270));
+          j.position.set(x,.5,0); g.add(j);
+        });
+        g.position.set(Math.cos(a)*R,0,Math.sin(a)*R);
+        MG3D.group().add(g);
+        bots.push({g,v:1.9+rng()*1.1+el*.038,ph:rng()*7,vivant:true});
+      }
+      for(let i=bots.length-1;i>=0;i--){
+        const b=bots[i];
+        const d2=Math.hypot(b.g.position.x,b.g.position.z)||1;
+        b.g.position.x-=(b.g.position.x/d2)*b.v*dt;
+        b.g.position.z-=(b.g.position.z/d2)*b.v*dt;
+        b.g.rotation.y=Math.atan2(-b.g.position.x,-b.g.position.z);
+        b.g.position.y=Math.abs(Math.sin(t*.008+b.ph))*.22;   // démarche saccadée
+        if(d2<3.4){                                            // il atteint le cœur
+          perdus++; snd('bad'); vib(45);
+          MG3D.burst(b.g.position.x,1.4,b.g.position.z,0xFF6B6B,14);
+          MG3D.remove(b.g); bots.splice(i,1);
+        }
+      }
+      W.recharge-=dt;
+      if(W.feu){
+        W.feu=false;
+        if(W.recharge<=0){ W.recharge=W.cadence; W.tirer(me,0xFFD644,0); }
+      }
+      W.majBalles(dt,bots,b=>({x:b.g.position.x,y:1.5,z:b.g.position.z}),(b,p)=>{
+        abattus++; vib(14);
+        MG3D.burst(p.x,p.y,p.z,0xFFD644,16);
+        MG3D.remove(b.g);
+        const k=bots.indexOf(b); if(k>=0) bots.splice(k,1);
+      });
+      MG3D.look(me.x*.4,me.z*.4,false,0);
+      pfEnvoi(W,me,env);
+      info.textContent=abattus+' bot'+(abattus>1?'s':'')+(perdus?'  ·  '+perdus+' passé'+(perdus>1?'s':''):'');
+      $('mgTimer').textContent=Math.max(0,38-el).toFixed(0)+' s';
+      if(el>=38){ over=true; W.videBalles(); snd('fanfare'); pfFin(W,abattus*15-perdus*18); }
     });
   });
 }
