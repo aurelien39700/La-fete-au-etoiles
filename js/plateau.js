@@ -148,13 +148,32 @@ function weather(on){
   },540);
 }
 
-/* ---------- musique d'ambiance discrète, propre à chaque carte ---------- */
+/* ---------- musique d'ambiance générative, une identité par carte ----------
+   Un petit séquenceur 16 pas : basse, arpège, percussions douces.
+   Tout est synthétisé par le moteur WebAudio existant (zéro fichier).
+   La finale accélère le tempo : la tension monte toute seule. */
 const MAP_MUSIC={
-  fete:    {seq:[262,330,392,523,392,330,294,440], step:1500, w:'triangle'},
-  spirale: {seq:[220,277,330,440,415,330,277,247], step:1750, w:'sine'},
-  archipel:{seq:[294,370,440,494,440,370,330,294], step:1300, w:'triangle'},
-  volcan:  {seq:[196,233,196,175,233,262,233,175], step:1650, w:'sawtooth'},
-  temple:  {seq:[262,311,349,392,349,311,262,233], step:1420, w:'triangle'}
+  //           basse (Hz, 0=silence)                 arpège / mélodie                                  percussions
+  fete:    {step:227, wb:'triangle', wm:'square',  vb:.030, vm:.012,
+            bass:[131,0,131,0,110,0,110,0,87,0,87,0,98,0,98,0],
+            mel: [523,0,659,784,0,659,0,523,440,0,523,659,0,494,587,0],
+            kick:[0,4,8,12], hat:[2,6,10,14]},
+  volcan:  {step:300, wb:'sawtooth', wm:'sawtooth',vb:.016, vm:.006,
+            bass:[73,0,0,73,0,87,0,0,73,0,0,65,0,98,87,0],
+            mel: [294,0,311,0,0,294,0,262,0,0,349,0,311,0,0,0],
+            kick:[0,6,8,14], hat:[4,12], grond:true},
+  spirale: {step:268, wb:'sine',     wm:'triangle',vb:.028, vm:.013,
+            bass:[110,0,0,0,123,0,0,0,98,0,0,0,131,0,0,0],
+            mel: [440,554,659,831,659,554,440,0,494,622,740,932,740,622,494,0],
+            kick:[0,8], hat:[4,12]},
+  archipel:{step:250, wb:'triangle', wm:'triangle',vb:.030, vm:.016, steel:true,
+            bass:[98,0,98,0,87,0,110,0,98,0,98,0,131,0,110,0],
+            mel: [392,0,494,587,0,494,392,0,440,494,0,587,0,494,440,0],
+            kick:[0,3,8,11], hat:[2,6,10,14]},
+  temple:  {step:326, wb:'sine',     wm:'sine',    vb:.030, vm:.013,
+            bass:[65,0,0,0,0,0,78,0,65,0,0,0,73,0,0,0],
+            mel: [262,0,311,0,392,0,466,0,392,0,311,0,247,0,233,0],
+            kick:[0,8], hat:[6,14]}
 };
 let musT=null, musOn=false;
 function music(on){
@@ -162,17 +181,26 @@ function music(on){
   musOn=on;
   clearTimeout(musT); musT=null;
   if(!on) return;
-  let mi=0;
+  let pas=0;
   const tick=()=>{
     if(!musOn) return;
     const M=MAP_MUSIC[(room&&room.mapId)||'fete']||MAP_MUSIC.fete;
+    const i=pas%16;
     if(sndOn&&!document.hidden){
-      const f=M.seq[mi%M.seq.length];
-      tone(f/2,1.6,'sine',.02);
-      tone(f,1.9,M.w,M.w==='sawtooth'?.008:.014,.08);
-      mi++;
+      const b=M.bass[i], m=M.mel[i];
+      if(b) tone(b,.42,M.wb,M.vb);
+      if(m){
+        tone(m,.24,M.wm,M.vm);
+        if(M.steel) tone(m*1.006,.16,'triangle',M.vm*.7,.012);   // doublage désaccordé : timbre steel-drum
+        if(M.wm==='sine') tone(m*2,.12,'sine',M.vm*.35);          // harmonique cloche (temple/spirale)
+      }
+      if(M.kick.indexOf(i)>=0) tone(52,.11,'sine',.05,0,38);      // grosse caisse feutrée
+      if(M.hat.indexOf(i)>=0) noiseS(.03,.014,0,7000);            // chapeau discret
+      if(M.grond&&i===0&&Math.random()<.4) noiseS(1.4,.02,0,140); // grondement du volcan
     }
-    musT=setTimeout(tick,M.step||1500); // tempo propre à la carte
+    pas++;
+    const finale=room&&room.finale?0.8:1;                          // derniers tours : ça presse
+    musT=setTimeout(tick,Math.round(M.step*finale));
   };
   tick();
 }
