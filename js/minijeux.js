@@ -67,7 +67,7 @@ async function choisirMiniJeux(getOff,setOff){
   const ov=document.createElement('div'); ov.className='ovl';
   ov.innerHTML='<div class="pop" style="max-width:420px;">'+
     '<h3>🎮 Mini-jeux de la partie</h3>'+
-    '<p class="hint" style="margin:2px 0 8px;">Décoche ceux que tu ne veux pas voir sortir.</p>'+
+    '<p class="hint" style="margin:2px 0 8px;">Décoche ceux que tu ne veux pas voir sortir — ▶ pour essayer.</p>'+
     '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px;">'+
       '<button class="ichip" id="mgAll" style="font-size:12.5px;font-weight:800;font-family:\'Baloo 2\';">Tout cocher</button>'+
       '<button class="ichip" id="mg3d" style="font-size:12.5px;font-weight:800;font-family:\'Baloo 2\';">Que la 3D</button>'+
@@ -83,12 +83,18 @@ async function choisirMiniJeux(getOff,setOff){
       return '<div class="prow" data-i="'+i+'" style="cursor:pointer;padding:8px 12px;margin:5px 0;font-size:14px;'+
         'opacity:'+(on?1:.42)+';border-left:5px solid '+(on?'var(--menthe)':'rgba(255,255,255,.2)')+';">'+
         '<span style="font-size:18px;">'+(on?'☑️':'⬜')+'</span>'+
-        '<span style="flex:1;">'+g.name+(g.d3?' <b style="color:var(--etoile);">3D</b>':'')+(g.rt?' ⚡':'')+'</span></div>';
+        '<span style="flex:1;">'+g.name+(g.d3?' <b style="color:var(--etoile);">3D</b>':'')+(g.rt?' ⚡':'')+'</span>'+
+        '<button class="mgTest" data-j="'+i+'" title="Essayer ce mini-jeu" '+
+          'style="border:none;background:rgba(255,214,68,.92);color:#20163F;border-radius:10px;'+
+          'width:34px;height:28px;font-size:14px;font-weight:900;cursor:pointer;flex:none;">▶</button></div>';
     }).join('');
     liste.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{
       const i=+r.dataset.i;
       if(off.has(i)) off.delete(i); else off.add(i);
       snd('tap'); dessine();
+    });
+    liste.querySelectorAll('.mgTest').forEach(b=>b.onclick=e=>{
+      e.stopPropagation(); snd('tap'); essaiMiniJeu(+b.dataset.j,ov);
     });
   };
   dessine();
@@ -105,6 +111,63 @@ async function choisirMiniJeux(getOff,setOff){
     };
   });
 }
+/* ---------- essai libre d'un mini-jeu depuis la préparation ----------
+   On monte une partie factice le temps de la démo, puis on restitue
+   exactement l'état d'avant : rien de l'essai ne fuit dans la vraie partie. */
+function essaiMiniJeu(i,ov){
+  if(!MG_INFO[i]) return;
+  const sauve={room:room, local:local, localMg:localMg,
+    submit:window.submitScore, done:mgDone, played:mgPlayed, cle:mgRoundKey,
+    ecran:(document.querySelector('.screen.on')||{}).id||'scr-home'};
+  if(ov) ov.style.display='none';
+  const moi={id:me.id||'essai1', name:me.name||'Toi',
+    hero:me.hero||'astro', skin:me.skin||null,
+    color:me.color||'#FFD644', coins:10, stars:0, pos:0};
+  const duo={id:'essai2', name:'Partenaire', hero:'robot', color:'#3EE6C1', coins:10, stars:0, pos:0};
+  local=true; localMg=null;                // aucune trame réseau pendant l'essai
+  room={code:'ESSAI', status:'minigame',
+    mapId:(sauve.room&&sauve.room.mapId)||localMapId||'fete',
+    players:[moi,duo], mg:{type:i, startedAt:Date.now(), round:'essai'}};
+  mgDone=false; mgPlayed=false; mgRoundKey='essai';
+  window.MG_ESSAI=true;   // le salon en ligne continue de vivre, on l'applique après
+  const quitter=document.createElement('button');
+  quitter.textContent='✕ Quitter l\'essai';
+  quitter.style.cssText='position:fixed;left:10px;top:10px;z-index:59;padding:8px 14px;border-radius:14px;'+
+    'border:2px solid rgba(255,255,255,.3);background:rgba(23,16,48,.86);color:#fff;'+
+    'font-family:"Baloo 2";font-size:14px;font-weight:800;cursor:pointer;';
+  const fin=()=>{
+    try{ if(window.MG3D) MG3D.stop(); }catch(e){}
+    window.mgAct=null;
+    clearInterval(mgTimerI); mgTimerI=null;
+    $('mgTimer').textContent='';
+    window.submitScore=sauve.submit;
+    room=sauve.room; local=sauve.local; localMg=sauve.localMg;
+    mgDone=sauve.done; mgPlayed=sauve.played; mgRoundKey=sauve.cle;
+    window.MG_ESSAI=false;
+    if(window.pendingState){ const st=pendingState; pendingState=null; applyState(st); }
+    $('mgArea').innerHTML='';
+    try{ quitter.remove(); }catch(e){}
+    show(sauve.ecran);
+    if(ov) ov.style.display='';
+  };
+  quitter.onclick=e=>{ e.stopPropagation(); snd('tap'); fin(); };
+  window.submitScore=sc=>{
+    window.submitScore=sauve.submit;
+    try{ if(window.MG3D) MG3D.stop(); }catch(e){}
+    $('mgArea').innerHTML='<div class="center"><div class="mg-score">'+Math.max(0,Math.round(sc))+' pts</div>'+
+      '<p class="hint">Essai terminé — retour à la préparation…</p></div>';
+    setTimeout(fin,1600);
+  };
+  const g=MG_INFO[i];
+  $('mgName').textContent=g.name;
+  $('mgDesc').textContent=g.desc;
+  $('mgTeam').style.display='none';
+  $('mgStatus').textContent='Essai libre';
+  show('scr-mg');
+  document.body.appendChild(quitter);
+  startMiniGame();
+}
+
 let mgPlayed=false, mgTimerI=null, mgDone=false, mgRoundKey=null;
 
 function renderMg(){

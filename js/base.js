@@ -157,6 +157,8 @@ function saveSnapshot(){
 }
 function applyState(st){
   if(!st) return;
+  // essai d'un mini-jeu depuis la préparation : on met l'état du salon de côté
+  if(window.MG_ESSAI){ pendingState=st; return; }
   if(room && !local && st.version<room.version) return; // état plus vieux que le nôtre
   if(animBusy){ pendingState=st; return; }
   room=st;
