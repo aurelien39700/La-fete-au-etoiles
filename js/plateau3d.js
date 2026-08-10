@@ -182,6 +182,55 @@ EL_TYPES.forEach(t=>{
     try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e){}
   },undefined,()=>{ EL3D[t]={ok:0}; });
 });
+/* ---------- DÉCOR 3D des cartes (modèles Meshy) ----------
+   Chaque carte a ses pièces maîtresses et ses props de fond. On les charge à la
+   demande, on les met à l'échelle par leur boîte réelle, et on les ancre au sol
+   loin des dalles pour qu'aucun ne chevauche le parcours. */
+const DECO3D={};
+/* [fichier, hauteur en unités monde, rayon d'emprise, nombre d'exemplaires] */
+const DECOR={
+  volcan:[['volcan-cone',26,15,1],['volcan-crane',7,5,1],['volcan-arche',11,6,2],
+          ['volcan-obsidienne',5,3.4,7],['volcan-geyser',3.4,3,5]],
+  fete:  [['fete-roue',20,10,1],['fete-chapiteau',13,8,1],['fete-carrousel',9,6,1],
+          ['fete-igloo',5,4,3],['fete-sapin',7,3.4,8]],
+  spirale:[['spirale-station',12,7,1],['spirale-portail',13,7,1],['spirale-lune',9,6,1],
+          ['spirale-asteroide',6,4,6],['spirale-cristal',5,3.2,7]],
+  archipel:[['archipel-epave',12,8,1],['archipel-huitre',6,5,1],['archipel-tiki',8,4,3],
+          ['archipel-palmier',9,4,8],['archipel-corail',4,3,6]],
+  temple:[['temple-pyramide',18,11,1],['temple-olmeque',8,5,2],['temple-jaguar',6,4,2],
+          ['temple-colonne',9,4,4],['temple-totem',6,3.4,3]]
+};
+function decoGLB(nom,cb){
+  const e=DECO3D[nom];
+  if(e){ if(e.ok) cb(e.scene); else if(!e.fail) (e.q=e.q||[]).push(cb); return; }
+  DECO3D[nom]={ok:0,q:[cb]};
+  loader.load('/art/deco-'+nom+'.glb',g=>{
+    const q=(DECO3D[nom]&&DECO3D[nom].q)||[];
+    DECO3D[nom]={ok:1,scene:g.scene};
+    q.forEach(f=>{ try{ f(g.scene); }catch(err){} });
+    B3D.built='';                       // le décor arrive : on rebâtit la carte
+    try{ if(window.room&&room.status==='board'&&typeof render==='function') render(); }catch(e2){}
+  },undefined,()=>{ DECO3D[nom]={ok:0,fail:1}; });
+}
+/* pose un modèle : mise à l'échelle par sa vraie boîte, pieds au sol */
+function poseDeco(g,src,x,z,haut,rot,teinte){
+  const m=src.clone(true);
+  let bb=new THREE.Box3().setFromObject(m);
+  const t=bb.getSize(new THREE.Vector3());
+  m.scale.setScalar(haut/Math.max(.001,t.y));
+  m.updateMatrixWorld(true);
+  bb.setFromObject(m);
+  m.position.set(x-(bb.min.x+bb.max.x)/2, -bb.min.y, z-(bb.min.z+bb.max.z)/2);
+  m.rotation.y=rot||0;
+  m.traverse(o=>{
+    if(!o.isMesh) return;
+    o.castShadow=true; o.receiveShadow=true;
+    // les modèles arrivent sans texture : on les teinte au thème de la carte
+    o.material=new THREE.MeshStandardMaterial({color:teinte,roughness:.88,flatShading:true});
+  });
+  g.add(m);
+  return m;
+}
 function heroGLB(id,cb){
   const e=HERO3D[id];
   if(e){
@@ -700,8 +749,41 @@ function ancre(x,z,r){
   }
   return {x,z};
 }
+/* teintes du décor, une par carte (les modèles arrivent sans texture) */
+const DECO_COL={
+  volcan:[0x6B4038,0x8A5040,0x4A2A26],
+  fete:[0xC96BB8,0x8E7CFF,0x5AC8FA],
+  spirale:[0x8E7CFF,0x6A78C8,0xC39BFF],
+  archipel:[0x5FA88A,0xC9A86A,0x7FD8C8],
+  temple:[0x7A8A5A,0xA88A4A,0x5A7A4E]
+};
+/* sème les pièces du décor autour de l'île, jamais sur le parcours */
+function semerDecor(g,mapId){
+  const liste=DECOR[mapId]; if(!liste) return;
+  const cols=DECO_COL[mapId]||DECO_COL.fete;
+  const rnd=(s2=>()=>{s2=(s2*16807)%2147483647;return s2/2147483647;})(mapId.length*7717+13);
+  let ci=0;
+  liste.forEach(([nom,haut,emprise,nb],li)=>{
+    decoGLB(nom,src=>{
+      const teinte=cols[(ci++)%cols.length];
+      for(let k=0;k<nb;k++){
+        // on cherche un emplacement franchement à l'écart des dalles
+        let x=0,z=0,ok=false;
+        for(let essai=0;essai<40&&!ok;essai++){
+          const a=rnd()*Math.PI*2;
+          const r=(li===0?SPAN*.95:SPAN*.70)+rnd()*SPAN*(li===0?.20:.62);
+          x=CENTER.x+Math.cos(a)*r; z=CENTER.z+Math.sin(a)*r;
+          ok=libre(x,z,emprise+TILE*1.2);
+        }
+        if(!ok) continue;
+        poseDeco(g,src,x,z,haut*(li<3?1:(.75+rnd()*.5)),rnd()*Math.PI*2,teinte);
+      }
+    });
+  });
+}
 function buildProps(g,mapId,pal){
   NW=room.board.map(n=>toW(n));
+  semerDecor(g,mapId);
   const dark=new THREE.MeshStandardMaterial({color:0x241B38,roughness:.95,flatShading:true});
   if(mapId==='volcan'){
     const volc=new THREE.Group();
