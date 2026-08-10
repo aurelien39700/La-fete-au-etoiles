@@ -291,14 +291,22 @@ let selAv=0, selCol=2;
 function updatePreview(){
   // grand portrait illustré du héros (skin en pied si équipé, repli sur le SVG)
   const pv=$('prevAv'); pv.innerHTML='';
-  // le costume n'a pas de photo de studio : on montre son modèle 3D, qui tourne
-  if(me.skin&&SKIN_OK[me.skin]&&window.MG3D&&MG3D.portrait&&MG3D.portrait(pv,me.skin,116)){
+  // TOUT LE MONDE en 3D : héros de base comme costumes, le portrait tourne
+  const modele=(me.skin&&SKIN_OK[me.skin])?me.skin:me.hero;
+  // si le modèle 3D ne se charge pas, on retombe sur la photo sans clignoter
+  const repli=()=>{ if(!$('prevAv').firstChild) portraitPlat(); };
+  if(modele&&window.MG3D&&MG3D.portrait&&MG3D.portrait(pv,modele,116,repli)){
     $('prevName').textContent=me.name||($('myName').value.trim())||'Ton pseudo';
     $('prevCard').style.borderColor=me.color;
     $('prevCard').style.background=`radial-gradient(circle at 50% 0%, ${me.color}55, transparent 72%), rgba(255,255,255,.07)`;
     return;
   }
   if(window.MG3D&&MG3D.portraitOff) MG3D.portraitOff();
+  portraitPlat();
+}
+/* repli : la photo de studio du héros, ou sa découpe pour un costume */
+function portraitPlat(){
+  const pv=$('prevAv'); pv.innerHTML='';
   const im=document.createElement('img');
   if(me.skin&&SKIN_OK[me.skin]){
     im.src='/art/sprite-'+me.skin+'.png'; im.alt='';

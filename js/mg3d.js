@@ -379,7 +379,7 @@ M.portraitOff=function(){
   }
   pRen=null; pScn=null; pCam=null;
 };
-M.portrait=function(el,id,taille){
+M.portrait=function(el,id,taille,siEchec){
   if(!M.ok||!el||!id) return false;
   if(pId===id&&pRen&&pRen.domElement.parentNode===el) return true;
   M.portraitOff();
@@ -412,7 +412,7 @@ M.portrait=function(el,id,taille){
     const c=bb.getCenter(new THREE.Vector3());
     pCam.position.set(0,c.y+.15,3.9);   // recul : le personnage tient entier dans la vignette
     pCam.lookAt(0,c.y-.05,0);
-  },undefined,()=>{ M.portraitOff(); });
+  },undefined,()=>{ M.portraitOff(); if(siEchec) try{ siEchec(); }catch(e){} });
   pLast=performance.now();
   (function tour(){
     pRaf=requestAnimationFrame(tour);
