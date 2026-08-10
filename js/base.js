@@ -5,13 +5,36 @@ const rnd=n=>Math.floor(Math.random()*n);
 let toastT;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+/* où revient-on depuis chaque écran ? (le bouton ← Retour, toujours en haut) */
+const RETOUR={'scr-local':'scr-home','scr-join':'scr-home','scr-lobby':'scr-home'};
 function show(id){
-  // on libère le portrait 3D dès qu'on quitte l'écran de création
+  // on libère le portrait 3D dès qu'on quitte l'écran d'accueil
   if(id!=='scr-home'&&window.MG3D&&MG3D.portraitOff) MG3D.portraitOff();
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   $(id).classList.add('on');
   window.scrollTo(0,0);
+  const b=$('btnBack');
+  if(b) b.style.display=RETOUR[id]?'block':'none';
+  window.ecranActuel=id;
 }
+window.addEventListener('load',()=>{
+  const b=$('btnBack'); if(!b) return;
+  b.onclick=async()=>{
+    const dest=RETOUR[window.ecranActuel]; if(!dest) return;
+    snd('tap');
+    // quitter un salon n'est pas anodin : on demande confirmation
+    if(window.ecranActuel==='scr-lobby'){
+      const ok=await ask({title:'Quitter le salon ?',
+        text:'Tu pourras revenir avec le code de la partie.',sheet:true,
+        options:[{label:'Oui, revenir au menu',value:1,cls:'rose'},
+                 {label:'Rester ici',value:null,cls:'ghost'}]});
+      if(!ok) return;
+      try{ clearInterval(pollI); clearInterval(hostI); }catch(e){}
+      room=null; roomKey='';
+    }
+    show(dest);
+  };
+});
 
 const S={
   async get(k,sh=false){
