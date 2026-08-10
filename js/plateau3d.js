@@ -767,13 +767,24 @@ function semerDecor(g,mapId){
     decoGLB(nom,src=>{
       const teinte=cols[(ci++)%cols.length];
       for(let k=0;k<nb;k++){
-        // on cherche un emplacement franchement à l'écart des dalles
         let x=0,z=0,ok=false;
-        for(let essai=0;essai<40&&!ok;essai++){
+        // la piece maitresse trone au COEUR de la carte (volcan, pyramide, grande
+        // roue) : c'est la qu'elle raconte quelque chose. Le reste peuple l'anneau.
+        if(li===0&&k===0){
+          for(const d of [0,.18,.36,.54,.72]){
+            for(let a2=0;a2<8&&!ok;a2++){
+              const ang=a2*Math.PI/4;
+              x=CENTER.x+Math.cos(ang)*SPAN*d; z=CENTER.z+Math.sin(ang)*SPAN*d;
+              ok=libre(x,z,emprise+TILE*1.1);
+            }
+            if(ok) break;
+          }
+        }
+        for(let essai=0;essai<50&&!ok;essai++){
           const a=rnd()*Math.PI*2;
-          const r=(li===0?SPAN*.95:SPAN*.70)+rnd()*SPAN*(li===0?.20:.62);
+          const r=SPAN*.34+rnd()*SPAN*.52;
           x=CENTER.x+Math.cos(a)*r; z=CENTER.z+Math.sin(a)*r;
-          ok=libre(x,z,emprise+TILE*1.2);
+          ok=libre(x,z,emprise+TILE*1.1);
         }
         if(!ok) continue;
         poseDeco(g,src,x,z,haut*(li<3?1:(.75+rnd()*.5)),rnd()*Math.PI*2,teinte);
@@ -1349,8 +1360,11 @@ B3D.render=function(){
     wrap.appendChild(vb);
     sizeToWrap();
   }
+  wrap.classList.add('chargement');
   const key=room.mapId+':'+room.starIdx+':'+room.board.length+':'+Object.keys(EL3D).filter(k=>EL3D[k].ok).length+':'+(VOXTEX[room.mapId]?'T':'')+':'+(room.cataSeq||0);
   if(B3D.built!==key){ B3D.built=key; build(); }
+  // tout est bâti : on lève le voile à la première image réellement rendue
+  requestAnimationFrame(()=>requestAnimationFrame(()=>wrap.classList.remove('chargement')));
   // groupes dynamiques
   if(!gPions){ gPions=new THREE.Group(); scene.add(gPions); }
   if(gReach){ scene.remove(gReach); gReach=null; }
