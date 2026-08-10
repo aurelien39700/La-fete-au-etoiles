@@ -796,6 +796,53 @@ async function useItem(idx){
     animBusy=false;
     await saveRoom(); return;
   }
+  if(id==='mirror'){
+    animBusy=true;
+    scrollToPawn();
+    const others=room.players.filter(o=>o.id!==p.id);
+    const tid=await ask({title:'🪞 Miroir Maudit',text:'Échanger ta place avec qui ?',sheet:true,
+      options:others.map(o=>({label:pAv(o,22)+' '+o.name,value:o.id}))
+        .concat([{label:'Annuler',value:null,cls:'ghost'}])});
+    if(!tid){ animBusy=false; render(); return; }
+    pItems(p).splice(idx,1);
+    const t=room.players.find(o=>o.id===tid);
+    if(popShield(t)){
+      fxCast('🛡️','BRISÉ !','Le bouclier de '+t.name+' brise le miroir !');
+      room.log.push('🛡️ '+t.name+' brise le Miroir Maudit de '+p.name+' !');
+    } else {
+      const tmp=p.pos; p.pos=t.pos; t.pos=tmp;
+      snd('whoosh');
+      fxCast('🪞','ÉCHANGE MAUDIT !',p.name+' prend la place de '+t.name+' — et inversement !',2800);
+      room.log.push('🪞 '+p.name+' échange sa place avec '+t.name+' !');
+    }
+    animBusy=false;
+    renderBoard();
+    await saveRoom(); return;
+  }
+  if(id==='spook'){
+    animBusy=true;
+    scrollToPawn();
+    const others=room.players.filter(o=>o.id!==p.id&&o.coins>0);
+    if(!others.length){ toast('👻 Personne n\'a de pièces à voler !'); animBusy=false; render(); return; }
+    const tid=await ask({title:'👻 Fantôme Voleur',text:'Le fantôme vole 10 🪙 — chez qui ?',sheet:true,
+      options:others.map(o=>({label:pAv(o,22)+' '+o.name+' (🪙'+o.coins+')',value:o.id}))
+        .concat([{label:'Annuler',value:null,cls:'ghost'}])});
+    if(!tid){ animBusy=false; render(); return; }
+    pItems(p).splice(idx,1);
+    const t=room.players.find(o=>o.id===tid);
+    if(popShield(t)){
+      fxCast('🛡️','REPOUSSÉ !','Le bouclier de '+t.name+' chasse le fantôme !');
+      room.log.push('🛡️ '+t.name+' repousse le Fantôme Voleur de '+p.name+' !');
+    } else {
+      const amt=Math.min(10,t.coins);
+      t.coins-=amt; addCoins(p,amt);
+      snd('boo');
+      fxCast('👻','VOLÉ !!','Le fantôme de '+p.name+' dérobe '+amt+' 🪙 à '+t.name+' !',2800);
+      room.log.push('👻 '+p.name+' envoie son fantôme voler '+amt+' 🪙 à '+t.name+' !');
+    }
+    animBusy=false;
+    await saveRoom(); return;
+  }
   if(id==='loaded'){
     animBusy=true; // fige l'état pendant la popup
     scrollToPawn();
@@ -1035,6 +1082,7 @@ async function landEffect(p){
       const pN=room.players.find(q=>q.id===p.id)||p;
       const foeN=room.players.find(q=>q.id===foe.id)||foe;
       const win=a>b?pN:foeN, lose=a>b?foeN:pN;
+      win.duelWins=(win.duelWins||0)+1;
       // le perdant est repoussé d'une case en arrière (un prédécesseur de la case)
       const prevs=[];
       room.board.forEach((n,i)=>{ if(n.next&&n.next.indexOf(pN.pos)>=0) prevs.push(i); });
@@ -1061,6 +1109,7 @@ async function landEffect(p){
     } else {
       const amt=Math.min(12,p.coins);
       addCoins(p,-amt); if(owner) addCoins(owner,amt);
+      p.trapHits=(p.trapHits||0)+1;
       snd('boom');
       fxCast('🧨','PIÉGÉ !!',p.name+' saute sur la bombe de '+(owner?owner.name:'?')+' : −'+amt+' 🪙 !',2800);
       room.log.push('🧨 '+p.name+' saute sur une bombe ! −'+amt+' 🪙 pour '+(owner?owner.name:'?'));
@@ -1073,7 +1122,7 @@ async function landEffect(p){
     const l=dbl?6:3;
     if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe la case piège !');
       room.log.push('🛡️ '+p.name+' bloque la case piège !'); }
-    else{ addCoins(p,-l); snd('bad'); logAct(p,'💥','<b>−'+l+' 🪙</b>',p.name+' perd −'+l+' 🪙','sad'); }
+    else{ addCoins(p,-l); p.trapHits=(p.trapHits||0)+1; snd('bad'); logAct(p,'💥','<b>−'+l+' 🪙</b>',p.name+' perd −'+l+' 🪙','sad'); }
   }
   else if(t==='lucky'){
     const r=rnd(4);
@@ -1266,6 +1315,7 @@ async function doDuel(p){
   snd('duel');
   let a,b; do{ a=1+rnd(6); b=1+rnd(6); }while(a===b);
   const win=a>b?p:t, lose=a>b?t:p;
+  win.duelWins=(win.duelWins||0)+1;
   const amt=Math.min(10,lose.coins);
   lose.coins-=amt; addCoins(win,amt);
   fxCast('⚔️','DUEL !',p.avatar+' '+a+' 🆚 '+b+' '+t.avatar+'<br>'+win.name+' rafle '+amt+' 🪙 !',3000);
@@ -1283,7 +1333,7 @@ async function doEvent(p){
   if(ev==='gift'){ addCoins(p,6); fxCast('🎉','CADEAU !','+6 🪙 pour '+p.name+' !'); room.log.push('🎉 Cadeau : +6 🪙 pour '+p.name); }
   else if(ev==='trap'){
     if(popShield(p)){ fxCast('🛡️','BLOQUÉ !','Le bouclier de '+p.name+' absorbe le piège !'); room.log.push('🛡️ '+p.name+' bloque un piège !'); }
-    else{ addCoins(p,-6); fxCast('💥','PIÈGE !','−6 🪙 pour '+p.name+' !'); room.log.push('💥 Piège : −6 🪙 pour '+p.name); }
+    else{ addCoins(p,-6); p.trapHits=(p.trapHits||0)+1; fxCast('💥','PIÈGE !','−6 🪙 pour '+p.name+' !'); room.log.push('💥 Piège : −6 🪙 pour '+p.name); }
   }
   else if(ev==='swap'&&others.length){
     const o=others[rnd(others.length)];
@@ -1346,10 +1396,61 @@ async function doEvent(p){
   renderBoard(); await sleep(1100);
 }
 
+/* ---------- CATACLYSME de mi-partie : un séisme par carte ---------- */
+function cataClear(){
+  if(!room.cata) return;
+  (room.cata.idx||[]).forEach(([i,t])=>{ if(room.board[i]) room.board[i].t=t; });
+  if(room.cata.oldCost!=null) room.starCost=room.cata.oldCost;
+  room.cata=null;
+  room.cataSeq=(room.cataSeq||0)+1;   // force la reconstruction du plateau 3D
+  fxCast('🌤️','LE CALME REVIENT','Le plateau reprend son état normal.',2200);
+  room.log.push('🌤️ Fin du cataclysme : tout redevient normal.');
+}
+function cataFire(){
+  const until=room.round+2;
+  const idx=[];
+  room.cataSeq=(room.cataSeq||0)+1;
+  snd('boom'); vib([40,60,80]);
+  if(room.mapId==='volcan'){
+    room.board.forEach((n,i)=>{ if(n.t==='blue'){ idx.push([i,'blue']); n.t='red'; } });
+    room.cata={until, idx};
+    fxCast('🌋','ÉRUPTION !!','La lave change l\'or en braises : TOUTES les cases 🪙 piègent pendant 2 tours !',3800);
+    room.log.push('🌋 CATACLYSME : éruption ! Les cases pièces deviennent des pièges !');
+  } else if(room.mapId==='archipel'){
+    room.board.forEach((n,i)=>{ if(n.t==='blue'&&(n.z||0)===0){ idx.push([i,'blue']); n.t='red'; } });
+    room.cata={until, idx};
+    fxCast('🌊','MARÉE GÉANTE !!','La mer monte : les plages 🪙 du littoral sont inondées pendant 2 tours !',3800);
+    room.log.push('🌊 CATACLYSME : marée géante sur le littoral !');
+  } else if(room.mapId==='fete'){
+    room.cata={until, oldCost:starCost()};
+    room.starCost=Math.max(5,Math.ceil(starCost()/2));
+    snd('star');
+    fxCast('🎆','SOLDES DE MINUIT !!','L\'étoile passe à '+room.starCost+' 🪙 pendant 2 tours — FONCEZ !',3800);
+    room.log.push('🎆 CATACLYSME : étoile à moitié prix pendant 2 tours !');
+  } else if(room.mapId==='spirale'){
+    const pos=room.players.map(o=>o.pos).sort(()=>Math.random()-.5);
+    room.players.forEach((o,i)=>o.pos=pos[i]);
+    room.players.forEach(o=>{ if(pItems(o).length<2) pItems(o).push(ITEM_IDS[rnd(ITEM_IDS.length)]); });
+    room.cata={until:room.round};   // effet instantané
+    fxCast('🌀','TEMPÊTE COSMIQUE !!','Le ciel rebat les cartes : places mélangées, un objet pour chacun !',3800);
+    room.log.push('🌀 CATACLYSME : tempête cosmique, tout le monde est déplacé !');
+  } else {
+    let tot=0;
+    room.players.forEach(o=>{ const amt=Math.min(6,o.coins); o.coins-=amt; tot+=amt; });
+    room.bank=(room.bank||0)+tot;
+    room.cata={until:room.round};   // effet instantané
+    fxCast('🗿','LE TRIBUT DU TEMPLE !!','Chacun verse 6 🪙 au coffre sacré : la banque monte à '+room.bank+' 🪙 !',3800);
+    room.log.push('🗿 CATACLYSME : le temple prélève son tribut, la banque déborde !');
+  }
+  renderBoard();
+}
 function advanceRoundCore(){
   room.round++;
+  if(room.cata&&room.round>=room.cata.until) cataClear();
+  const mid=Math.ceil((room.maxRounds||8)/2);
   if(room.round===room.maxRounds-2&&!room.finale) triggerFinale();
   else if(room.round===room.maxRounds) fxCast('🏁','DERNIER TOUR !!','Tout se joue maintenant…',2400);
+  else if(room.round===mid&&!room.cataDone){ room.cataDone=true; cataFire(); }
   else fxCast('🎪','TOUR '+room.round+' !','',1400);
   room.status='board'; room.log.push('Tour '+room.round+' !');
 }

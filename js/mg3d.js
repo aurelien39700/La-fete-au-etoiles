@@ -10,7 +10,7 @@ window.MG3D=M;
 
 let ren=null,scene=null,cam=null,areaEl=null,raf=null,frameCb=null,lastT=0;
 let camFocus=new THREE.Vector3(), camWant=new THREE.Vector3(), camDist=30, camEl=.86, camAz=Math.PI/4;
-let camVise=1, camLerp=3.2, fovBase=42;   // point visé au-dessus/au-dessous du joueur, et vivacité du suivi
+let camVise=1, camLerp=3.2, fovBase=42, camAzWant=null;   // point visé au-dessus/au-dessous du joueur, et vivacité du suivi
 const loader=new GLTFLoader(), texL=new THREE.TextureLoader();
 const TEX={};
 const heroes=[]; // handles vivants (pour l'animation procédurale)
@@ -58,7 +58,9 @@ M.init=function(el,opt){
   sun.shadow.mapSize.set(1024,1024);
   const sc=sun.shadow.camera; sc.left=-30; sc.right=30; sc.top=30; sc.bottom=-30;
   scene.add(sun);
-  camDist=opt.dist||30; camEl=opt.el||.86; camAz=opt.az||Math.PI/4;
+  camDist=opt.dist||30; camEl=opt.el||.86;
+  camAz=opt.az!==undefined?opt.az:Math.PI/4;
+  camAzWant=null;
   camVise=opt.vise!==undefined?opt.vise:1;   // hauteur visee par rapport au joueur
   camLerp=opt.lerp||3.2;                     // vivacite du suivi
   camFocus.set(0,0,0); camWant.set(0,0,0);
@@ -91,7 +93,8 @@ M.cadre=function(o){
   if(!o) return;
   if(o.dist!==undefined) camDist=o.dist;
   if(o.el!==undefined) camEl=o.el;
-  if(o.az!==undefined) camAz=o.az;
+  if(o.az!==undefined){ camAz=o.az; camAzWant=null; }
+  if(o.azWant!==undefined) camAzWant=o.azWant;   // vue de dos : on glisse derriere le joueur
   if(o.vise!==undefined) camVise=o.vise;
   if(o.lerp!==undefined) camLerp=o.lerp;
 };
@@ -156,6 +159,30 @@ M.fit=function(m,targetH){
   m.position.z-=(bb2.min.z+bb2.max.z)/2;
 };
 
+/* etiquette flottante : pastille sombre, liseré couleur du joueur, dorée pour SOI */
+function labelSpr(nom,couleur,moi){
+  const c=document.createElement('canvas'); c.width=512; c.height=128;
+  const x=c.getContext('2d');
+  x.font='800 54px "Baloo 2",sans-serif';
+  const l=Math.min(430,x.measureText(nom).width+70);
+  const X=(512-l)/2, R=46;
+  x.beginPath();
+  x.moveTo(X+R,14); x.arcTo(X+l,14,X+l,14+R,R); x.arcTo(X+l,106,X+l-R,106,R);
+  x.arcTo(X,106,X,106-R,R); x.arcTo(X,14,X+R,14,R); x.closePath();
+  x.fillStyle='rgba(18,11,40,.88)'; x.fill();
+  x.lineWidth=moi?9:6;
+  x.strokeStyle=moi?'#FFD644':(couleur||'#8E7CFF');
+  x.stroke();
+  x.fillStyle='#fff'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillText(nom,256,62,l-54);
+  if(moi){ x.font='800 40px "Baloo 2",sans-serif'; x.fillStyle='#FFD644'; x.fillText('▼',256,120); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false,depthWrite:false}));
+  sp.renderOrder=900;                       // lisible meme derriere une plateforme
+  sp.scale.set(moi?3.4:2.8,(moi?3.4:2.8)/4,1);
+  return sp;
+}
+
 /* ---------- héros : modèle 3D du joueur (repli sprite détouré) ---------- */
 M.hero=function(p,o){
   o=o||{};
@@ -172,6 +199,12 @@ M.hero=function(p,o){
     const r=t2.image.width/t2.image.height;
     spr.scale.set(h*r,h,1);
   });
+  // nom au-dessus de la tete : on sait toujours qui on pilote
+  let moi=false;
+  try{ moi=!!(window.curP&&p&&curP().id===p.id); }catch(e){}
+  const lab=labelSpr((p&&p.name)||'?',(p&&p.color)||'#8E7CFF',moi);
+  lab.position.y=h*2.15+(moi?.55:.3);
+  grp.add(lab);
   const H={grp,mesh:null,x:o.x||0,z:o.z||0,dir:0,moving:false,alive:true,
     set(x,z){ H.x=x; H.z=z; grp.position.set(x,H.y||0,z); },
     face(a){ H.dir=a; if(H.mesh) grp.rotation.y=a; },
@@ -220,6 +253,9 @@ M.obj=function(kind,o){
 M.remove=function(m){ if(m&&scene) scene.remove(m); };
 M.group=function(){ const g=new THREE.Group(); scene.add(g); return g; };
 M.THREE=THREE;
+M.debug=()=>({cam:cam?cam.position.toArray().map(v=>+v.toFixed(1)):null,
+  focus:camFocus.toArray().map(v=>+v.toFixed(1)), az:+camAz.toFixed(2), el:+camEl.toFixed(2),
+  heroes:heroes.map(h=>[+h.x.toFixed(1),+(h.y||0).toFixed(1),+h.z.toFixed(1)])});
 
 /* ---------- éclat de particules (impact, ramassage) ---------- */
 M.burst=function(x,y,z,col,n){
@@ -262,15 +298,16 @@ M.joystick=function(el){
   el.appendChild(dot); el.appendChild(nub);
   const R=el.getBoundingClientRect.bind(el);
   el.onpointerdown=e=>{
+    if(o) return;                                  // un doigt pilote deja
     const r=R();
-    o={x:e.clientX-r.left,y:e.clientY-r.top};
+    o={id:e.pointerId,x:e.clientX-r.left,y:e.clientY-r.top};
     S.active=true;
     dot.style.display=nub.style.display='block';
     dot.style.left=o.x+'px'; dot.style.top=o.y+'px';
     nub.style.left=o.x+'px'; nub.style.top=o.y+'px';
   };
   el.onpointermove=e=>{
-    if(!o) return;
+    if(!o||e.pointerId!==o.id) return;             // on ignore les autres doigts
     const r=R();
     let dx=(e.clientX-r.left)-o.x, dy=(e.clientY-r.top)-o.y;
     const d=Math.hypot(dx,dy)||1, max=42;
@@ -278,7 +315,10 @@ M.joystick=function(el){
     S.x=dx/max; S.y=dy/max;
     nub.style.left=(o.x+dx)+'px'; nub.style.top=(o.y+dy)+'px';
   };
-  const up=()=>{ o=null; S.x=S.y=0; S.active=false; dot.style.display=nub.style.display='none'; };
+  const up=e=>{
+    if(o&&e&&e.pointerId!==undefined&&e.pointerId!==o.id) return;   // c'etait l'autre doigt (saut)
+    o=null; S.x=S.y=0; S.active=false; dot.style.display=nub.style.display='none';
+  };
   el.onpointerup=up; el.onpointercancel=up; el.onpointerleave=up;
   M.stick=S;
   return S;
@@ -307,6 +347,10 @@ function loop(){
   if(frameCb){ try{ frameCb(dt,t); }catch(e){} }
   if(!M.on||!ren||!cam) return; // le mini-jeu vient de se terminer (MG3D.stop dans la frame)
   camFocus.lerp(camWant,Math.min(1,dt*camLerp));
+  if(camAzWant!=null){
+    let d=((camAzWant-camAz)%(Math.PI*2)+Math.PI*3)%(Math.PI*2)-Math.PI;
+    camAz+=d*Math.min(1,dt*2.4);
+  }
   cam.position.set(camFocus.x+Math.sin(camAz)*camDist*Math.cos(camEl),
                    camFocus.y+camDist*Math.sin(camEl),
                    camFocus.z+Math.cos(camAz)*camDist*Math.cos(camEl));

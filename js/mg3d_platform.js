@@ -55,6 +55,7 @@ function pfInit(area,opt){
     W.plats.push(p);
     return p;
   };
+  window.__PF=W;
   return W;
 }
 
@@ -153,7 +154,7 @@ function pfFin(W,score){
 /* --- 48 : la Tour Infinie — grimper une spirale de plateformes --- */
 function mgTour3D(area){
   pfDepart(area,(preActs,start)=>{
-    const W=pfInit(area,{dist:26,el:.40,vise:4.5,lerp:6,fog:[70,210],far:600}); if(!W){ submitScore(0); return; }
+    const W=pfInit(area,{dist:22,el:.32,vise:2.6,lerp:6,fog:[70,210],far:600}); if(!W){ submitScore(0); return; }
     const NIV=44;
     for(let i=0;i<NIV;i++){
       const a=i*1.05, r=6.2+Math.sin(i*.7)*1.4;
@@ -171,6 +172,7 @@ function mgTour3D(area){
       if(me.y>haut){ haut=me.y; if(me.grounded) checkY=me.y; }
       if(me.y<checkY-14){ me.x=0; me.z=0; me.y=checkY+1; me.vy=0; snd('bad'); vib(40); }
       MG3D.look(me.x,me.z,false,me.y);
+      if(me.moving) MG3D.cadre({azWant:me.dir+Math.PI});   // camera dans le dos du grimpeur
       pfEnvoi(W,me,env);
       info.textContent=(haut*.9).toFixed(0)+' m';
       $('mgTimer').textContent=Math.max(0,42-el).toFixed(0)+' s';
@@ -179,41 +181,78 @@ function mgTour3D(area){
   });
 }
 
-/* --- 49 : Course d'Obstacles — sauter les rondins qui arrivent --- */
+/* --- 49 : Course d'Obstacles — haies, balayeurs et fosses sur 120 m --- */
 function mgObst3D(area){
   pfDepart(area,(preActs,start,rng)=>{
-    const W=pfInit(area,{dist:26,el:.44,vise:2,lerp:5,fog:[70,230],far:600}); if(!W){ submitScore(0); return; }
+    const W=pfInit(area,{dist:24,el:.42,az:Math.PI,vise:2.2,lerp:5,fog:[70,230],far:600}); if(!W){ submitScore(0); return; }
     const T=W.T, LONG=120;
     W.plat(0,0,LONG/2-6,13,LONG,0x8F86C8);
     const me=pfHeros(W,0,0,2.4);
     const info=mg3dInfo(area,'0 m');
     pfReseau(W,me,preActs);
-    const rondins=[];
-    for(let i=0;i<26;i++){
-      const z=9+i*4.2+rng()*1.4;
-      const m=new T.Mesh(new T.CylinderGeometry(.62,.62,9,8),W.matiere(0xC06A3A));
-      m.rotation.z=Math.PI/2;
-      m.position.set((rng()-.5)*4,.62,z);
-      MG3D.group().add(m);
-      rondins.push({m,z,x:m.position.x,v:(rng()<.5?-1:1)*(1.2+rng()*2.6)});
+    // trois familles d'obstacles qui alternent le long de la piste
+    const haies=[], balais=[], fosses=[];
+    for(let i=0;i<24;i++){
+      const z=10+i*4.6+rng()*1.2;
+      const type=i%3;
+      if(type===0){          // HAIE : barre basse a sauter
+        const g=new T.Group();
+        const bar=new T.Mesh(new T.BoxGeometry(9,.5,.5),W.matiere(0xFF9F45,0x5a2a00));
+        bar.position.y=.85; g.add(bar);
+        [-4.5,4.5].forEach(x=>{ const p2=new T.Mesh(new T.CylinderGeometry(.18,.22,1.7,6),W.matiere(0x6E63A8));
+          p2.position.set(x,.85-.85,0); p2.position.y=.42; g.add(p2); });
+        g.position.set(0,0,z);
+        MG3D.group().add(g);
+        haies.push({z});
+      } else if(type===1){   // BALAYEUR : colonne qui glisse en travers
+        const m=new T.Mesh(new T.CylinderGeometry(.75,.9,3.4,10),W.matiere(0x3EE6C1,0x0E4A3C));
+        m.position.set(0,1.7,z);
+        MG3D.group().add(m);
+        balais.push({m,z,ph:rng()*7,sp:.9+rng()*1.1,amp:2.6+rng()*2});
+      } else {               // FOSSE : bande sombre a sauter, sinon on y tombe
+        const trou=new T.Mesh(new T.BoxGeometry(13.2,.35,2.2),
+          new T.MeshStandardMaterial({color:0x120B24,roughness:1}));
+        trou.position.set(0,.28,z);
+        MG3D.group().add(trou);
+        const lis=new T.Mesh(new T.BoxGeometry(13.2,.1,.24),W.matiere(0xFF6B6B,0x571510));
+        lis.position.set(0,.5,z-1.2); MG3D.group().add(lis);
+        const lis2=lis.clone(); lis2.position.z=z+1.2; MG3D.group().add(lis2);
+        fosses.push({z});
+      }
     }
     const env={}; let over=false, chocs=0, fini=0;
     MG3D.frame((dt,t)=>{
       if(over) return;
       const el=(Date.now()-start)/1000;
       pfStep(W,me,dt,{sp:10.4,jv:14.2});
-      rondins.forEach(r=>{
-        r.x+=r.v*dt; if(Math.abs(r.x)>3.6) r.v*=-1;
-        r.m.position.x=r.x; r.m.rotation.x-=r.v*dt*1.4;
-        if(me.y<1.25&&Math.abs(me.z-r.z)<1.0&&Math.abs(me.x-r.x)<4.6){
-          me.z-=4.2; chocs++; snd('bad'); vib(50);
-          MG3D.burst(me.x,1,me.z,0xFF6B6B,10);
+      // haies : on saute ou on percute
+      haies.forEach(h=>{
+        if(me.y<0.95&&Math.abs(me.z-h.z)<.55&&Math.abs(me.x)<4.9){
+          me.z=h.z-1.6; chocs++; snd('bad'); vib(45);
+          MG3D.burst(me.x,1,me.z,0xFF9F45,10);
+        }
+      });
+      // balayeurs : ils glissent, on slalome
+      balais.forEach(b2=>{
+        b2.m.position.x=Math.sin(t*.001*b2.sp+b2.ph)*b2.amp;
+        const dx=me.x-b2.m.position.x, dz=me.z-b2.z;
+        if(me.y<1.6&&dx*dx+dz*dz<1.9){
+          me.z=b2.z-1.8; me.x+=dx>0?1.2:-1.2; chocs++; snd('bad'); vib(45);
+          MG3D.burst(me.x,1.2,me.z,0x3EE6C1,10);
+        }
+      });
+      // fosses : au sol dedans = on tombe, retour 4 m en arriere
+      fosses.forEach(f=>{
+        if(me.grounded&&Math.abs(me.z-f.z)<1.1&&Math.abs(me.x)<6.6){
+          chocs++; snd('boom'); vib(70);
+          MG3D.burst(me.x,.4,me.z,0x120B24,14);
+          me.z=Math.max(0,f.z-4); me.vy=0;
         }
       });
       me.x=Math.max(-6,Math.min(6,me.x));
       me.z=Math.max(-3,me.z);
       if(me.z>=LONG-14&&!fini) fini=el;
-      MG3D.look(me.x*.45,me.z+5,false,0);   // on voit les rondins arriver
+      MG3D.look(me.x*.45,me.z+5,false,0);   // on voit les obstacles arriver
       pfEnvoi(W,me,env);
       info.textContent=Math.max(0,me.z).toFixed(0)+' m';
       $('mgTimer').textContent=Math.max(0,45-el).toFixed(0)+' s';
@@ -274,7 +313,7 @@ function mgCorde3D(area){
     const W=pfInit(area,{dist:26,el:.52,vise:1.6,lerp:3.4}); if(!W){ submitScore(0); return; }
     const T=W.T;
     W.plat(0,0,0,17,17,0x8F86C8);
-    const bras=new T.Mesh(new T.BoxGeometry(16,.7,.7),W.matiere(0xFF5FA2,0x6a0a30));
+    const bras=new T.Mesh(new T.BoxGeometry(25,.7,.7),W.matiere(0xFF5FA2,0x6a0a30));
     bras.position.set(0,.75,0);
     MG3D.group().add(bras);
     const mat=new T.Mesh(new T.CylinderGeometry(.5,.5,5,7),W.matiere(0x2A2038));
@@ -294,11 +333,11 @@ function mgCorde3D(area){
         pfStep(W,me,dt,{sp:9.5,jv:12.6});
         const lim=7.6;
         me.x=Math.max(-lim,Math.min(lim,me.x)); me.z=Math.max(-lim,Math.min(lim,me.z));
-        // la poutre nous fauche si on est au sol et sur son passage
+        // la poutre nous fauche si on est au sol et sur sa ligne exacte
         const d=Math.hypot(me.x,me.z);
-        const aMe=Math.atan2(me.x,me.z);
-        let da=Math.abs(((aMe-ang)%(Math.PI*2)+Math.PI*3)%(Math.PI*2)-Math.PI);
-        if(me.y<1.15&&d<8&&Math.min(da,Math.PI-da)<.13){
+        const bx=Math.cos(ang), bz=-Math.sin(ang);          // direction reelle du bras
+        const ecart=Math.abs(me.x*bz-me.z*bx);              // distance a la ligne
+        if(me.y<1.15&&d<12.6&&ecart<1.0){
           me.alive=false; mortA=Date.now(); snd('bad'); vib(70);
           MG3D.burst(me.x,1,me.z,0xFF5FA2,14);
           actSend({k:'pd',id:me.pid});
@@ -319,7 +358,7 @@ function mgCorde3D(area){
 /* --- 52 : le Pont Cassé — traverser avant que les planches lâchent --- */
 function mgPont3D(area){
   pfDepart(area,(preActs,start,rng)=>{
-    const W=pfInit(area,{dist:26,el:.48,vise:2,lerp:5,fog:[60,200],far:500}); if(!W){ submitScore(0); return; }
+    const W=pfInit(area,{dist:24,el:.44,az:Math.PI,vise:2.2,lerp:5,fog:[60,200],far:500}); if(!W){ submitScore(0); return; }
     W.plat(0,0,-4,10,8,0x6E63A8);
     const NB=30;
     for(let i=0;i<NB;i++){
@@ -434,7 +473,8 @@ function mgMontee3D(area){
           actSend({k:'pd',id:me.pid});
         }
       }
-      MG3D.look(me.x*.6,me.z*.6,false,me.y);  // on suit le grimpeur : la lave entre par le bas
+      MG3D.look(me.x*.8,me.z*.8,false,me.y);  // on suit le grimpeur : la lave entre par le bas
+      if(me.alive!==false&&me.moving) MG3D.cadre({azWant:me.dir+Math.PI});
       pfEnvoi(W,me,env);
       info.textContent=(haut*.9).toFixed(0)+' m';
       $('mgTimer').textContent=Math.max(0,46-el).toFixed(0)+' s';
@@ -520,7 +560,7 @@ function mgChute3D(area){
 /* --- 56 : Escalier Roulant — l'escalier descend, il faut monter --- */
 function mgEscalier3D(area){
   pfDepart(area,(preActs,start,rng)=>{
-    const W=pfInit(area,{dist:23,el:.50,az:0,vise:2.5,lerp:6.5,fog:[65,200],far:500}); if(!W){ submitScore(0); return; }
+    const W=pfInit(area,{dist:23,el:.46,az:Math.PI,vise:2.5,lerp:6.5,fog:[65,200],far:500}); if(!W){ submitScore(0); return; }
     const NB=26;
     const marches=[];
     for(let i=0;i<NB;i++){
@@ -599,7 +639,8 @@ function mgDrapeau3D(area){
       haut=Math.max(haut,me.y);
       if(me.y<-11){ me.x=0; me.z=0; me.y=1; me.vy=0; snd('bad'); vib(50); }
       if(me.y>SOM-.6&&Math.hypot(me.x,me.z)<3.4&&!fini){ fini=el; snd('fanfare'); MG3D.burst(0,SOM+2,0,0xFFD644,26); }
-      MG3D.look(me.x*.6,me.z*.6,false,me.y);
+      MG3D.look(me.x*.8,me.z*.8,false,me.y);
+      if(!fini&&me.moving) MG3D.cadre({azWant:me.dir+Math.PI});
       pfEnvoi(W,me,env);
       info.textContent=fini?'DRAPEAU !':Math.min(99,haut/SOM*100).toFixed(0)+' %';
       $('mgTimer').textContent=Math.max(0,50-el).toFixed(0)+' s';

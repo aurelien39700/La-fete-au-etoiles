@@ -15,7 +15,9 @@ const ITEMS={
   bomb:  {e:'🧨', name:'Bombe Piégée',   price:9,  desc:'Piège ta case : −12 🪙 au prochain qui s\'y arrête'},
   triple:{e:'🎲', name:'Dé Triple',      price:12, desc:'Lance 3 dés ce tour !'},
   ovni:  {e:'🛸', name:'OVNI',           price:13, desc:'Renvoie un joueur à la case départ !'},
-  pipe:  {e:'🌀', name:'Tuyau Magique',  price:15, desc:'Téléporte-toi sur l\'étoile !'}
+  pipe:  {e:'🌀', name:'Tuyau Magique',  price:15, desc:'Téléporte-toi sur l\'étoile !'},
+  mirror:{e:'🪞', name:'Miroir Maudit',  price:10, desc:'Échange ta place avec un joueur au choix'},
+  spook: {e:'👻', name:'Fantôme Voleur', price:9,  desc:'Le fantôme vole 10 🪙 au joueur de ton choix'}
 };
 const ITEM_IDS=Object.keys(ITEMS);
 /* vignettes illustrées des objets (repli emoji si absentes) */
@@ -647,17 +649,26 @@ window.addEventListener('load',()=>{
     if(localSet.tourney&&localSet.rounds>6){ localSet.rounds=6; $('btnLocalRounds').textContent='🔁 6 tours'; }
   };
 });
+/* vignette d'une ligne locale : le costume equipe s'affiche s'il correspond */
+function localVignette(i,hIdx,cIdx){
+  if(i===0&&me.skin&&skinOf(me.skin)&&skinOf(me.skin).hero===HEROES[hIdx].id&&window.SKIN_OK&&SKIN_OK[me.skin])
+    return `<img src="/art/sprite-${me.skin}.png" alt="" style="width:34px;height:34px;object-fit:contain;">`;
+  return heroThumb(HEROES[hIdx].id,AURAS[cIdx],34);
+}
 function addLocalRow(name){
   if(localCount>=8) return;
   const i=localCount++;
   const row=document.createElement('div'); row.className='prow';
-  row.dataset.h=i%HEROES.length; row.dataset.c=i%AURAS.length;
-  row.innerHTML=`<span class="pav" style="cursor:pointer;">${heroThumb(HEROES[i%HEROES.length].id,AURAS[i%AURAS.length],34)}</span>
+  // la ligne 1 = le proprietaire du telephone : SON heros, donc SON costume
+  const hMoi=HEROES.findIndex(h=>h.id===me.hero);
+  row.dataset.h=(i===0&&hMoi>=0)?hMoi:i%HEROES.length;
+  row.dataset.c=i%AURAS.length;
+  row.innerHTML=`<span class="pav" style="cursor:pointer;">${localVignette(i,+row.dataset.h,+row.dataset.c)}</span>
     <input type="text" maxlength="12" placeholder="Joueur ${i+1}" value="${name||''}"
       style="flex:1; text-align:left; font-size:16px; padding:8px 12px; border-radius:12px;">`;
   row.querySelector('.pav').onclick=()=>{
     row.dataset.h=(+row.dataset.h+1)%HEROES.length; snd('tap');
-    row.querySelector('.pav').innerHTML=heroThumb(HEROES[+row.dataset.h].id,AURAS[+row.dataset.c],34);
+    row.querySelector('.pav').innerHTML=localVignette(i,+row.dataset.h,+row.dataset.c);
   };
   $('localList').appendChild(row);
 }

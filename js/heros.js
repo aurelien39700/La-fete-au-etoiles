@@ -215,6 +215,7 @@ function heroSvg(id,color,size){
 /* portraits (menus), sprites détourés, poses (victoire/défaite) et skins :
    sondés au chargement, repli propre si l'image manque */
 const HERO_OK={}, SPRITE_OK={}, POSE_OK={}, SKIN_OK={};
+window.SKIN_OK=SKIN_OK;   // les modules 3D testent window.SKIN_OK : il doit exister
 (function(){
   let left=HEROES.length*4+SKINS.length;
   const done=()=>{

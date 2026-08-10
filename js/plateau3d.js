@@ -143,8 +143,9 @@ function heroGLB(id,cb){
     const q=(HERO3D[id]&&HERO3D[id].q)||[];
     HERO3D[id]={ok:1,gltf:g};
     q.forEach(f=>{ try{ f(g); }catch(err){} }); // TOUS les joueurs servis
-  },undefined,()=>{ HERO3D[id]={ok:0,fail:1}; });
+  },undefined,err=>{ HERO3D[id]={ok:0,fail:1,err:String((err&&err.message)||err).slice(0,300)}; });
 }
+window.__H3D=HERO3D;
 
 /* ---------- textures canvas (icônes de secours, pastilles) ---------- */
 function canvasTex(draw){
@@ -1205,7 +1206,7 @@ B3D.render=function(){
     wrap.appendChild(vb);
     sizeToWrap();
   }
-  const key=room.mapId+':'+room.starIdx+':'+room.board.length+':'+Object.keys(EL3D).filter(k=>EL3D[k].ok).length+':'+(VOXTEX[room.mapId]?'T':'');
+  const key=room.mapId+':'+room.starIdx+':'+room.board.length+':'+Object.keys(EL3D).filter(k=>EL3D[k].ok).length+':'+(VOXTEX[room.mapId]?'T':'')+':'+(room.cataSeq||0);
   if(B3D.built!==key){ B3D.built=key; build(); }
   // groupes dynamiques
   if(!gPions){ gPions=new THREE.Group(); scene.add(gPions); }

@@ -161,7 +161,9 @@ async function endGame(){
     {icon:'💰',t:'Étoile du Richissime',d:'a gagné le plus de 🪙 au total',val:p=>p.coinsEarned||0},
     {icon:'🎮',t:'Étoile du Champion',d:'a gagné le plus de mini-jeux',val:p=>p.mgWins||0},
     {icon:'🚀',t:'Étoile du Voyageur',d:'a parcouru le plus de cases',val:p=>p.travel||0},
-    {icon:'🎁',t:'Étoile de l\'Aventurier',d:'a déclenché le plus d\'événements',val:p=>p.events||0}
+    {icon:'🎁',t:'Étoile de l\'Aventurier',d:'a déclenché le plus d\'événements',val:p=>p.events||0},
+    {icon:'🍀',t:'Étoile du Poissard',d:'a subi le plus de pièges — lot de consolation !',val:p=>p.trapHits||0},
+    {icon:'⚔️',t:'Étoile du Duelliste',d:'a gagné le plus de duels',val:p=>p.duelWins||0}
   ].sort(()=>Math.random()-.5).slice(0,2);
   room.bonus=[];
   for(const c of cats){
@@ -197,9 +199,10 @@ function resetManche(){
   const cost=mapById(room.mapId).starCost||20;
   room.players.forEach(p=>{
     p.pos=0; p.coins=room.startCoins||10; p.stars=0; p.items=[];
-    p.travel=0; p.mgWins=0; p.events=0; p.coinsEarned=0;
+    p.travel=0; p.mgWins=0; p.events=0; p.coinsEarned=0; p.trapHits=0; p.duelWins=0;
   });
   room.round=1; room.bank=0; room.traps={}; room.finale=null;
+  if(room.cata) cataClear(); room.cataDone=false;
   room.starCost=cost; room.starIdx=(room.starSpots||[8])[0];
   room.bonus=null; room.lastWinner=null; room.lastMg=undefined;
   room.turn=0; room.turnFx=null;
